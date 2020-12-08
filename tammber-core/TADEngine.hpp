@@ -487,6 +487,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  	bool writeFiles=safe_extractor<bool>(parameters,"WriteFiles",false);
 	bool self_check=safe_extractor<bool>(parameters,"SelfCheck",true);
 	bool thresh_check=safe_extractor<bool>(parameters,"ThreshCheck",false);
+	int clust_thresh=safe_extractor<int>(parameters,"NEBClusterThresh",1);
 	bool CalculatePrefactor=safe_extractor<bool>(parameters,"CalculatePrefactor",false);
 	double ThresholdBarrier=safe_extractor<double>(parameters,"ThresholdBarrier",1.0);
 
@@ -498,6 +499,10 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  	GenericTask min;
  	min.type=BaseEngine::mapper.type("TASK_MIN");
  	min.flavor=task.flavor;
+
+ 	GenericTask carve;
+	carve.type=BaseEngine::mapper.type("TASK_CARVE");
+	carve.flavor = task.flavor;
 
  	GenericTask spacemap;
  	spacemap.type=BaseEngine::mapper.type("TASK_SPACEMAP");
@@ -518,7 +523,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
  	NEBPathway pathway; // home of all non-configuration return data;
  	bool success, reset, have_saddle, have_pairs, have_pathway,fsuccess;
-
+	int InitialClusters=1,FinalClusters=1;
  	have_pathway = extract("NEBPathway",task.arguments,pathway);
 
 
@@ -562,6 +567,11 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  	BaseEngine::process(label);
  	extract("Labels",label.returns,InitialLabels);
 
+	carve.clearInputs(); carve.clearOutputs();
+ 	insert("State",carve.inputData,initial);
+ 	BaseEngine::process(carve);
+ 	extract("Clusters",carve.returns,InitialClusters);
+
  	LOGGER("Initial E: "<<initial.getEnergy())
  	pathway.initialE = initial.getEnergy();
 
@@ -575,6 +585,11 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  	insert("State",label.inputData,final);
  	BaseEngine::process(label);
  	extract("Labels",label.returns,FinalLabels);
+
+	carve.clearInputs(); carve.clearOutputs();
+ 	insert("State",carve.inputData,final);
+ 	BaseEngine::process(carve);
+ 	extract("Clusters",carve.returns,FinalClusters);
 
  	LOGGER("Final E: "<<final.getEnergy())
  	pathway.finalE = final.getEnergy();
@@ -615,11 +630,18 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  		}
  	}
 
-
+ 	pathway.valid=true; // innocent until proven guilty...
+	LOGGERA("InitialClusters: "<<InitialClusters<<" FinalClusters: "<<FinalClusters)
+	if(InitialClusters>clust_thresh or FinalClusters>clust_thresh) {
+ 		pathway.saddleE = pathway.initialE + MAX_BARRIER;
+ 		insert("NEBPathway",task.returns,pathway);
+		return;
+	}
 
  	LOGGER("CANONICAL TRANSITION: "<<InitialLabels.first<<" -> "<<FinalLabels.first)
 
- 	pathway.valid=true; // innocent until proven guilty...
+
+
 
  	// add initial and final states to spacemap
  	spacemap.clearInputs();

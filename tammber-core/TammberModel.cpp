@@ -205,22 +205,15 @@ std::string StateEdge::info_str(bool seg) {
 				for(int ss=0;ss<int(20.0*(eee-baseE)/(conn.second.saddleE-baseE));ss++) res+=" ";
 				res += "| "+std::to_string(eee-baseE)+"\n";
 			}
-			res += "\n  SelfSymmetries:\n";
-			for(auto st: conn.second.self_transitions) res += st.second.info_str();
-			res+="\n";
+			if(conn.second.self_transitions.size()>0) {
+				res += "\n Self Symmetries:\n";
+				for(auto st: conn.second.self_transitions) res += st.second.info_str();
+				res+="\n";
+			}
 		}
 	}
-	if(seg) {
-		res += "\n  TransitionSymmetries:\n";
-		for(auto &sem: self_edge_map) {
-			if (sem.first==sem.second.first) continue;
-			res += std::to_string(sem.first.first)+","+std::to_string(sem.first.second)+" -> ";
-			res += std::to_string(sem.second.first.first)+","+std::to_string(sem.second.first.second);
-			res += sem.second.second.info_str();
-		}
-		res += "\n";
-	}
-
+	if(seg && self_edge_map.size()>0)
+		res += "\n Seen Equivalent Transitions:"+std::to_string(self_edge_map.size())+"\n";
 	res+="\n   Completed NEBS: ";
 	for(auto &pn: completedNEBS) res += std::to_string(pn.first)+","+std::to_string(pn.second)+" ";
 	res+="\n   Requested NEBS: ";

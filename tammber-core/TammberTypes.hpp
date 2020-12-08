@@ -84,10 +84,9 @@ struct PointShiftSymmetry {
 	PointShiftSymmetry compound(PointShiftSymmetry &other);
 
 	std::string info_str() const {
-		std::string res = "\nOperation: "+std::to_string(operation)+"\n";
+		std::string res = "\nOperation "+std::to_string(operation)+" Matrix:\n";
 		for(int i=0;i<NDIM;i++) {
-			if(i!=1) res += "\t";
-			else res += "Matrix:\t";
+			res += "\t";
 			for(int j=0;j<NDIM;j++) {
 				if(int(matrix[NDIM*i+j])>=0) res+="+";
 				res += std::to_string(int(matrix[NDIM*i+j]))+" ";
