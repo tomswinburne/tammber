@@ -415,25 +415,12 @@ std::function<void(GenericTask&)> file_write_impl = [this](GenericTask &task) {
 void transferAtomsFromLammps(System &s){
 	lammps_command(lmp,(char *) "run 0");
 	LAMMPSSystem *sys = &s;
-
-	/*
-	lammps_gather_atoms_concat(lmp,(char *) "id",0,1,&sys->id[0]);
-	lammps_gather_atoms_concat(lmp,(char *) "type",0,1,&sys->species[0]);
-	lammps_gather_atoms_concat(lmp,(char *) "x",1,3,&sys->x[0]);
-	lammps_gather_atoms_concat(lmp,(char *) "v",1,3,&sys->v[0]);
-	if (sys->qflag) lammps_gather_atoms_concat(lmp,(char *) "q",1,1,&sys->q[0]);
-	if (sys->fflag) lammps_gather_atoms_concat(lmp,(char *) "f",1,3,&sys->f[0]);
-	*/
-	//lammps_gather_atoms_subset(lmp,(char *)"id",0,1,&sys->id.size(),&sys->id[0],&sys->x[0]);
-	//lammps_gather_atoms_subset(lmp,(char *)"x",1,3,&sys->id.size(),&sys->id[0],&sys->x[0]);
-	//lammps_gather_atoms_subset(lmp,(char *)"v",1,3,&sys->id.size(),&sys->id[0],&sys->v[0]);
-
-	lammps_gather_atoms(lmp,(char *) "id",0,1,&sys->id[0]);
-	lammps_gather_atoms(lmp,(char *) "type",0,1,&sys->species[0]);
-	lammps_gather_atoms(lmp,(char *) "x",1,3,&sys->x[0]);
-	lammps_gather_atoms(lmp,(char *) "v",1,3,&sys->v[0]);
-	if (sys->qflag) lammps_gather_atoms(lmp,(char *) "q",1,1,&sys->q[0]);
-	if (sys->fflag) lammps_gather_atoms(lmp,(char *) "f",1,3,&sys->f[0]);
+	lammps_gather(lmp,(char *) "id",LAMMPS_INT,1,&sys->id[0]);
+	lammps_gather(lmp,(char *) "type",LAMMPS_INT,1,&sys->species[0]);
+	lammps_gather(lmp,(char *) "x",LAMMPS_DOUBLE,3,&sys->x[0]);
+	lammps_gather(lmp,(char *) "v",LAMMPS_DOUBLE,3,&sys->v[0]);
+	if (sys->qflag) lammps_gather(lmp,(char *) "q",LAMMPS_DOUBLE,1,&sys->q[0]);
+	if (sys->fflag) lammps_gather(lmp,(char *) "f",LAMMPS_DOUBLE,3,&sys->f[0]);
 
 	void * lmpE = lammps_extract_compute(lmp,(char *) "pe",0,0);
 	if (lmpE == NULL) {
@@ -500,8 +487,8 @@ void transferSystemToLammps(System &sys, std::unordered_map<std::string, std::st
 
 
 	lammps_create_atoms(lmp,natoms,&sys.id[0],&sys.species[0],&sys.x[0],&sys.v[0],NULL,1);
-	//if(sys.qflag) lammps_scatter_atoms_subset(lmp,(char *) "q",1,1,sys.id.size(),&sys.id[0],&sys.q[0]);
-	if(sys.qflag) lammps_scatter_atoms(lmp,(char *) "q",1,1,&sys.q[0]);
+	//if(sys.qflag) lammps_scatter_subset(lmp,(char *) "q",LAMMPS_DOUBLE,1,sys.id.size(),&sys.id[0],&sys.q[0]);
+	if(sys.qflag) lammps_scatter(lmp,(char *) "q",LAMMPS_DOUBLE,1,&sys.q[0]);
 
 	//parse the command string
 	std::string rawCmd = postInitScript; //parameters["PostInitScript"];
@@ -516,15 +503,15 @@ void transferSystemToLammps(System &sys, std::unordered_map<std::string, std::st
 
 void singleForceEnergyCall(System &s, bool noforce=false,bool prepost=true) {
 
-	//lammps_scatter_atoms_subset(lmp,(char *) "x",1,3,s.id.size(),&s.id[0],&s.x[0]);
-	lammps_scatter_atoms(lmp,(char *) "x",1,3,&s.x[0]);
+	//lammps_scatter_subset(lmp,(char *) "x",LAMMPS_DOUBLE,3,s.id.size(),&s.id[0],&s.x[0]);
+	lammps_scatter(lmp,(char *) "x",LAMMPS_DOUBLE,3,&s.x[0]);
 	if(prepost) lammps_command(lmp,(char *) "run 0"); // annoying but need to build nlist
 	else lammps_command(lmp,(char *) "run 1 pre no post no"); // OK with check..
 	int nAtoms = s.getNAtoms();
 	if(!noforce) {
 		if(s.fflag==0) s.fflag=1;
 		if(s.f.size() != NDIM*nAtoms) s.f.resize(NDIM*nAtoms,0.0);
-		lammps_gather_atoms_subset(lmp,(char *)"f",1,3,s.id.size(),&s.id[0],&s.f[0]);
+		lammps_gather_subset(lmp,(char *)"f",LAMMPS_DOUBLE,3,s.id.size(),&s.id[0],&s.f[0]);
 	}
 
 	// if a compute called 'pe' does not exists we create it- should only happen once
@@ -539,15 +526,15 @@ void singleForceEnergyCall(System &s, bool noforce=false,bool prepost=true) {
 
 
 std::vector<double> calculateCentroSymmetry(System &s,int nn=8) {
-	//lammps_scatter_atoms_subset(lmp,(char *) "x",1,3,s.id.size(),&s.id[0],&s.x[0]);
-	lammps_scatter_atoms(lmp,(char *) "x",1,3,&s.x[0]);
+	//lammps_scatter_subset(lmp,(char *) "x",LAMMPS_DOUBLE,3,s.id.size(),&s.id[0],&s.x[0]);
+	lammps_scatter(lmp,(char *) "x",LAMMPS_DOUBLE,3,&s.x[0]);
 
 	lammps_command(lmp,(char *) "run 0"); // annoying but need to build nlist
 	std::string cc="compute calcCS all centro/atom "+std::to_string(nn);
 	lammps_command(lmp,(char *) cc.c_str());
 	lammps_command(lmp,(char *) "run 0");
 	std::vector<double> res(s.id.size(),0.0);
-	lammps_gather(lmp,(char *)"c_calcCS",1,1,&res[0]);
+	lammps_gather(lmp,(char *)"c_calcCS",LAMMPS_DOUBLE,1,&res[0]);
 	lammps_command(lmp, (char *)"uncompute calcCS");
 	return res;
 };
