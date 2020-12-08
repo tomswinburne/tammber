@@ -1,0 +1,1676 @@
+/*
+	 Copyright (c) 2016, Los Alamos National Security, LLC
+	 All rights reserved.
+	 Copyright 2016. Los Alamos National Security, LLC. This software was produced under U.S. Government contract DE-AC52-06NA25396 for Los Alamos National Laboratory (LANL), which is operated by Los Alamos National Security, LLC for the U.S. Department of Energy. The U.S. Government has rights to use, reproduce, and distribute this software.  NEITHER THE GOVERNMENT NOR LOS ALAMOS NATIONAL SECURITY, LLC MAKES ANY WARRANTY, EXPRESS OR IMPLIED, OR ASSUMES ANY LIABILITY FOR THE USE OF THIS SOFTWARE.  If software is modified to produce derivative works, such modified software should be clearly marked, so as not to confuse it with the version available from LANL.
+
+	 Additionally, redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+	 1.      Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+	 2.      Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+	 3.      Neither the name of Los Alamos National Security, LLC, Los Alamos National Laboratory, LANL, the U.S. Government, nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+
+	 THIS SOFTWARE IS PROVIDED BY LOS ALAMOS NATIONAL SECURITY, LLC AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL LOS ALAMOS NATIONAL SECURITY, LLC OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#include "TammberModel.hpp"
+
+SymmLabelPair::SymmLabelPair(){
+	first=0;
+	second=0;
+};
+
+SymmLabelPair::SymmLabelPair(LabelPair other) {
+	first=other.first;
+	second=other.second;
+};
+
+SymmLabelPair SymmLabelPair::rev() {
+	SymmLabelPair res;
+	res.second = first;
+	res.first = second;
+	return res;
+};
+
+LabelPair SymmLabelPair::ns() {
+	LabelPair res;
+	res.first = first;
+	res.second = second;
+	return res;
+};
+
+
+SymmLabelPair CanonTrans(Transition trlab) {
+ SymmLabelPair res(std::make_pair(trlab.first.first,trlab.second.first));
+ return res;
+};
+
+SymmLabelPair NonCanonTrans(Transition trlab) {
+	SymmLabelPair res(std::make_pair(trlab.first.second,trlab.second.second));
+	return res;
+};
+
+// for submission
+NEBjob::NEBjob(){
+	/* nothing */
+};
+NEBjob::NEBjob(Transition tt) {
+	TargetTransition = tt;
+	ExistingPairs.clear();
+	InitialSymmetries.clear();
+	FinalSymmetries.clear();
+};
+NEBjob::NEBjob(Transition tt,std::list<LabelPair> epl) {
+	TargetTransition = tt;
+	ExistingPairs.clear();
+	ExistingPairs = epl;
+	InitialSymmetries.clear();
+	FinalSymmetries.clear();
+};
+
+TADjob::TADjob(){
+	nInstances=0;
+};
+TADjob::TADjob(LabelPair il,double t,int n) {
+	InitialLabels = il;
+	temperature = t;
+	nInstances = n;
+};
+TADjob::TADjob(LabelPair il,double t,int n,std::map<LabelPair,double> bl) {
+	InitialLabels = il;
+	temperature = t;
+	nInstances = n;
+	BasinLabels = bl;
+};
+
+// all transition/saddle information here
+Connection::Connection(){
+	saddleE = 10.0 * MAX_BARRIER;
+	dX = 2.0 * MSD_THRESH;
+	dXmax = 2.0 * MSD_THRESH;
+	Ftol = 10.0;
+	fpt = std::make_pair(0.0,0.0);
+	fpT = std::make_pair(0.0,0.0);
+	nu = std::make_pair(PRIOR_NU,PRIOR_NU);
+	priornu = std::make_pair(PRIOR_NU,PRIOR_NU);
+};
+Connection::Connection(NEBPathway &path) {
+	Ftol = 10.0;
+	add_path(path);
+};
+
+void Connection::add_path(NEBPathway &path) {
+	if(path.Ftol < Ftol) {
+		saddleE = path.saddleE;
+		dX = path.dX;
+		dXmax = path.dXmax;
+		Ftol = path.Ftol;
+		energies = path.energies;
+		SaddleLabels = path.SaddleLabels;
+		priornu = path.priornu;
+	}
+	for(auto &nst:path.self_transitions) {
+		bool match=false; // why is self_transitions a std::list ??
+		for(auto &st:self_transitions) if(st.first==nst.first) match=true;
+		if(!match) self_transitions.push_back(nst);
+	}
+};
+
+void Connection::add_jump(double temperature, double _fpt, bool forwards) {
+
+	if(forwards) {
+		if(fpt.first==0.0) {
+			fpt.first = _fpt;
+			fpT.first = temperature;
+		}
+		counts.first += 1.0; // another count
+	} else {
+		if(fpt.second==0.0) {
+			fpt.second = _fpt;
+			fpT.second = temperature;
+		}
+		counts.second += 1.0; // another count
+	}
+};
+
+void Connection::assimilate(Connection& other) {
+	if(saddleE>other.saddleE) {
+		saddleE=other.saddleE;
+		SaddleLabels=other.SaddleLabels;
+		dX=other.dX;
+		dXmax=other.dXmax;
+		Ftol=other.Ftol;
+		energies=other.energies;
+		priornu = other.priornu;
+		nu = other.nu;
+	}
+
+	counts.first += other.counts.first;
+	counts.second += other.counts.second;
+	/*for(auto count: other.counts) {
+		if(counts.find(count.first)==counts.end())
+			counts.insert(std::make_pair(count.first,std::make_pair(0.0,0.0)));
+		counts[count.first].first += count.second.first;
+		counts[count.first].second += count.second.second;
+	}*/
+
+	if(other.fpt.first>0.0 && other.fpT.first<=fpT.first && other.fpt.first<fpt.first) {
+		fpt.first = other.fpt.first;
+		fpT.first = other.fpT.first;
+	}
+
+	if(other.fpt.second>0.0 && other.fpT.second<=fpT.second && other.fpt.second<fpt.second) {
+		fpt.second = other.fpt.second;
+		fpT.second = other.fpT.second;
+	}
+
+};
+
+// Canonical labels implicit?
+StateEdge::StateEdge(){
+	/* do nothing */
+};
+
+StateEdge::StateEdge(SymmLabelPair labels_) {
+	labels = labels_;
+};
+
+StateEdge::StateEdge(SymmLabelPair labels_, SymmLabelPair refc_) {
+	labels = labels_;
+	PointShiftSymmetry op; op.valid=true;
+	self_edge_map.insert(std::make_pair(refc_,std::make_pair(refc_,op)));
+};
+
+std::string StateEdge::info_str(bool seg) {
+
+	std::string res="\n Edge: "+std::to_string(labels.first);
+	if(labels.first==labels.second) res+=" (Self Transition)\n";
+	else res+=" <-> "+std::to_string(labels.second)+"\n";
+	res += "\n   Connections:\n";
+	for(auto &conn: connections) {
+		if (conn.second.dX < MSD_THRESH) continue;
+		res += "  "+std::to_string(conn.first.first)+" -> "+std::to_string(conn.first.second)+": ";
+		double initialE = conn.second.energies[0];
+		res += std::to_string(conn.second.saddleE-initialE)+",";
+		double finalE = *std::prev(conn.second.energies.end());
+		res += std::to_string(conn.second.saddleE-finalE)+" ";
+		res += "dX Ftol : "+std::to_string(conn.second.dX)+" "+std::to_string(conn.second.Ftol)+"\n";
+		if(labels.first==labels.second) res += "  counts: "+std::to_string(conn.second.counts.first+conn.second.counts.second)+"\n";
+		else res += "  counts: "+std::to_string(conn.second.counts.first)+" "+std::to_string(conn.second.counts.second)+"\n";
+
+		if(seg) {
+			double baseE = std::min(initialE,finalE);
+			res += "     E[]: "+std::to_string(baseE)+" + \n";
+			// max res: 20 spaces
+			for(auto eee: conn.second.energies) {
+				res += "    ";
+				for(int ss=0;ss<int(20.0*(eee-baseE)/(conn.second.saddleE-baseE));ss++) res+=" ";
+				res += "| "+std::to_string(eee-baseE)+"\n";
+			}
+			res += "\n  SelfSymmetries:\n";
+			for(auto st: conn.second.self_transitions) res += st.second.info_str();
+			res+="\n";
+		}
+	}
+	if(seg) {
+		res += "\n  TransitionSymmetries:\n";
+		for(auto &sem: self_edge_map) {
+			if (sem.first==sem.second.first) continue;
+			res += std::to_string(sem.first.first)+","+std::to_string(sem.first.second)+" -> ";
+			res += std::to_string(sem.second.first.first)+","+std::to_string(sem.second.first.second);
+			res += sem.second.second.info_str();
+		}
+		res += "\n";
+	}
+
+	res+="\n   Completed NEBS: ";
+	for(auto &pn: completedNEBS) res += std::to_string(pn.first)+","+std::to_string(pn.second)+" ";
+	res+="\n   Requested NEBS: ";
+	for(auto &pn: requestedNEBS) res += std::to_string(pn.first)+","+std::to_string(pn.second)+" ";
+	res+="\n   Pending NEBS: ";
+	for(auto &pn: pendingNEBS) res += std::to_string(pn.first)+","+std::to_string(pn.second)+" ";
+	res += "\n";
+	return res;
+};
+
+// This is similar to TADStateStatistics- one for each canonical label
+StateVertex::StateVertex(){
+	/* nothing */
+};
+StateVertex::StateVertex(LabelPair ref,double energy_,int id_){
+	reference_label = ref;
+	energy=energy_;
+	target_state_time = 1.0;
+	duration = 0;
+	overhead = 0;
+	trials = 0;
+	id=id_;
+	position = {0.,0.,0.};
+	clusters=0;
+	elapsedTime.clear();
+};
+
+void StateVertex::add_segment(TADSegment &seg) {
+	duration += seg.duration;
+	int tint = int(seg.temperature+0.5);
+	if( elapsedTime.find(tint)==elapsedTime.end() )
+		elapsedTime.insert( std::make_pair(tint,0.0) );
+	elapsedTime[tint] += seg.elapsedTime;
+	if(clusters==0) {
+		clusters=seg.initialClusters;
+		position = seg.initialPosition;
+	}
+};
+
+// recalculate effective state time
+double StateVertex::state_time(double targetT) {
+	double iT=0.0,time=1.0;
+	for (auto rit=elapsedTime.rbegin(); rit!=elapsedTime.rend(); ++rit) {
+		if(rit!=elapsedTime.rbegin())
+			time *= exp( (log(std::max(time,1.0))+LOG_NU_MIN) * (1.0-rit->first*iT) ); // to new temperature
+		time += rit->second; // add time
+		iT = 1.0/rit->first; // new iT
+	}
+	time *= exp( (log(std::max(time,1.0))+LOG_NU_MIN) * (1.0-targetT*iT) );
+	if(boost::math::isnan(time)) time=1.0;
+	return time;
+};
+
+std::string StateVertex::info_str(double targetT,double eshift=0.0,double ku=0.0) {
+	double time = state_time(targetT);
+	std::string res=" "+std::to_string(reference_label.first)+" ("+std::to_string(reference_label.second)+")";
+	double dE = energy-eshift;
+	res += " Clusters: "+std::to_string(clusters)+" Position: [";
+	res += std::to_string(position[0])+",";
+	res += std::to_string(position[1])+",";
+	res += std::to_string(position[2])+"],";
+	res += " E-Emin:"+std::to_string(dE)+"eV, t:"+std::to_string(time)+"ps, ";
+	res += "ku:"+std::to_string(ku)+"THz blocks:"+std::to_string(duration)+", overhead:"+std::to_string(overhead)+"\n";
+	return res;
+};
+
+void StateVertex::update(Label lab, double energy_) {
+	if(energy>energy_) energy=energy_;
+	//reference_label.second = lab;
+};
+
+void StateVertex::update(Label lab, double energy_,int clust, std::array<double,3> pos) {
+	LOGGER("UPDATING STATE")
+	if(energy>energy_) energy=energy_;
+	if(reference_label.second==lab && clust>0) {
+			clusters = clust;
+			position = pos;
+	}
+};
+
+void Rate::reset(size_t tadTsize) {
+	std::pair<double,double> pp = std::make_pair(0.0,-1.0);
+	target_k_fp = pp;
+	tad_k_fp.clear();
+	for(size_t i=0;i<tadTsize;i++) tad_k_fp.push_back(pp);
+};
+
+TammberModel::TammberModel(){
+	max_id=0;
+};
+
+TammberModel::TammberModel(double targetT_, double minT_, double maxT_, int nT_, int pfCT, double mB) {
+	parametrize(targetT_, minT_, maxT_, nT_, pfCT, mB);
+};
+
+void TammberModel::parametrize(double targetT_, double minT_, double maxT_, int nT_, int pfCT, double mB) {
+	max_id=0;
+	// TAD parameters. Only inverse temperature counts...
+	targetB = 1.0/targetT_/BOLTZ;
+	targetT = targetT_;
+	tadT.clear();
+	if(nT_>1) {
+		double dT=(maxT_-minT_)/double(std::max(1,nT_-1));
+		for(int i=0; i<nT_; i++) tadT.push_back(minT_+dT*i);
+	} else tadT.push_back(minT_);
+	// Bayesian parameters / priors
+	max_k = 10.0; // Max rate in THz
+	min_ku = 1.0e-20; // Min ku in THz - to force wider sampling
+	max_ku = 0.1; // Max ku in THz - effective prior over distribution
+	prefactorCountThresh = double(pfCT);
+	min_barrier = mB;
+	HashCost = 250.0;
+	NEBCost = 1000.0;
+	RhoInitFlavor = 0;
+	PredictionSize = 3;
+};
+
+void TammberModel::initialize(boost::property_tree::ptree &config,bool restart){
+	if(!restart) max_id=0;
+
+	targetT = config.get<double>("Configuration.MarkovModel.TargetTemperature",300.0);
+
+	if(restart) for(auto &v : StateVertices)
+		v.second.target_state_time = v.second.state_time(targetT);
+
+	targetB = 1.0/targetT/BOLTZ;
+	int nT = config.get<int>("Configuration.MarkovModel.TemperatureSteps",11);
+	double minT = config.get<double>("Configuration.MarkovModel.MinTemperature",300.0);
+	double maxT = config.get<double>("Configuration.MarkovModel.MaxTemperature",600.0);
+	HashCost = config.get<double>("Configuration.MarkovModel.HashCost",250.0);
+	NEBCost = config.get<double>("Configuration.MarkovModel.NEBCost",1000.0);
+	RhoInitFlavor = config.get<int>("Configuration.MarkovModel.RhoInitFlavor",0);
+	AllocScheme = config.get<int>("Configuration.MarkovModel.AllocScheme",0);
+	ClusterThresh = config.get<int>("Configuration.MarkovModel.ClusterThresh",0);
+	safe_opt = config.get<bool>("Configuration.MarkovModel.SafeOpt",true);
+	PredictionSize = config.get<int>("Configuration.MarkovModel.PredictionSize",10);
+	prefactorCountThresh = config.get<double>("Configuration.MarkovModel.PrefactorCountThresh",2.0);
+
+	// Only for postprocessing
+	LatticeConstant = config.get<std::string>("Configuration.MarkovModel.Lattice","None");
+	PrimitiveUnitCell = config.get<std::string>("Configuration.MarkovModel.PrimitiveUnitCell","None");
+	UnitCell = config.get<std::string>("Configuration.MarkovModel.UnitCell","None");
+	SuperCell = config.get<std::string>("Configuration.MarkovModel.SuperCell","None");
+
+	if(ClusterThresh<=0) ClusterThresh = 100000;
+
+	double dT = (maxT-minT) / double(std::max(1,nT-1));
+	tadT.clear();
+	for(int i=0;i<nT;i++) tadT.push_back(minT+dT*i);
+
+	// Stitching parameter. Basins should have escape of at least 5ps at minT
+	min_barrier = log(5.0) * BOLTZ * minT; //  about 0.04eV at 300K
+	max_k = 10.0; // Max rate in THz
+	min_ku = 1.0e-20; // Min ku in THz - to force wider sampling when one state dominant
+	max_ku = 0.1; // Max ku in THz - effective 'low pass' prior over distribution
+	if(restart) for(auto &e: StateEdges) e.second.requestedNEBS.clear();
+};
+
+int TammberModel::newIndex() {
+	return max_id++;
+};
+
+// to be overloaded
+void TammberModel::add_vertex(LabelPair labels, double energy) {
+	if(StateVertices.size()==0) InitialLabels = labels;
+	auto svp = StateVertices.find(labels.first);
+	if(svp==StateVertices.end()) {
+		int id = newIndex(); // 0 index, should be unique even if states are deleted
+		LOGGER("ADDING VERTEX: "<<labels.first<<","<<labels.second<<" E:"<<energy<<"eV")
+		StateVertices.insert(std::make_pair(labels.first,StateVertex(labels,energy,id)));
+	} else svp->second.update(labels.second,energy);
+};
+
+void TammberModel::add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos) {
+	if(StateVertices.size()==0) InitialLabels = labels;
+	auto svp = StateVertices.find(labels.first);
+	if(svp==StateVertices.end()) {
+		int id = newIndex(); // 0 index, should be unique even if states are deleted
+		LOGGER("ADDING VERTEX: "<<labels.first<<","<<labels.second<<" E:"<<energy<<"eV "<<"Nclusters: "<<clusters<<" pos:["<<pos[0]<<","<<pos[1]<<","<<pos[2]<<"]")
+		StateVertices.insert(std::make_pair(labels.first,StateVertex(labels,energy,id)));
+	}
+	svp = StateVertices.find(labels.first);
+	svp->second.update(labels.second,energy,clusters,pos);
+};
+
+
+// bare minimum edge
+void TammberModel::add_edge(SymmLabelPair el) {
+	if(StateEdges.find(el)==StateEdges.end()){
+		StateEdge nse(el);
+		StateEdges.insert(std::make_pair(el,nse));
+	}
+};
+
+// add refconnection as well bare minimum edge
+void TammberModel::add_edge(SymmLabelPair el,SymmLabelPair tl) {
+	if(StateEdges.find(el)==StateEdges.end()){
+		StateEdge nse(el);
+		StateEdges.insert(std::make_pair(el,nse));
+	}
+
+	bool forwards = bool(el.first==StateEdges.find(el)->first.first);
+
+	auto semp = &(StateEdges.find(el)->second.self_edge_map);
+	PointShiftSymmetry op; op.valid=true;// identity operation
+	if(semp->find(tl)==semp->end()) {
+		if(forwards) semp->insert(std::make_pair(tl,std::make_pair(tl,op)));
+		else semp->insert(std::make_pair(tl.rev(),std::make_pair(tl.rev(),op)));
+	}
+
+};
+
+void TammberModel::add_edge(Transition tt) {
+	add_edge(CanonTrans(tt),NonCanonTrans(tt));
+};
+
+// could add some more here
+bool TammberModel::fault_check(TADSegment &seg){
+	bool res = false;
+	//if(seg.InitialLabels.first==0||seg.InitialLabels.second==0) res=true;
+	//if(seg.transition.first.first==0 || seg.transition.first.second==0) res=true;
+	//if(seg.transition.second.first==0 || seg.transition.second.second==0) res=true;
+	if(!seg.dephased) res=true;
+	if(seg.trials>0 && StateVertices.find(seg.InitialLabels.first)!=StateVertices.end()) {
+		auto vertex = &(StateVertices.find(seg.InitialLabels.first)->second);
+		vertex->trials += seg.trials;
+		vertex->overhead += seg.overhead;
+	};
+
+	if(res) LOGGER("FAULTY/UNDEPHASED SEGMENT "<<seg.info_str())
+	return res;
+};
+
+// from TAD
+void TammberModel::add_segment(TADSegment &seg) {
+
+	// Is it valid? (dephased, sensible labels etc)
+	if(fault_check(seg)) return;
+
+	LOGGER("ADDING SEGMENT "<<seg.info_str())
+	// Add vertices if required- currently treating transition labels as independent (see *)
+	//add_vertex(seg.InitialLabels,seg.initialE);
+	add_vertex(seg.InitialLabels,seg.initialE,seg.initialClusters,seg.initialPosition);
+
+
+	if(seg.transition.first!=seg.InitialLabels) {
+		//if(StateVertices.find(seg.transition.first.first)==StateVertices.end());
+		// BASIN NOT YET IMPLEMENTED...
+		LOGGER(seg.transition.first.first<<","<<seg.transition.first.second<<" => "<<seg.InitialLabels.first<<" => "<<seg.InitialLabels.second)
+		//add_vertex(seg.transition.first,seg.BasinLabels[seg.transition.first]);
+	}
+
+	// basin labels are just for monitoring at the moment
+	auto vertex = &(StateVertices.find(seg.InitialLabels.first)->second);
+	for(auto bl: seg.BasinLabels) vertex->BasinLabels.insert(bl);
+
+	// (*) every state should have its own vertex which I later collate....
+	vertex = &(StateVertices.find(seg.transition.first.first)->second);
+	vertex->add_segment(seg); // just for state time etc
+
+	if (seg.OutOfBasin) { // we have a transition...
+		//add_vertex(seg.transition.second,seg.finalE);
+		add_vertex(seg.transition.second,seg.finalE,seg.finalClusters,seg.finalPosition);
+
+		double fpt = vertex->state_time(seg.temperature);
+
+		if(transitionMap.find(seg.transition)==transitionMap.end()) {
+			transitionMap.insert(std::make_pair(seg.transition,seg.transition));
+			transitionMap.insert(std::make_pair(seg.transition.rev(),seg.transition.rev()));
+		}
+
+		Transition trans =  seg.transition;
+		LOGGER("BEFORE TMap: "<<trans.first.first<<","<<trans.first.second<<" -> "<<trans.second.first<<","<<trans.second.second)
+		trans = transitionMap.at(seg.transition);
+		LOGGER("AFTER TMap (ADDING): "<<trans.first.first<<","<<trans.first.second<<" -> "<<trans.second.first<<","<<trans.second.second)
+
+		add_edge(trans); // find / create edge (also takes care of initializing self_edge_map)
+
+		bool forwards=bool(CanonTrans(trans).first==StateEdges.find(CanonTrans(trans))->first.first);
+
+		auto ep = &(StateEdges.find(CanonTrans(trans))->second); // pointer to edge
+		SymmLabelPair tl = NonCanonTrans(trans); // not nec. parallel
+
+		// No NEB? add to pendingNEBS
+		if(ep->completedNEBS.find(tl)==ep->completedNEBS.end()) {
+			if(forwards) ep->pendingNEBS.insert(tl);
+			else ep->pendingNEBS.insert(tl.rev());
+			LOGGER("APPENDING TO pendingNEBS")
+		}
+
+		// what is the "canonical" noncanonical transition label?
+		SymmLabelPair ctl = ep->self_edge_map.at(tl).first; // parallel
+
+		// No connection yet? add to pendingTADS
+		if(ep->connections.find(ctl)==ep->connections.end()) {
+			if(pendingTADS.find(trans)==pendingTADS.end()) {
+				std::list<TADSegment> ttsl;
+				ttsl.push_back(seg);
+				pendingTADS.insert(std::make_pair(trans,ttsl));
+			} else pendingTADS[trans].push_back(seg);
+			LOGGER("APPENDING TO pendingTADS")
+		} else { // otherwise we have a normal transition
+			ep->connections.find(ctl)->second.add_jump(seg.temperature,fpt,forwards);
+		}
+	} // OutOfBasin
+};
+
+
+void TammberModel::add_spacemaps(NEBPathway &path) {
+
+	// first off, incorporate the spacemap results
+	add_vertex(path.InitialLabels,path.initialE);
+	add_vertex(path.FinalLabels,path.finalE);
+
+	// find verticies
+	auto initial_vertex = &(StateVertices.find(path.InitialLabels.first)->second);
+	auto final_vertex = &(StateVertices.find(path.FinalLabels.first)->second);
+
+	// add self_symmetries;
+	for(auto ss: path.InitialSymmetries) initial_vertex->self_symmetries.insert(ss);
+	for(auto ss: path.FinalSymmetries) final_vertex->self_symmetries.insert(ss);
+
+	// add self mappings IF from the reference label (currently just as we have it, will be used...)
+	for(auto &es: path.equivalent_states) { // ( (LabelPair,LabelPair), PointShiftSymmetry )
+		// add mapping if from a reference_label
+		if(es.first.first == initial_vertex->reference_label) // i.e. matching LabelPair
+			initial_vertex->state_isomorphisms.insert(std::make_pair(es.first.second.second,es.second));
+		else if(es.first.first == final_vertex->reference_label)
+				final_vertex->state_isomorphisms.insert(std::make_pair(es.first.second.second,es.second));
+
+		// try reverse...
+		if(es.first.second == initial_vertex->reference_label) // i.e. matching LabelPair
+			initial_vertex->state_isomorphisms.insert(std::make_pair(es.first.first.second,es.second.inverse()));
+		else if(es.first.second == final_vertex->reference_label)
+				final_vertex->state_isomorphisms.insert(std::make_pair(es.first.first.second,es.second.inverse()));
+	}
+	// Also add maps if a self transition
+	for(auto st: path.self_transitions) { // (LabelPair,LabelPair), PointShiftSymmetry
+		if (st.first.first == initial_vertex->reference_label)
+			initial_vertex->state_isomorphisms.insert(std::make_pair(st.first.second.second,st.second));
+		if (st.first.first == final_vertex->reference_label)
+			final_vertex->state_isomorphisms.insert(std::make_pair(st.first.second.second,st.second));
+	}
+};
+
+bool TammberModel::add_transitionMaps(NEBPathway &path) {
+	if (path.FoundTransitions.size()==0) return false;
+	LOGGER("REMAPPING ("<<path.InitialLabels.first<<","<<path.InitialLabels.second<<") -> "<<path.FinalLabels.first<<","<<path.FinalLabels.second<<")")
+
+	for(auto ft:path.FoundTransitions) {
+		LOGGER(ft.print_str())
+		add_edge(ft); // find or create edge
+		auto ep = StateEdges.find(CanonTrans(ft));
+
+		// add to pendingNEBS, checking for direction relative to StateEdge
+		auto nctp = NonCanonTrans(ft);
+		if(CanonTrans(ft).first!=ep->first.first) nctp = NonCanonTrans(ft).rev(); // now parallel
+		if(ep->second.requestedNEBS.find(nctp)==ep->second.requestedNEBS.end()) // not requested
+			if(ep->second.completedNEBS.find(nctp)==ep->second.completedNEBS.end()) // not completed
+				if(ep->second.pendingNEBS.find(nctp)==ep->second.pendingNEBS.end()) // not pending
+					ep->second.pendingNEBS.insert(nctp);
+
+		// add to transitionMap
+		transitionMap[ft] = ft;
+		transitionMap[ft.rev()] = ft.rev();
+	}
+
+	// add to transitionMap - check if already present....?
+	Transition trans(path.InitialLabels,path.FinalLabels);
+	transitionMap[trans] = path.FoundTransitions.front();
+	transitionMap[trans.rev()] = path.FoundTransitions.back().rev();
+
+	// job is done at this point....
+	return true;
+};
+
+bool TammberModel::add_duplicate(NEBPathway &path) {
+	if(!path.duplicate) return false;
+
+	Transition trans(path.InitialLabels,path.FinalLabels);
+
+	auto ep = StateEdges.find(CanonTrans(trans));
+
+	bool forwards(CanonTrans(trans).first==ep->first.first);
+	if(!forwards) LOGGER("TammberModel::add_duplicate : NEBPathway not parallel to StateEdge!")
+
+	std::pair<SymmLabelPair,PointShiftSymmetry> match;
+
+	bool matched=false;
+	for(auto &trp_sy: path.equivalent_transitions) { // ( (LabelPair,LabelPair), PointShiftSymmetry
+		SymmLabelPair tl = NonCanonTrans(trp_sy.first);
+		if(ep->second.connections.find(tl)!=ep->second.connections.end()) {
+			matched=true; // first match
+			match = std::make_pair(tl,trp_sy.second);
+			// map central transition
+			ep->second.self_edge_map[NonCanonTrans(trans)] = match;
+		}
+	}
+	if(matched) {
+		for(auto &trp_sy: path.equivalent_transitions) { // ( (LabelPair,LabelPair), PointShiftSymmetry
+			SymmLabelPair tl = NonCanonTrans(trp_sy.first);
+			if(ep->second.connections.find(tl)!=ep->second.connections.end() and tl!=match.first) {
+				// if S1 : T->E => iS1 : E->T. SM : T -> M => iS1.SM : E->M
+				PointShiftSymmetry iop = trp_sy.second.inverse();
+				ep->second.self_edge_map[tl] =	std::make_pair(match.first,match.second.compound(iop));
+				// assimilte and delete
+				auto cit = ep->second.connections.find(tl);
+				ep->second.connections.find(match.first)->second.assimilate(cit->second);
+				ep->second.connections.erase(cit);
+			}
+		}
+		return true;
+	} else { // ensure correct placeholder but otherwise try again....?
+		path.saddleE = MAX_BARRIER + path.initialE;
+		path.Ftol = 1.0;
+		path.dX = MSD_THRESH * 2.0;
+		path.dXmax = MSD_THRESH * 2.0;
+		path.SaddleLabels = path.InitialLabels;
+		return false;
+	}
+	return true;
+};
+
+// from NEB
+void TammberModel::add_pathway(NEBPathway &path) {
+
+	if(!path.valid && path.FoundTransitions.size()==0) {
+
+		LOGGERA("INVALID PATH! "<<path.info_str())
+
+		if(path.mismatch) LOGGERA("MISMATCHED PATH! ADDING TO TMAP, -(REQUESTED AND PENDING), +PENDING")
+		else LOGGERA("SKIPPING + REMOVING FROM REQUESTED")
+
+		Transition ftrans(path.InitialLabels,path.FinalLabels);
+		auto fep = StateEdges.find(CanonTrans(ftrans));
+		if(fep!=StateEdges.end()) {
+			if(fep->second.requestedNEBS.find(NonCanonTrans(ftrans))!=fep->second.requestedNEBS.end())
+				fep->second.requestedNEBS.erase(fep->second.requestedNEBS.find(NonCanonTrans(ftrans)));
+			if(path.mismatch && fep->second.pendingNEBS.find(NonCanonTrans(ftrans))!=fep->second.pendingNEBS.end())
+				fep->second.pendingNEBS.erase(fep->second.pendingNEBS.find(NonCanonTrans(ftrans)));
+		}
+
+		if(path.mismatch) {
+			SymmLabelPair nctp;
+			bool forwards=false;
+			Transition tp(path.MMInitialLabels,path.MMFinalLabels);
+			fep = StateEdges.find(CanonTrans(tp));
+			if (fep!=StateEdges.end()) { // found edge
+				if(CanonTrans(tp).first==fep->first.first) nctp = NonCanonTrans(tp);
+				else nctp = NonCanonTrans(tp.rev());
+				if(fep->second.completedNEBS.find(nctp)==fep->second.completedNEBS.end()) { // not completed
+					if(fep->second.requestedNEBS.find(nctp)==fep->second.requestedNEBS.end()) { // not requested
+						if(fep->second.pendingNEBS.find(nctp)==fep->second.pendingNEBS.end()) { // not pending
+							LOGGER("INSERTING NEW PATH REQUEST")
+							fep->second.pendingNEBS.insert(nctp); // insert it
+						}
+					}
+				}
+			}
+			LOGGER("ADDING TO TMAP")
+			transitionMap[ftrans] = tp;
+			transitionMap[ftrans.rev()] = tp.rev();
+		}
+		return;
+	}
+
+	// first off, incorporate the spacemap results
+	add_spacemaps(path);
+
+	// If NEB found multiple jumps- we request the jumps and add maps
+	bool multijump = add_transitionMaps(path);
+
+	Transition trans(path.InitialLabels,path.FinalLabels);
+	SymmLabelPair tl = NonCanonTrans(trans);
+	add_edge(CanonTrans(trans)); // find / create edge - it should already exist!!
+	auto ep = &(StateEdges.find(CanonTrans(trans))->second);
+	// should always be forwards, no?
+	bool forwards = bool(CanonTrans(trans).first==StateEdges.find(CanonTrans(trans))->first.first);
+	if(!forwards) LOGGER("TammberModel::add_pathway : NEBPathway not parallel to StateEdge! Ignoring as likely bug")
+
+	if(path.valid && !multijump) { // we have a normal result
+		transitionMap[trans] = trans; // i.e. identity. This is only if multijump==false
+		transitionMap[trans.rev()] = trans.rev();
+		// If NEB found equivalent transitions- incorporate
+		bool duplicate = add_duplicate(path);
+		// Otherwise, we add a new connection
+		if (!duplicate) {
+			Connection conn(path);
+			ep->connections.insert(std::make_pair(tl,conn));
+			PointShiftSymmetry op; op.valid=true;
+			ep->self_edge_map[tl] = std::make_pair(tl,op); // i.e. identity operator
+		}
+	}
+
+	// either way, all is done
+	if(ep->pendingNEBS.find(tl)!=ep->pendingNEBS.end())
+		ep->pendingNEBS.erase(ep->pendingNEBS.find(tl));
+
+	if(ep->requestedNEBS.find(tl)!=ep->requestedNEBS.end())
+		ep->requestedNEBS.erase(ep->requestedNEBS.find(tl));
+
+	ep->completedNEBS.insert(tl);
+
+	// what is the "canonical" noncanoncial transition label?
+	for(auto &pta: pendingTADS) if(pta.second.size()>0) {
+
+		Transition ptrans = transitionMap[pta.first];
+
+		ep = &(StateEdges.find(CanonTrans(ptrans))->second);
+
+		forwards=bool(CanonTrans(ptrans).first==StateEdges.find(CanonTrans(ptrans))->first.first);
+
+		tl = ep->self_edge_map.at(NonCanonTrans(ptrans)).first; // parallel even if ptrans not
+
+		if(ep->connections.find(tl)!=ep->connections.end()) {
+			for(auto &pseg: pta.second) { // list of TADSegments
+				double fpt = StateVertices.find(ptrans.first.first)->second.state_time(pseg.temperature);
+				ep->connections.find(tl)->second.add_jump(pseg.temperature,fpt,forwards);
+			}
+			pta.second.clear();
+		}
+	}
+	for(auto pta=pendingTADS.begin();pta!=pendingTADS.end();) {
+		if(pta->second.size()==0) pta=pendingTADS.erase(pta);
+		else pta++;
+	}
+};
+
+std::string TammberModel::info_str(bool seg){
+	std::string res;
+	res = "TammberModel status:\n";
+	double st=0.0;
+	unsigned blocks=0,overhead=0,nebc=0,jc=0;
+	double minE = 99999999.0;
+	Label minL;
+	for (auto &v: StateVertices) if(minE>v.second.energy) {
+		minE = v.second.energy;
+		minL = v.first;
+	}
+	res += "Minimum Energy State : "+std::to_string(minL)+" ("+std::to_string(minE)+")\n\nVerticies:\n";
+
+	for (auto &v: StateVertices) {
+		UnknownRate ku;
+		unknown_rate(v.first,ku);
+		res += v.second.info_str(targetT,minE,ku.unknown_rate);
+		if (seg) {
+			res += "Self Symmetries: "+std::to_string( v.second.self_symmetries.size())+"\n";
+			for(auto &ss: v.second.self_symmetries) res+=ss.info_str();
+		}
+		st += v.second.target_state_time;
+		blocks += v.second.duration;
+		overhead += v.second.overhead;
+	}
+	res += "Edges:\n";
+	for(auto &e: StateEdges) {
+		res+=e.second.info_str(seg);
+		nebc += e.second.connections.size();
+		jc += e.second.self_edge_map.size();
+	}
+	res += "Total t:"+std::to_string(st)+"ps, blocks:"+std::to_string(blocks)+", overhead:"+std::to_string(overhead);
+	res += ", NEBS:"+std::to_string(nebc)+", jumps:"+std::to_string(jc)+"\n";
+
+	if(pendingTADS.size()>0) {
+		res+="\n  Pending TADS: \n";
+		for(auto &ta: pendingTADS) {
+			res += "  "+std::to_string(ta.first.first.first)+","+std::to_string(ta.first.first.second);
+			res += " -> "+std::to_string(ta.first.second.first)+","+std::to_string(ta.first.second.second);
+			res += " : "+std::to_string(ta.second.size())+"\n";
+		}
+	} else res+="\n  No Pending TADS\n";
+	return res;
+};
+
+std::map<Label, std::pair<Label,std::set<Label>>> TammberModel::listStates() {
+
+	std::map<Label,std::pair<Label,std::set<Label>>> res;
+	for (auto &v: StateVertices) {
+		Label lab = v.second.reference_label.second;
+		res.insert({v.second.reference_label.first,{lab,{lab}}});
+	}
+	for (auto &e: StateEdges) {
+		LabelPair clab;
+		clab.first = e.second.labels.first;
+		clab.second = e.second.labels.second;
+		for(auto &sem : e.second.self_edge_map) {
+			res[clab.first].second.insert(sem.first.first);
+			res[clab.first].second.insert(sem.second.first.first);
+			res[clab.second].second.insert(sem.first.second);
+			res[clab.second].second.insert(sem.second.first.second);
+		}
+	}
+	return res;
+};
+
+void TammberModel::write_model(std::string mmfile) {
+
+	std::ofstream res(mmfile.c_str(),std::ofstream::out);
+
+	std::ofstream state_list("StatesToExtract.list",std::ofstream::out);
+
+	double st=0.0;
+	unsigned blocks=0,overhead=0,nebc=0,jc=0;
+	double minE = 99999999.0;
+	std::vector<std::string> p_xml; // for parsing
+	for (auto v: StateVertices) minE = std::min(minE,v.second.energy);
+	res<<"<MarkovModel>\n";
+
+	if(LatticeConstant.compare("None")!=0)
+		res<<"  <Lattice>"<<LatticeConstant<<"</Lattice>\n";
+
+	if(PrimitiveUnitCell.compare("None")!=0) {
+		p_xml.clear();
+		boost::split(p_xml,PrimitiveUnitCell,boost::is_any_of(" "));
+		res<<"  <PrimitiveUnitCell>\n";
+		for(int l_xml=0;l_xml<p_xml.size()/3;l_xml++)
+			res<<"    "<<p_xml[l_xml*3+0]<<" "<<p_xml[l_xml*3+1]<<" "<<p_xml[l_xml*3+2]<<"\n";
+		res<<"  </PrimitiveUnitCell>\n";
+	}
+
+	if(UnitCell.compare("None")!=0) {
+		p_xml.clear();
+		boost::split(p_xml,UnitCell,boost::is_any_of(" "));
+		res<<"  <UnitCell>\n";
+		for(int l_xml=0;l_xml<p_xml.size()/3;l_xml++)
+			res<<"    "<<p_xml[l_xml*3+0]<<" "<<p_xml[l_xml*3+1]<<" "<<p_xml[l_xml*3+2]<<"\n";
+		res<<"  </UnitCell>\n";
+	}
+
+	if(SuperCell.compare("None")!=0) {
+		p_xml.clear();
+		boost::split(p_xml,SuperCell,boost::is_any_of(" "));
+		res<<"  <SuperCell>\n";
+		for(int l_xml=0;l_xml<p_xml.size()/3;l_xml++)
+			res<<"    "<<p_xml[l_xml*3+0]<<" "<<p_xml[l_xml*3+1]<<" "<<p_xml[l_xml*3+2]<<"\n";
+		res<<"  </SuperCell>\n";
+	}
+
+
+	for (auto &v: StateVertices) {
+		state_list<<v.second.reference_label.first<<" "<<v.second.reference_label.second<<"\n";
+		UnknownRate ku;
+		unknown_rate(v.first,ku);
+		v.second.target_state_time = v.second.state_time(targetT);
+		double emin = (log(v.second.target_state_time)+LOG_NU_MIN)*BOLTZ*targetT;
+		res<<"  <Vertex>\n";
+		res<<"    <CanonLabel>"<<v.second.reference_label.first<<"</CanonLabel>\n";
+		res<<"    <ReferenceLabel>"<<v.second.reference_label.second<<"</ReferenceLabel>\n";
+		res<<"    <Energy>"<<v.second.energy-minE<<"</Energy>\n";
+		res<<"    <UnknownRate>"<<ku.unknown_rate<<"</UnknownRate>\n";
+		res<<"    <Time>"<<v.second.target_state_time<<"</Time>\n";
+		res<<"    <Temperature>"<<targetT<<"</Temperature>\n";
+		res<<"    <TADBarrier>"<<emin<<"</TADBarrier>\n";
+		res<<"    <NClusters>"<<v.second.clusters<<"</NClusters>\n";
+		res<<"    <Position>"<<v.second.position[0]<<" "<<v.second.position[1]<<" "<<v.second.position[2]<<"</Position>\n";
+		if(v.second.self_symmetries.size()>0){
+			res<<"    <SelfSymmetries>\n";
+			for(auto &ss: v.second.self_symmetries)
+				res<<"      "<<ss.operation<<" "<<ss.shift[0]<<" "<<ss.shift[1]<<" "<<ss.shift[2]<<"\n";
+			res<<"    </SelfSymmetries>\n";
+		}
+		if(v.second.state_isomorphisms.size()>0) {
+			res<<"    <SeenEquivalents>\n";
+			for(auto &ss: v.second.state_isomorphisms) {
+				res<<"      "<<ss.first<<" "<<ss.second.operation<<" ";
+				res<<ss.second.shift[0]<<" "<<ss.second.shift[1]<<" "<<ss.second.shift[2]<<"\n";
+			}
+			res<<"    </SeenEquivalents>\n";
+		}
+		res<<"  </Vertex>\n";
+	}
+	for(auto &e: StateEdges) {
+		// modelParams- list(SymmLabelPair,([dE_f,dE_b,nu_f,nu_b], PointShiftSymmetry))
+		auto tstp = modelParams(e.first);
+		for(auto &tstc : tstp) {
+			state_list<<e.first.first<<" "<<tstc.first.first<<"\n";
+			state_list<<e.first.second<<" "<<tstc.first.second<<"\n";
+			res<<"  <Edge>\n";
+			res<<"    <CanonLabels>"<<e.first.first<<" "<<e.first.second<<"</CanonLabels>\n";
+			res<<"    <ReferenceLabels>"<<tstc.first.first<<" "<<tstc.first.second<<"</ReferenceLabels>\n";
+			res<<"    <Barriers>"<<tstc.second.first[0]<<" "<<tstc.second.first[1]<<"</Barriers>\n";
+			res<<"    <PreFactors>"<<tstc.second.first[2]<<" "<<tstc.second.first[3]<<"</PreFactors>\n";
+			if(tstc.second.second.valid) {
+				res<<"    <TransitionSymmetry>"<<tstc.second.second.operation<<" ";
+				res<<tstc.second.second.shift[0]<<" "<<tstc.second.second.shift[1]<<" ";
+				res<<tstc.second.second.shift[2]<<"</TransitionSymmetry>\n";
+			}
+			/*
+			for(auto &sem: e.second.self_edge_map) {
+				if (sem.first==sem.second.first) continue;
+				if(sem.second.first==tstc.first) {
+					res<<"    <SeenEquivalents>";
+					res<<sem.first.first<<" "<<sem.first.second<<" ";
+					res<<sem.second.second.operation<<" "<<sem.second.second.shift[0];
+					res<<" "<<sem.second.second.shift[1]<<" "<<sem.second.second.shift[2];
+					res<<"</SeenEquivalents>\n";
+				};
+			}
+			*/
+			res<<"  </Edge>\n";
+		}
+	}
+	res<<"</MarkovModel>\n";
+	res.close();
+	state_list.close();
+};
+
+void TammberModel::generateNEBs(std::list<NEBjob> &jobs, int nMax) {
+	jobs.clear();
+	std::list<LabelPair> existing;
+
+	for(auto e=StateEdges.begin();e!=StateEdges.end();e++) {
+		if (e->second.pendingNEBS.size()>0 && e->second.requestedNEBS.size()==0 && (jobs.size()<nMax)) {
+			SymmLabelPair el=e->first; // the canonical transition
+			existing.clear();
+			for(auto en: e->second.connections)
+				existing.push_back(std::make_pair(en.first.first,en.first.second)); // noncanonical labels as inside
+
+			for(auto pn = e->second.pendingNEBS.begin(); pn!=e->second.pendingNEBS.end(); pn++) {
+				Transition tt(std::make_pair(el.first,pn->first),std::make_pair(el.second,pn->second));
+				NEBjob job(tt,existing);
+				if(StateVertices.find(el.first)!=StateVertices.end())
+					job.InitialSymmetries = StateVertices.find(el.first)->second.self_symmetries;
+				if(StateVertices.find(el.second)!=StateVertices.end())
+					job.FinalSymmetries = StateVertices.find(el.second)->second.self_symmetries;
+				jobs.push_back(job);
+				LOGGER("ADDING NEB "<<el.first<<","<<pn->first<<" -> "<<el.second<<","<<pn->second)
+				e->second.requestedNEBS.insert(*pn);
+				//pn = e->second.pendingNEBS.erase(pn);
+				if(e->second.requestedNEBS.size()>0) break; // only one at a time for the moment....
+			}
+		}
+	}
+};
+
+void TammberModel::calculate_rates(SymmLabelPair el, Rate &kf, Rate &kb) {
+
+	double aT,tau_term,pf,fpt,N_term,ttau_term,tk;
+	kf.reset(tadT.size());
+	kb.reset(tadT.size());
+
+	auto isp = StateVertices.find(el.first);
+	auto fsp = StateVertices.find(el.second);
+	auto ep = StateEdges.find(el);
+	if(isp==StateVertices.end() || fsp==StateVertices.end() || ep==StateEdges.end()) return;
+
+	bool forwards = bool(el.first==ep->first.first);
+	LOGGER("MAKING RATES: "<<ep->second.connections.size())
+
+	if(ep->second.connections.size()==0) return; // need saddle points....
+
+	for(auto &conn: ep->second.connections) { // all Connections
+
+		if(conn.second.dX<MSD_THRESH) {
+			LOGGER("CONNECTION TOO SMALL: dX="<<conn.second.dX<<"A; SKIPPING")
+			continue;
+		}
+
+		std::pair<double,double> dE = std::make_pair(MAX_BARRIER,MAX_BARRIER);
+		dE.first = std::min(dE.first,conn.second.saddleE-isp->second.energy);
+		dE.second = std::min(dE.second,conn.second.saddleE-fsp->second.energy);
+
+
+		conn.second.nu = conn.second.priornu;
+		if(conn.second.nu.first<1.0e-9) conn.second.nu.first = PRIOR_NU;
+		if(conn.second.nu.second<1.0e-9) conn.second.nu.second = PRIOR_NU;
+
+		if(el.first!=el.second){ // Unsymmetric
+			// forwards
+			tau_term = 0.0;
+			for(auto &et: isp->second.elapsedTime) {
+				ttau_term = et.second * exp(-std::min(dE.first,MAX_BARRIER)/BOLTZ/double(et.first));
+				if(!boost::math::isnan(ttau_term)) tau_term += ttau_term;
+			}
+
+			tau_term = 1.0 - tau_term*conn.second.priornu.first/ prefactorCountThresh;
+			N_term = 4.0*conn.second.counts.first/prefactorCountThresh;
+			conn.second.nu.first = 0.5 * (tau_term + sqrt(tau_term*tau_term + N_term));
+			if(boost::math::isnan(conn.second.nu.first)|| conn.second.nu.first<1.0e-4)
+				conn.second.nu.first = PRIOR_NU;
+
+			// backwards
+			tau_term = 0.0;
+			for(auto &et: fsp->second.elapsedTime){
+				ttau_term = et.second * exp(-std::min(dE.second,MAX_BARRIER)/BOLTZ/double(et.first));
+				if(!boost::math::isnan(ttau_term)) tau_term += ttau_term;
+			}
+			tau_term = 1.0 - tau_term * conn.second.priornu.second / prefactorCountThresh;
+			N_term = 4.0 * conn.second.counts.second / prefactorCountThresh;
+			conn.second.nu.second = 0.5 * (tau_term + sqrt(tau_term*tau_term + N_term));
+			if(boost::math::isnan(conn.second.nu.second) || conn.second.nu.second<1.0e-4)
+				conn.second.nu.second = PRIOR_NU;
+
+		} else {	// Symmetric
+			tau_term = 0.0;
+			for(auto &et: isp->second.elapsedTime) {
+				ttau_term = et.second * exp(-std::min(dE.first,MAX_BARRIER)/BOLTZ/double(et.first));
+				if(!boost::math::isnan(ttau_term)) tau_term += ttau_term;
+			}
+			tau_term = 1.0 - tau_term*conn.second.priornu.first/ prefactorCountThresh;
+			N_term = 4.0*conn.second.counts.first/prefactorCountThresh;
+			N_term += 4.0*conn.second.counts.second/prefactorCountThresh;
+			conn.second.nu.first = 0.5 * (tau_term + sqrt(tau_term*tau_term + N_term));
+			if(boost::math::isnan(conn.second.nu.first)|| conn.second.nu.first<1.0e-9)
+				conn.second.nu.first = PRIOR_NU;
+			conn.second.nu.second = conn.second.nu.first;
+		}
+
+
+
+
+		LOGGER("PREFACTORS: "<<conn.second.nu.first<<" "<<conn.second.nu.second)
+		LOGGER("BARRIERS: "<<dE.first<<" "<<dE.second)
+
+
+		auto kfp = (forwards ? &kf : &kb);
+		auto kbp = (forwards ? &kb : &kf);
+
+		tk = conn.second.nu.first * exp(-std::min(dE.first,MAX_BARRIER)/BOLTZ/targetT);
+		if(boost::math::isnan(tk)) {
+			LOGGER("Rate calculation returns NaN, most likely due to unconverged NEB. Replacing with 0.5eV")
+			tk = 10.0 * exp(-0.5/BOLTZ/targetT);
+		}
+		kfp->target_k_fp.first += tk;
+
+		fpt = conn.second.fpt.first * exp(std::min(dE.first,MAX_BARRIER)/BOLTZ*(1.0/targetT-1.0/conn.second.fpT.first));
+		if(boost::math::isnan(fpt)) {
+			LOGGER("FPT returns NaN. Replacing with 1/rate")
+			fpt = 1.0 / tk;
+		}
+		if(kfp->target_k_fp.second<0.0 || kfp->target_k_fp.second>fpt) kfp->target_k_fp.second = fpt;
+
+		tk = conn.second.nu.second * exp(-std::min(dE.second,MAX_BARRIER)/BOLTZ/targetT);
+		if(boost::math::isnan(tk)) {
+			LOGGER("Rate calculation returns NaN, most likely due to unconverged NEB. Replacing with 0.5eV")
+			tk = 10.0 * exp(-0.5/BOLTZ/targetT);
+		}
+
+		kbp->target_k_fp.first += tk;
+		fpt = conn.second.fpt.second * exp(std::min(dE.second,MAX_BARRIER)/BOLTZ*(1.0/targetT-1.0/conn.second.fpT.second));
+		if(boost::math::isnan(fpt)) {
+			LOGGER("FPT returns NaN. Replacing with 1/rate")
+			fpt = 1.0 / tk;
+		}
+		if(kbp->target_k_fp.second<0.0 || kbp->target_k_fp.second>fpt) kbp->target_k_fp.second = fpt;
+
+		for(size_t ti=0;ti<tadT.size();ti++) {
+			tk = conn.second.nu.first * exp(-std::min(dE.first,MAX_BARRIER)/BOLTZ/tadT[ti]);
+			if(boost::math::isnan(tk)) tk = 10.0 * exp(-0.5/BOLTZ/tadT[ti]);
+			kfp->tad_k_fp[ti].first += tk;
+
+			fpt = conn.second.fpt.first * exp(std::min(dE.first,MAX_BARRIER)/BOLTZ*(1.0/tadT[ti]-1.0/conn.second.fpT.first));
+			if(boost::math::isnan(fpt))	fpt = 1.0 / tk;
+			if(kfp->tad_k_fp[ti].second<0.0 || kfp->tad_k_fp[ti].second>fpt) kfp->tad_k_fp[ti].second = fpt;
+
+
+			tk = conn.second.nu.second * exp(-std::min(dE.second,MAX_BARRIER)/BOLTZ/tadT[ti]);
+			if(boost::math::isnan(tk)) tk = 10.0 * exp(-0.5/BOLTZ/tadT[ti]);
+			kbp->tad_k_fp[ti].first += tk;
+			fpt = conn.second.fpt.second * exp(std::min(dE.second,MAX_BARRIER)/BOLTZ*(1.0/tadT[ti]-1.0/conn.second.fpT.second));
+			if(boost::math::isnan(fpt))	fpt = 1.0 / tk;
+			if(kbp->tad_k_fp[ti].second<0.0 || kbp->tad_k_fp[ti].second>fpt) kbp->tad_k_fp[ti].second = fpt;
+		} // tadT
+	} // connections
+};// canonical labels
+
+// this should be abstracted away as large portion used twice...
+std::list<std::pair<SymmLabelPair,std::pair< std::array<double,4>,PointShiftSymmetry >>> TammberModel::modelParams(SymmLabelPair el) {
+	std::list<std::pair<SymmLabelPair,std::pair< std::array<double,4>,PointShiftSymmetry >>> res;
+	auto isp = StateVertices.find(el.first);
+	auto fsp = StateVertices.find(el.second);
+	auto ep = StateEdges.find(el);
+	if(isp==StateVertices.end() || fsp==StateVertices.end() || ep==StateEdges.end()) return res;
+	bool forwards = bool(el.first==ep->first.first);
+	if(ep->second.connections.size()==0) return res;
+	std::array<double,4> sres;
+	LabelPair slab;
+	PointShiftSymmetry op;
+	for(auto &conn: ep->second.connections) { // all Connections
+		if(conn.second.dX<MSD_THRESH) continue;
+		std::pair<double,double> dE = std::make_pair(MAX_BARRIER,MAX_BARRIER);
+		dE.first = std::min(dE.first,conn.second.saddleE-isp->second.energy);
+		dE.second = std::min(dE.second,conn.second.saddleE-fsp->second.energy);
+		sres[int(!forwards)]=dE.first;
+		sres[int(forwards)] =dE.second;
+		sres[2+int(!forwards)]=conn.second.nu.first;
+		sres[2+int(forwards)] =conn.second.nu.second;
+		slab.first = (forwards ? conn.first.first : conn.first.second);
+		slab.second = (forwards ? conn.first.second : conn.first.first);
+		if(el.first==el.second && conn.second.self_transitions.size()>0) {
+			op.operation = conn.second.self_transitions.begin()->second.operation;
+			op.shift = conn.second.self_transitions.begin()->second.shift;
+			op.valid=true;
+		} else {
+			op.valid=false;
+			op.operation = 0;
+			op.shift = {0.,0.,0.};
+		}
+		res.push_back(std::make_pair(SymmLabelPair(slab),std::make_pair(sres,op)));
+	}
+	return res;
+};
+
+
+
+
+void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
+
+	double emin, htt, htmr, ht_kuvar,_kc,opt_rate, tar_rate, max_benefit=-10.,Tr;
+	std::vector< std::pair<double,double> > ht_ku_tot_k,k_fp;
+
+
+	auto v = &(StateVertices.find(lab)->second);
+
+	v->target_state_time = v->state_time(targetT);
+
+	emin = log(std::max(v->target_state_time,1.0))+LOG_NU_MIN;
+
+	auto rcm = Rates.find(lab); // pointer to std::map<Label,Rate>
+	k_fp.clear();
+
+	if(rcm!=Rates.end()) for(auto &lr: rcm->second) k_fp.push_back(lr.second.target_k_fp);
+	auto srcm = SelfRates.find(lab); // pointer to std::map<Label,Rate>
+	if(srcm!=SelfRates.end()) for(auto &lr: srcm->second) k_fp.push_back(lr.second.target_k_fp);
+
+	if (rcm==Rates.end() || k_fp.size()==0) {
+		tar_rate = std::min(1.0/std::max(1.0,v->target_state_time),max_ku);
+		ku.observed_rate = 0.0;
+		ku.unknown_rate = tar_rate;
+		ku.unknown_variance = tar_rate * tar_rate;
+		ku.optimal_temperature = tadT[tadT.size()-1];
+		ku.optimal_temperature_index = tadT.size()-1;
+		Tr = targetT/tadT[tadT.size()-1];
+		htt = v->target_state_time * exp( emin * (Tr-1.0) );
+		opt_rate = std::min(1.0/std::max(1.0,htt),max_ku);
+		ku.optimal_rate = opt_rate;
+		ku.min_rate = tar_rate;
+	} else {
+
+		for(auto &tt:tadT) ht_ku_tot_k.push_back(std::make_pair(0.0,0.0)); // ku, tot_k
+		// push back all rates and fptimes, sum total rate and find minimum observed rate
+		// target T
+		k_fp.clear(); for(auto &lr: rcm->second) k_fp.push_back(lr.second.target_k_fp);
+		bayes_ku_kuvar(k_fp, ku.unknown_rate, ku.unknown_variance, ku.min_rate, ku.observed_rate, v->target_state_time);
+
+		// TAD Ti
+		for(int ii=0;ii<tadT.size();ii++) {
+			k_fp.clear();
+			if(rcm!=Rates.end()) for(auto &lr: rcm->second) k_fp.push_back(lr.second.tad_k_fp[ii]);
+			if(srcm!=SelfRates.end()) for(auto &lr: srcm->second) k_fp.push_back(lr.second.tad_k_fp[ii]);
+			htt = v->target_state_time * exp( emin * (targetT/tadT[ii]-1.0) );
+			htmr=0.0; ht_kuvar=0.0; // not used...
+			bayes_ku_kuvar(k_fp, ht_ku_tot_k[ii].first, ht_kuvar, htmr, ht_ku_tot_k[ii].second, htt);
+		}
+
+		// now find best temperature
+		for(int ii=0;ii<tadT.size();ii++) {
+			// in optimization, we only have ratio of times: htt/ltt : exp(emin(1-targetT/T))
+			// htt/ltt * lt_kuv + lt_minr * ht_ku OR (htt/ltt - ht_ku/lt_ku) * lt_kuv + lt_minr * ht_ku
+			_kc = exp( emin * (1.0-targetT/tadT[ii]) ) * ku.unknown_variance + ku.min_rate * ht_ku_tot_k[ii].first;
+			if(!safe_opt) _kc -= ht_ku_tot_k[ii].first / ku.unknown_rate * ku.unknown_variance;
+			_kc /= 1. + HashCost * ht_ku_tot_k[ii].second + (HashCost+NEBCost) * ht_ku_tot_k[ii].first;
+
+			if(boost::math::isnan(_kc)) {
+				_kc = 1.0/v->target_state_time/v->target_state_time;
+				LOGGER("Cost return is NaN! state,time,T = "<<lab<<", "<<v->target_state_time<<", "<<tadT[ii]<<" new kc:"<<_kc)
+			}
+			if(_kc > max_benefit) {
+				max_benefit = _kc;
+				ku.optimal_temperature = tadT[ii];
+				ku.optimal_temperature_index = ii;
+				ku.optimal_rate = ht_ku_tot_k[ii].first;
+				ku.optimal_gradient = _kc;
+			}
+		}
+
+		// Now refill without SelfRates....
+		k_fp.clear();
+		if(rcm!=Rates.end()) for(auto &lr: rcm->second) k_fp.push_back(lr.second.tad_k_fp[ku.optimal_temperature_index]);
+		if(k_fp.size()>0) {
+			htt = v->target_state_time * exp( emin * (targetT/tadT[ku.optimal_temperature_index]-1.0) );
+			htmr=0.0; ht_kuvar=0.0; // not used...
+			bayes_ku_kuvar(k_fp, ht_ku_tot_k[ku.optimal_temperature_index].first, ht_kuvar, htmr, ht_ku_tot_k[ku.optimal_temperature_index].second, htt);
+			_kc = exp( emin * (1.0-targetT/tadT[ku.optimal_temperature_index]) ) * ku.unknown_variance + ku.min_rate * ht_ku_tot_k[ku.optimal_temperature_index].first;
+			if(!safe_opt) _kc -= ht_ku_tot_k[ku.optimal_temperature_index].first / ku.unknown_rate * ku.unknown_variance;
+			_kc /= 1. + HashCost * ht_ku_tot_k[ku.optimal_temperature_index].second + (HashCost+NEBCost) * ht_ku_tot_k[ku.optimal_temperature_index].first;
+			ku.optimal_rate = ht_ku_tot_k[ku.optimal_temperature_index].first;
+			ku.optimal_gradient = _kc;
+		} else {
+			htt = v->target_state_time * exp( emin * (targetT/tadT[ku.optimal_temperature_index]-1.0) );
+			opt_rate = std::min(1.0/std::max(1.0,htt),max_ku);
+			ku.optimal_rate = opt_rate;
+			ku.optimal_gradient = opt_rate;
+		 }
+
+		if(ku.optimal_gradient<0.0) {
+			LOGGER("-VE Max Benefit! "<<lab)
+			ku.optimal_temperature = tadT[0];
+			ku.optimal_temperature_index = 0;
+			ku.optimal_rate = 1.0/v->target_state_time;
+			ku.optimal_gradient = 1.0/v->target_state_time;
+		}
+	}
+};
+
+void TammberModel::bayes_ku_kuvar(std::vector<std::pair<double,double>> &k_fp,double &ku, double &kuvar, double &min_k, double &tot_k, double _time){
+	// all ensemble_average for the moment
+	std::vector<double> sum_kobs;
+	ku=0.0;
+	kuvar=0.0;
+	min_k=max_ku;
+	tot_k = 0.0;
+	double t_ko;
+	// push back all rates and fptimes, sum total rate and find minimum observed rate
+	for(auto &k: k_fp) {
+		min_k = std::min(min_k,k.first);
+		tot_k += k.first;
+	}
+	// sort in ascending fptime
+	auto fpindex = pairvecsort(k_fp);
+
+	// create terms for analytic expansion
+	sum_kobs.clear();
+	for(auto fpi: fpindex) {
+		t_ko = 0.0; for(auto &k: k_fp) t_ko += (k.first)*(k.first) / (k.first + k_fp[fpi].first);
+		sum_kobs.push_back(tot_k-t_ko);
+	}
+	int nr = sum_kobs.size();
+
+	if (nr > 0) {
+		// analytic
+		ku = 0.0;
+		kuvar = 0.0;
+
+		std::vector<double> coeffs((unsigned)(nr+1),0.);
+		// series of N terms a_i, i E [0,N-1]
+		// prod_i(x+a_i) = sum_n(c_n x^n), n E [0,N], where c_N == 1
+		// x + a_0 => c_0 = a_0, c_1 = 1
+		coeffs[0] = sum_kobs[0];
+		coeffs[1] = 1.0;
+		// for each new term a_N
+		// ( x + a_N ) * prod_i(x+a_i) = sum_n( [a_N*c_n]x^n) + sum_n(c_n x^(n+1) )
+		for(unsigned i=1;i<nr;i++) {
+			coeffs[i+1] = 1.0; // c_(N+1) = 1
+			for(unsigned j=i; j>0;j--) coeffs[j] = coeffs[j-1] + sum_kobs[i] * coeffs[j]; // c_n ->  a_N*c_n + c_(n-1)  (n>0)
+			coeffs[0] = coeffs[0] * sum_kobs[i]; // c_0 -> a_N * c_0
+		}
+
+		std::vector<double> inc_fac((unsigned)(nr+3),0.);
+		inc_fac[0] = 1.;
+		for (int i=1;i<nr+3;i++) inc_fac[i] = inc_fac[i-1] * (double)(i); // i!
+
+		double tpow=1., norm = 0.;
+		for (int i=0;i<nr+1;i++) {
+			norm += inc_fac[i] * coeffs[i] / tpow ; // i! / t^{i+1} * C[i] * t
+			ku += inc_fac[i+1] * coeffs[i] / tpow; // (i+1)! / t^{i+2} * C[i] * t^2
+			kuvar += inc_fac[i+2] * coeffs[i] / tpow; // (i+2)! / t^{i+3} * C[i] * t^3
+			tpow *= _time; // t^(i)
+		}
+
+		// <ku> = res[0] / t^2 / (norm/t) = res[0]/norm/t
+		ku /= norm * _time;
+		kuvar /= norm * _time * _time;
+		kuvar -= ku*ku;
+	} else {
+		ku = 1.0/_time;
+		kuvar = 1.0/_time/_time;
+	}
+
+	if(boost::math::isnan(ku) || boost::math::isnan(kuvar)) {
+		ku = 1.0/_time;
+		kuvar = 1.0/_time/_time;
+	}
+	min_k = std::min(ku,min_k);
+};
+
+void TammberModel::generateTADs(std::list<TADjob> &jobs, int nMax) {
+	std::map<Label,std::pair<double,double>> weights; // Label : (weight, temperature)
+	predict(weights);
+	jobs.clear();
+	int tot_count=0;
+	double sub_weight=0.0;
+
+	//double ww = 1.0 / (double)(weights.size());
+	//for(auto wit=weights.begin();wit!=weights.end();wit++) wit->second.first = ww;
+
+	auto keysort = mapkeysort(weights);
+
+	for(auto &k: keysort) {
+		sub_weight += weights[k].first;
+		if(tot_count++ >= PredictionSize) break;
+	}
+
+	LOGGERA("=============PREDICTION===============")
+
+	tot_count=0;
+	for(auto &k: keysort) { // sorted in descending counts
+		auto v = &(StateVertices.find(k)->second);
+		auto labs = v->reference_label;
+		double temperature = weights.at(k).second;
+		auto bl= v->BasinLabels;
+		int count = std::max(1,int(weights.at(k).first*nMax / sub_weight));
+		std::string line = std::to_string(labs.first)+" "+std::to_string(labs.second);
+		line += " "+std::to_string(weights[k].first/sub_weight)+" "+std::to_string(count);
+		line += " "+std::to_string(weights[k].second)+"K "+std::to_string(tot_count);
+
+		if(count>0 && tot_count < nMax) {
+			//TADjob job(labs,temperature,count,bl); // not adding this in yet
+			if(tot_count+count>nMax) count = nMax-tot_count;
+			TADjob job(labs,temperature,count);
+			jobs.push_back(job);
+			line += " ALLOC.";
+		}
+		LOGGER(line)
+		tot_count += count;
+	}
+	LOGGER("======================================")
+};
+
+void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
+
+	// (re)calculate all rates TODO make this more efficient....
+	Rates.clear();
+	SelfRates.clear();
+	unsigned bar_count=0;
+
+	for(auto &el: StateEdges) {
+		Rate kf,kb;
+		calculate_rates(el.first,kf,kb);
+
+
+		LOGGER(el.first.first<<" "<<el.first.second<<" : "<<kf.target_k_fp.first<<" "<<kb.target_k_fp.first)
+
+		if(kf.target_k_fp.first<1.0e-30 || kb.target_k_fp.first<1.0e-30) continue;
+
+		if(el.first.first==el.first.second) { // SelfRates
+			if(SelfRates.find(el.first.first)==SelfRates.end())
+				SelfRates.insert( std::make_pair(el.first.first, *(new std::map<Label,Rate>) ) );
+			SelfRates.at(el.first.first).insert(std::make_pair(el.first.second,kf));
+			//SelfRates.at(el.first.second).insert(std::make_pair(el.first.first,kb));
+		} else {
+
+			if(Rates.find(el.first.first)==Rates.end())
+				Rates.insert( std::make_pair(el.first.first, *(new std::map<Label,Rate>) ) );
+			Rates.at(el.first.first).insert(std::make_pair(el.first.second,kf));
+
+			if(Rates.find(el.first.second)==Rates.end())
+				Rates.insert( std::make_pair(el.first.second, *(new std::map<Label,Rate>) ) );
+			Rates.at(el.first.second).insert(std::make_pair(el.first.first,kb));
+			bar_count++;
+		}
+	}
+
+	std::vector<Label> IndexLabel;
+	std::map<Label,int> LabelIndex;
+
+	unsigned ms = 0;
+	UnknownRates.clear();
+
+	for(auto &v: StateVertices) { // make all rates
+		UnknownRate ku;
+		unknown_rate(v.first,ku);
+		UnknownRates.insert(std::make_pair(v.first,ku));
+		// being very careful basically- only when there are rates and unknown_rates do we do anything...
+		if(Rates.find(v.first)!=Rates.end() && ku.unknown_rate>0.0) {
+			IndexLabel.push_back(v.first);
+			LabelIndex.insert(std::make_pair(v.first,IndexLabel.size()-1));
+			ms++;
+		}
+	}
+
+	bool solved_one = false;
+	bool solved_two = false;
+	std::vector<double> allocation(ms,0.0), pabs(ms,0.0), ku(ms,0.0), kuvar(ms,0.0), times(ms,0.0);
+
+
+
+	LOGGERA("bar_count , ms: "<<bar_count<<" , "<<ms)
+
+	if(bar_count>0 && ms>0) {
+		// make matricies
+		LowTR.setZero(); LowTR.resize(ms,ms);
+		LowTRT.setZero(); LowTRT.resize(ms,ms);
+		Eigen::SparseLU<SpMatCM> solver;
+
+		EigVec rhoinit(ms),PiQ(ms),iQI(ms),ones(ms),flat(ms),selfk(ms),rhoboltz(ms);
+		for(int si=0; si<ms; si++) {
+			rhoinit[si] = 0.0;
+			PiQ[si] = 0.0;
+			iQI[si] = 0.0;
+			ones[si] = 0.0;
+			flat[si] = 0.0;
+			selfk[si] = 0.0;
+		}
+
+		// Boltzmann
+		int min_clust=10;
+		double rho_minE = 10.,rho_norm=0.0;
+		for(int si=0; si<ms; si++) {
+			if(StateVertices.at(IndexLabel[si]).energy<rho_minE) rho_minE = StateVertices.at(IndexLabel[si]).energy;
+			if(StateVertices.at(IndexLabel[si]).clusters<min_clust) min_clust = StateVertices.at(IndexLabel[si]).clusters;
+		}
+		LOGGERA("Minimum Energy: "<<rho_minE<<"eV")
+		LOGGERA("Minimum Cluster Count: "<<min_clust)
+
+		for(int si=0; si<ms; si++) {
+			rhoboltz[si] = exp(-targetB*(StateVertices.at(IndexLabel[si]).energy - rho_minE));
+			rho_norm += rhoboltz[si];
+		}
+		for(int si=0; si<ms; si++) rhoboltz[si] /= rho_norm;
+		rho_norm=0.0;
+		for(int si=0; si<ms; si++) rho_norm += rhoboltz[si];
+		LOGGERA("Boltzmann Norm: "<<rho_norm)
+		int i,j;
+		double k;
+		std::vector<Eigen::Triplet<double>> LowTR_trip, LowTRT_trip;
+		LowTR_trip.reserve(bar_count);
+		LowTRT_trip.reserve(bar_count);
+		for(auto &l_i: LabelIndex) {
+			i = l_i.second;
+
+			if(SelfRates.find(l_i.first)!=SelfRates.end())
+				for(auto &jr: SelfRates.find(l_i.first)->second)
+					selfk[i] += jr.second.target_k_fp.first;
+
+			auto ku = UnknownRates.find(l_i.first)->second;
+			ku.observed_rate = 0.0;
+			for(auto &jr: Rates.find(l_i.first)->second) { // std::map<Label,Rate>
+				j = LabelIndex[jr.first];
+				k = jr.second.target_k_fp.first;
+				if(i!=j) {
+					LowTR_trip.push_back(Eigen::Triplet<double>(i,j,k));
+					LowTRT_trip.push_back(Eigen::Triplet<double>(j,i,k));
+					ku.observed_rate += k;
+				} else {
+					LOGGER("i==i in Rates()! : "<<l_i.first<<" "<<jr.first<<" "<<i)
+					selfk[i] += k;
+				}
+			}
+			k = ku.unknown_rate+ku.observed_rate;
+			LowTR_trip.push_back(Eigen::Triplet<double>(i,i,-k));
+			LowTRT_trip.push_back(Eigen::Triplet<double>(i,i,-k));
+		}
+
+		LowTR.setFromTriplets(LowTR_trip.begin(), LowTR_trip.end());
+		LowTRT.setFromTriplets(LowTRT_trip.begin(), LowTRT_trip.end());
+
+
+		// populate initial distribution;
+		double st_norm, max_allo, min_allo;
+		bool found_init=false,solved_one,solved_two;
+		for(int si=0; si<ms; si++) {
+			ones[si] = 1.0;
+			flat[si] = 1.0/ms;
+			if(IndexLabel[si]==InitialLabels.first){
+				rhoinit[si] = 1.0;
+				found_init = true;
+			}
+			times[si] = StateVertices.at(IndexLabel[si]).target_state_time;
+			ku[si] = UnknownRates.at(IndexLabel[si]).unknown_rate;
+			kuvar[si] = UnknownRates.at(IndexLabel[si]).unknown_variance;
+		}
+		// overwrite rho_init if Boltzmann chosen or initialstate not available
+		if (!found_init) {
+			for(int si=0; si<ms; si++) rhoinit[si] = rhoboltz[si];
+			LOGGERA("INITIAL STATE NOT FOUND; USING BOLTZ INITIAL DIST")
+		}
+
+		//LOGGER("Q:\n"<<LowTR<<"\nQ.T:\n"<<LowTRT<<"\nSelfQ.diagonal:\n"<<selfk)
+
+		// Prepare Matricies
+		LowTR.makeCompressed();
+		LowTRT.makeCompressed();
+
+
+
+		// Solve for PiQ
+		solved_one = true;
+		LOGGERA("STARTING SPARSE LINEAR SOLVE FOR P.iQ = iQT.P")
+		solver.compute(LowTRT);
+		if(solver.info()==Eigen::Success) {
+			LOGGERA("FACTORIZATION DONE")
+			if(RhoInitFlavor==1) PiQ = solver.solve(rhoboltz);
+			else if (RhoInitFlavor==2) PiQ = solver.solve(flat);
+			else PiQ = solver.solve(rhoinit);
+			if(solver.info()!=Eigen::Success) solved_one=false;
+			else LOGGERA("SOLVED FOR P.iQ")
+		} else solved_one=false;
+
+		// Solve for iQ.1
+		solved_two = true;
+		LOGGERA("STARTING SPARSE LINEAR SOLVE FOR iQ.1")
+		solver.compute(LowTR);
+		if(solver.info()==Eigen::Success) {
+			LOGGERA("FACTORIZATION DONE")
+			iQI = solver.solve(ones);
+			if(solver.info()!=Eigen::Success) solved_two=false;
+			else LOGGERA("SOLVED FOR iQl")
+		} else solved_two=false;
+
+
+
+		if (solved_one) {
+			st_norm = 0.0;
+			for(int si=0; si<ms; si++) {
+				allocation[si] = iQI[si] * PiQ[si] * UnknownRates.at(IndexLabel[si]).optimal_gradient;
+
+				if(allocation[si]<0.) {
+					LOGGERA("NEGATIVE ALLOC FOR STATE "<<IndexLabel[si]<<": "<<allocation[si]<<" -> 0")
+					allocation[si]=0.; // hard condition
+				}
+
+				if(StateVertices.at(IndexLabel[si]).clusters>std::max(ClusterThresh,min_clust)) {
+					LOGGERA("STATE "<<IndexLabel[si]<<" HAS "<<StateVertices.at(IndexLabel[si]).clusters<<" > "<<std::max(ClusterThresh,min_clust)<<" Clusters; SET TO ABSORBING (TBI) -> 0")
+					allocation[si]=0.; // hard condition
+				}
+
+				st_norm += allocation[si];
+			}
+			max_allo=0.;
+			min_allo=0.;
+			for(int si=0; si<ms; si++) {
+				allocation[si] /= st_norm;
+				if(max_allo<allocation[si]) max_allo = allocation[si];
+				if(min_allo>allocation[si]) min_allo = allocation[si];
+			}
+			LOGGERA("SOLVED; MAX/MIN ALLOCATION WEIGHT: "<<max_allo<<"/"<<min_allo)
+
+			if(min_allo < 0. || max_allo <= 0.) {
+				LOGGERA("NEGATIVE/NONPOSITIVE ALLOCATION WEIGHTS!")
+				solved_one = false;
+				solved_two = false;
+			}
+		}
+
+		if(solved_two) {
+			valid_time = 0.0;
+			st_norm = 0.0;
+			for(int si=0; si<ms; si++) {
+				valid_time += -PiQ[si];
+				pabs[si] = -PiQ[si] * ku[si];
+				if(ku[si]<=0.0) pabs[si] = 0.; // hard condition
+				if(StateVertices.at(IndexLabel[si]).clusters>std::max(ClusterThresh,min_clust)) {
+					LOGGERA("STATE "<<IndexLabel[si]<<" HAS "<<StateVertices.at(IndexLabel[si]).clusters<<" > "<<std::max(ClusterThresh,min_clust)<<" Clusters; SET TO ABSORBING (TBI) -> 0")
+					pabs[si] = 0.; // hard condition
+				}
+				st_norm += pabs[si];
+			}
+			for(int si=0; si<ms; si++) pabs[si] /= st_norm;
+
+			if(RhoInitFlavor==1) {
+				valid_time = -rhoboltz.dot(iQI);
+			} else if(RhoInitFlavor==2) {
+				valid_time = -flat.dot(iQI);
+			}	else {
+				valid_time = -rhoinit.dot(iQI);
+			}
+			if(valid_time>0.0) valid_time_sd = PiQ.dot(iQI)*2./valid_time/valid_time-1.;
+			else valid_time_sd=0.0;
+			LOGGERA("SOLVED; VALIDITY TIME MEAN (RIF="<<RhoInitFlavor<<"): "<<valid_time<<"ps, "<<"VARIANCE/MEAN^2: "<<valid_time_sd)
+			LOGGERA("VALIDITY TIME (BOLTZ): "<<-rhoboltz.dot(iQI)<<"ps")
+			LOGGERA("VALIDITY TIME (DELTA) : "<<-rhoinit.dot(iQI)<<"ps")
+			LOGGERA("VALIDITY TIME (ONES) : "<<-flat.dot(iQI)<<"ps")
+		} else {
+			for(int si=0; si<ms; si++) valid_time += 1.0 / ku[si];
+			LOGGERA("COULD NOT SOLVE; SUM OF INVERSE UNKNOWN RATES: "<<valid_time<<"ps")
+		}
+
+		LOGGER("ku, ku*t, kuvar*t, pabs, alloc.:")
+		for(int si=0; si<ms; si++)
+			LOGGER(ku[si]<<", "<<ku[si]*times[si]<<", "<<kuvar[si]*times[si]<<", "<<pabs[si]<<", "<<allocation[si])
+		LOGGER("rhoboltz, rhoinit:")
+		for(int si=0; si<ms; si++) LOGGER(rhoboltz[si]<<", "<<rhoinit[si])
+
+
+
+		if(solved_one && solved_two) {
+			if (AllocScheme==1) {
+				LOGGERA("USING Pabs ALLOCATION")
+				for(int si=0;si<ms;si++) {
+					weights.insert(std::make_pair(IndexLabel[si],std::make_pair(pabs[si],UnknownRates.at(IndexLabel[si]).optimal_temperature)));
+				}
+			} else { // default to 0
+				LOGGERA("USING GRADIENT ALLOCATION")
+				for(int si=0;si<ms;si++) {
+					weights.insert(std::make_pair(IndexLabel[si],std::make_pair(allocation[si],UnknownRates.at(IndexLabel[si]).optimal_temperature)));
+				}
+			}
+
+			return;
+		}
+
+		if(solved_two) {
+			LOGGERA("COULD NOT SOLVE GRADIENT: USING Pabs ALLOCATION")
+			for(int si=0;si<ms;si++)
+				weights.insert(std::make_pair(IndexLabel[si],std::make_pair(pabs[si],tadT[0])));
+			return;
+		}
+	}
+	LOGGERA("COULD NOT SOLVE OR NETWORK TOO SMALL; USING 1/time ALLOCATION WEIGHTS")
+	double vt=0.0,Zsum=0.0,minE=10.0,rho_norm=0.0;
+	for(auto &v: StateVertices) minE = std::min(minE,v.second.energy);
+	for(auto &v: StateVertices) rho_norm += exp(-targetB*(v.second.energy-minE));
+	for(auto &v: StateVertices)
+		vt += exp(-targetB*(v.second.energy-minE))/rho_norm/std::max(1.0,v.second.target_state_time);
+	LOGGERA("APPROXIMATE VALIDITY TIME: "<<1.0/vt<<"ps")
+
+	Label lab;
+	double tw=0.0,mt=0.0,t,temp,emin,sw=0.0;
+
+	for(auto &v: StateVertices) {
+		t = std::max(1.0,v.second.target_state_time);
+		if(v.second.clusters>ClusterThresh) {
+			LOGGERA("STATE "<<v.first<<" HAS "<<v.second.clusters<<" > "<<ClusterThresh<<" Clusters; NO ALLOCATION (TBI) -> 0")
+		} else tw += 1.0/t;
+		mt = std::max(mt,t);
+	}
+
+	for(auto &v: StateVertices) {
+		temp = std::max(1.0,v.second.target_state_time);
+		temp = (LOG_NU_MIN + log(std::max(temp,1.0)))*targetT/log(2.0*PRIOR_NU);
+		temp = std::max(tadT[0],temp);
+		for(auto tt:tadT) if(temp<tt) {
+			temp=tt;
+			break;
+		}
+		temp = std::min(*std::prev(tadT.end()),temp);
+		lab = v.first;
+		t = std::max(1.0,v.second.target_state_time);
+		sw = 1.0/tw/t;
+		if(v.second.clusters>ClusterThresh) sw = 0.0;
+		weights.insert(std::make_pair(lab,std::make_pair(sw,temp)));
+	}
+
+	return;
+};
+
+
+
+void TammberModel::deleteVertex(Label deleteVertex) {
+	for(auto iv=StateVertices.begin();iv!=StateVertices.end();) {
+		if(iv->first==deleteVertex) iv = StateVertices.erase(iv);
+		else iv++;
+	}
+	for(auto ie=StateEdges.begin();ie!=StateEdges.end();) {
+		if (ie->first.first==deleteVertex || ie->first.second==deleteVertex) {
+			ie = StateEdges.erase(ie);
+		} else ie++;
+	}
+	for(auto pt=pendingTADS.begin();pt!=pendingTADS.end();) {
+		if(pt->first.first.first==deleteVertex || pt->first.second.first==deleteVertex) pt = pendingTADS.erase(pt);
+		else pt++;
+	}
+};

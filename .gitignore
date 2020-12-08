@@ -1,0 +1,7 @@
+build/*
+buld/*
+sample-input/*
+!sample-input/vac-Fe/
+!sample-input/vac-Fe/input/
+process/.ipynb_checkpoints/*
+process/__pycache__/*
