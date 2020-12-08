@@ -79,11 +79,12 @@ This is particularly relevant when using precompiled libraries (e.g. `module loa
 
 - If available, install with e.g. `module load eigen/3.0.0` and move on...
 
-- If not, unpack the archive:
+- If not, unpack an archive from the [Eigen website](http://eigen.tuxfamily.org/):
 
 	```bash
-	cd deps
-	tar -xvf eigen-eigen-*.tar.bz2
+	cd some_compilation_location
+	wget https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.gz
+	tar -xvf eigen-*.tar.gz
 	cd eigen*
 	```
 
@@ -105,10 +106,11 @@ This is particularly relevant when using precompiled libraries (e.g. `module loa
 
 - If available, install with e.g. `module load nauty` and move on...
 
-- If not, unpack the archive:
+- If not, unpack an archive from the [Nauty website](http://users.cecs.anu.edu.au/~bdm/nauty/):
 
 	```bash
-	cd deps
+	cd some_compilation_location
+	wget http://users.cecs.anu.edu.au/~bdm/nauty/nauty27r1.tar.gz
 	tar -xvf nauty*.tar.bz2
 	cd nauty*
 	```
@@ -125,11 +127,7 @@ This is particularly relevant when using precompiled libraries (e.g. `module loa
 
 
 ### LAMMPS
-
-- Download the `LAMMPS` repository:
-	`git clone https://github.com/lammps/lammps.git`
-
-- As of 01/09/2020 `lammps_gather()` and `lammps_scatter()` are now part of the `LAMMPS` library interface. You must therefore use the most recent version, obtained with e.g
+- `TAMMBER` uses `lammps_gather()` and `lammps_scatter()` , which have been part of the `LAMMPS` library interface since September 2020. You must therefore download a recent `LAMMPS` version, obtained with e.g
 ```bash
 git clone https://github.com/lammps/lammps.git
 ```
