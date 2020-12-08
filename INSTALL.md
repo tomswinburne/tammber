@@ -1,6 +1,6 @@
 # Building TAMMBER / ParSplice
 
-The following closely follows the ParSplice [wiki](https://gitlab.com/exaalt/parsplice/-/wikis/building-parsplice),
+The following closely follows the ParSplice [wiki](https://gitlab.com/exaalt/parsplice/-/wikis/building-parsplice).
 
 ## Requirements
 
@@ -28,12 +28,11 @@ This is particularly relevant when using precompiled libraries (e.g. `module loa
 	mkdir ${PREFIX}/include
 	```
 
-- For testing on local machines it can be possible to install dependencies apart from `LAMMPS` with `apt`
-
+- For testing on local machines it is possible to install dependencies apart from `LAMMPS` as packages, e.g. Ubuntu-
 	```bash
 	sudo apt install libboost-all-dev libeigen3-dev libnauty-dev
 	```
-	In general, follow the instructions below.
+	In general, users should follow the instructions below.
 
 
 ### Boost:
@@ -46,11 +45,12 @@ This is particularly relevant when using precompiled libraries (e.g. `module loa
 
 - If available, install with e.g. `module load boost/1.58` and move on...
 
-- If not available, unpack the archive:
+- If not available, download and unpack an archive from the [Boost website](https://dl.bintray.com/boostorg/release/1.74.0/source):
 
 	```bash
-	cd deps
-	tar -xvf boost_1_64_0.tar.gz
+	cd some_compilation_location # all files will be copied to ${PREFIX}/.local
+	wget https://dl.bintray.com/boostorg/release/1.74.0/source/boost_1_74_0.tar.gz # most recent as of Dec 2020
+	tar -xvf boost_1_74_0.tar.gz
 	cd boost*
 	```
 
