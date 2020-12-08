@@ -1,11 +1,12 @@
-# TAMMBER 
+# TAMMBER
 ### Temperature Accelerated Markov Model construction with Bayesian Estimation of Rates
 
 ##  [Installation Instructions](INSTALL.md)
 
 ##  [Getting Started](EXAMPLE.md)
 
-## [Output Analysis](process/Diffusion_Model_Example.ipynb) :  Run online with Binder: [![Launch](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gl/tomswinburne%2Fparsplice/master?filepath=process%2FDiffusion_Model_Example.ipynb)
+## [Output Analysis](process/Diffusion_Model_Example.ipynb) :  Run online with Binder: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/tomswinburne/tammber/HEAD?filepath=process%2FDiffusion_Model_Example.ipynb)
+
 *If the Binder server is slow the notebook can be viewed [here](process/Diffusion_Model_Example.ipynb), or run the notebook locally after downloading this repository.*
 
 Questions? swinburne "at" cinam "dot" univ-mrs "dot" fr
@@ -18,7 +19,7 @@ The work management is controlled through an absorbing Markov chain; the goal is
 [1] Thomas D Swinburne and Danny Perez, *Self-optimized construction of transition rate matrices from accelerated atomistic simulations with Bayesian uncertainty quantification*, Physical Review Materials 2018, [preprint](https://arxiv.org/abs/1803.05273)
 
 
-New code incorporates crystal symmetries using graph isomorphisms to efficiently and autonomously calculate diffusion matricies 
+New code incorporates crystal symmetries using graph isomorphisms to efficiently and autonomously calculate diffusion matricies
 
 [2] Thomas D Swinburne and Danny Perez, *Automated Calculation of Defect Transport Tensors*, Accepted in NPJ Computational Materials, 2020. [preprint](https://arxiv.org/abs/2003.07752)
 
