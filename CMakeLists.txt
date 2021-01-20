@@ -75,7 +75,7 @@ link_directories(${CMAKE_LIBRARY_PATH})
 file(GLOB CORE_FILES "core/*")
 file(GLOB TAMMBER_CORE_FILES "tammber-core/*")
 
-set(EXTRA_FLAGS -g -DLAMMPS_EXCEPTIONS -DISOMORPHIC)
+set(EXTRA_FLAGS -g -DLAMMPS_EXCEPTIONS -DISOMORPHIC -DLAMMPS_LIB_MPI)
 set(EXTRA_LINK_FLAGS pthread lammps_mpi)
 
 set(TAMMBER_TARGETS tammber tammber-dbextract tammber-analyze)
