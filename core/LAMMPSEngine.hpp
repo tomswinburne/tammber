@@ -63,8 +63,9 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 
 	LOGGER("Trying to open lammps worker "<<local_rank)
 
-
-	lammps_open(argc,lammps_argv,localComm_,&lmp);
+	lmp = NULL;
+	lmp = new LAMMPS(argc,lammps_argv,localComm_);
+	//lammps_open(argc,lammps_argv,localComm_,&lmp);
 
 	LOGGER("Opened lammps worker "<<local_rank)
 
@@ -123,8 +124,10 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 	bootstrapScript = parser.parse(initScript,p);
 	std::vector<std::string> cmdVector=parser.splitLines(bootstrapScript);
 	std::string cmd;
-	for(int i=0; i<cmdVector.size(); i++) cmd+=cmdVector[i]+"\n";
-	lammps_commands_string(lmp,(char *) cmd.c_str());
+	for(int i=0; i<cmdVector.size(); i++) {
+		LOGGER("LAMMPSCommand: "<<cmdVector[i])
+		lammps_commands_string(lmp,(char *) cmdVector[i].c_str());
+	}
 
 	// Any overwritten functions must be reassigned to dispatchor
 	MDBaseEngine::BaseEngine::impls["TASK_DIE"] = LAMMPSEngine::die_impl;
@@ -137,7 +140,7 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 	MDBaseEngine::BaseEngine::impls["TASK_CENTRO"] = LAMMPSEngine::centro_impl;
 };
 
-virtual bool failed(){
+virtual bool failed() {
 	if(bool(lammps_has_error(lmp))) {
 		char error_message[2048];
 		int error_type = lammps_get_last_error_message(lmp,error_message,2048);
@@ -543,7 +546,8 @@ std::vector<double> calculateCentroSymmetry(System &s,int nn=8) {
 
 // LAMMPS specific variables
 int me,nprocs;               // MPI info
-void *lmp;                   // instance of LAMMPS
+
+LAMMPS_NS::LAMMPS *lmp; // instance of LAMMPS
 void error(const char *str){
 	if (me == 0) printf("ERROR: %s\n",str);
 	MPI_Abort(MPI_COMM_WORLD,1);
