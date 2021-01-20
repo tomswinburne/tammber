@@ -64,7 +64,7 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 	LOGGER("Trying to open lammps worker "<<local_rank)
 
 	lmp = NULL;
-	lmp = new LAMMPS(argc,lammps_argv,localComm_);
+	lmp = new LAMMPS_NS::LAMMPS(argc,lammps_argv,localComm_);
 	//lammps_open(argc,lammps_argv,localComm_,&lmp);
 
 	LOGGER("Opened lammps worker "<<local_rank)
@@ -546,7 +546,6 @@ std::vector<double> calculateCentroSymmetry(System &s,int nn=8) {
 
 // LAMMPS specific variables
 int me,nprocs;               // MPI info
-
 LAMMPS_NS::LAMMPS *lmp; // instance of LAMMPS
 void error(const char *str){
 	if (me == 0) printf("ERROR: %s\n",str);
