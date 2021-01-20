@@ -27,9 +27,10 @@
 //#include "MDEngine.hpp" not included here (if used, included in CustomTypes)
 #include "Log.hpp"
 #include "LAMMPSSystem.hpp"
+#include "lammps/lammps.h"
 #include "lammps/library.h"
 
-using namespace LAMMPS_NS
+using namespace LAMMPS_NS;
 /*
 	Templated out base class, to allow more than one abstract engine type to be adapted to lammps
 	Idea is that we can derive modified abstract classes from MDEngine (c.f. TADEngine)
