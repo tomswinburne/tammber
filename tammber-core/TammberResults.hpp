@@ -16,6 +16,7 @@
 #ifndef TammberTask_hpp
 #define TammberTask_hpp
 
+#include "Log.hpp"
 #include "Task.hpp"
 #include "Pack.hpp"
 #include "Types.hpp"
@@ -57,7 +58,7 @@ void assimilate(TaskResultBundle &t){
 	for(auto it=tt.segments.begin();it!=tt.segments.end();it++) segments.push_back(*it);
 	//std::cout<<"TammberResultBundle:: pathways.size()=="<<tt.pathways.size()<<"\n";
 	for(auto it=tt.pathways.begin();it!=tt.pathways.end();it++) {
-		std::cout<<"ASSIMILATING NEB / PAIRMAP: "<<it->info_str()<<std::endl;
+		LOGGER("ASSIMILATING NEB / PAIRMAP: "<<it->info_str())
 		pathways.push_back(*it);
 	}
 	TaskResultBundle::assimilate(t);

@@ -453,7 +453,7 @@ void TammberModel::add_segment(TADSegment &seg) {
 	// Is it valid? (dephased, sensible labels etc)
 	if(fault_check(seg)) return;
 
-	LOGGER("ADDING SEGMENT "<<seg.info_str())
+	LOGGER("TammberModel::add_segment: ADDING SEGMENT "<<seg.info_str())
 	// Add vertices if required- currently treating transition labels as independent (see *)
 	//add_vertex(seg.InitialLabels,seg.initialE);
 	add_vertex(seg.InitialLabels,seg.initialE,seg.initialClusters,seg.initialPosition);
@@ -486,9 +486,9 @@ void TammberModel::add_segment(TADSegment &seg) {
 		}
 
 		Transition trans =  seg.transition;
-		LOGGER("BEFORE TMap: "<<trans.first.first<<","<<trans.first.second<<" -> "<<trans.second.first<<","<<trans.second.second)
+		LOGGER("TammberModel::add_segment: BEFORE TMap: "<<trans.first.first<<","<<trans.first.second<<" -> "<<trans.second.first<<","<<trans.second.second)
 		trans = transitionMap.at(seg.transition);
-		LOGGER("AFTER TMap (ADDING): "<<trans.first.first<<","<<trans.first.second<<" -> "<<trans.second.first<<","<<trans.second.second)
+		LOGGER("TammberModel::add_segment: AFTER TMap (ADDING): "<<trans.first.first<<","<<trans.first.second<<" -> "<<trans.second.first<<","<<trans.second.second)
 
 		add_edge(trans); // find / create edge (also takes care of initializing self_edge_map)
 
@@ -501,10 +501,11 @@ void TammberModel::add_segment(TADSegment &seg) {
 		if(ep->completedNEBS.find(tl)==ep->completedNEBS.end()) {
 			if(forwards) ep->pendingNEBS.insert(tl);
 			else ep->pendingNEBS.insert(tl.rev());
-			LOGGER("APPENDING TO pendingNEBS")
+			LOGGER("TammberModel::add_segment: APPENDING TO pendingNEBS")
 		}
 
 		// what is the "canonical" noncanonical transition label?
+		LOGGER("TammberModel::add_segment: self_edge_map")
 		SymmLabelPair ctl = ep->self_edge_map.at(tl).first; // parallel
 
 		// No connection yet? add to pendingTADS
@@ -514,7 +515,7 @@ void TammberModel::add_segment(TADSegment &seg) {
 				ttsl.push_back(seg);
 				pendingTADS.insert(std::make_pair(trans,ttsl));
 			} else pendingTADS[trans].push_back(seg);
-			LOGGER("APPENDING TO pendingTADS")
+			LOGGER("TammberModel::add_segment: APPENDING TO pendingTADS")
 		} else { // otherwise we have a normal transition
 			ep->connections.find(ctl)->second.add_jump(seg.temperature,fpt,forwards);
 		}
@@ -561,10 +562,10 @@ void TammberModel::add_spacemaps(NEBPathway &path) {
 
 bool TammberModel::add_transitionMaps(NEBPathway &path) {
 	if (path.FoundTransitions.size()==0) return false;
-	LOGGER("REMAPPING ("<<path.InitialLabels.first<<","<<path.InitialLabels.second<<") -> "<<path.FinalLabels.first<<","<<path.FinalLabels.second<<")")
+	LOGGER("TammberModel::add_transitionMaps : REMAPPING ("<<path.InitialLabels.first<<","<<path.InitialLabels.second<<") -> "<<path.FinalLabels.first<<","<<path.FinalLabels.second<<")")
 
 	for(auto ft:path.FoundTransitions) {
-		LOGGER(ft.print_str())
+		LOGGER("TammberModel::add_transitionMaps : \n"<<ft.print_str())
 		add_edge(ft); // find or create edge
 		auto ep = StateEdges.find(CanonTrans(ft));
 
@@ -692,7 +693,7 @@ void TammberModel::add_pathway(NEBPathway &path) {
 	auto ep = &(StateEdges.find(CanonTrans(trans))->second);
 	// should always be forwards, no?
 	bool forwards = bool(CanonTrans(trans).first==StateEdges.find(CanonTrans(trans))->first.first);
-	if(!forwards) LOGGER("TammberModel::add_pathway : NEBPathway not parallel to StateEdge! Ignoring as likely bug")
+	if(!forwards) LOGGERA("TammberModel::add_pathway : NEBPathway not parallel to StateEdge! Ignoring as likely bug")
 
 	if(path.valid && !multijump) { // we have a normal result
 		transitionMap[trans] = trans; // i.e. identity. This is only if multijump==false
@@ -725,7 +726,7 @@ void TammberModel::add_pathway(NEBPathway &path) {
 		ep = &(StateEdges.find(CanonTrans(ptrans))->second);
 
 		forwards=bool(CanonTrans(ptrans).first==StateEdges.find(CanonTrans(ptrans))->first.first);
-
+		LOGGER("TammberModel::add_pathway : ep->self_edge_map.at(NonCanonTrans(ptrans)).first")
 		tl = ep->self_edge_map.at(NonCanonTrans(ptrans)).first; // parallel even if ptrans not
 
 		if(ep->connections.find(tl)!=ep->connections.end()) {
@@ -1312,8 +1313,10 @@ void TammberModel::generateTADs(std::list<TADjob> &jobs, int nMax) {
 	for(auto &k: keysort) { // sorted in descending counts
 		auto v = &(StateVertices.find(k)->second);
 		auto labs = v->reference_label;
+		LOGGER("TammberModel::generateTADs : temperature")
 		double temperature = weights.at(k).second;
 		auto bl= v->BasinLabels;
+		LOGGER("TammberModel::generateTADs : count")
 		int count = std::max(1,int(weights.at(k).first*nMax / sub_weight));
 		std::string line = std::to_string(labs.first)+" "+std::to_string(labs.second);
 		line += " "+std::to_string(weights[k].first/sub_weight)+" "+std::to_string(count);
@@ -1351,16 +1354,19 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 		if(el.first.first==el.first.second) { // SelfRates
 			if(SelfRates.find(el.first.first)==SelfRates.end())
 				SelfRates.insert( std::make_pair(el.first.first, *(new std::map<Label,Rate>) ) );
+			LOGGER("TammberModel::predict : SelfRates")
 			SelfRates.at(el.first.first).insert(std::make_pair(el.first.second,kf));
 			//SelfRates.at(el.first.second).insert(std::make_pair(el.first.first,kb));
 		} else {
 
 			if(Rates.find(el.first.first)==Rates.end())
 				Rates.insert( std::make_pair(el.first.first, *(new std::map<Label,Rate>) ) );
+			LOGGER("TammberModel::predict : Rates fwd")
 			Rates.at(el.first.first).insert(std::make_pair(el.first.second,kf));
 
 			if(Rates.find(el.first.second)==Rates.end())
 				Rates.insert( std::make_pair(el.first.second, *(new std::map<Label,Rate>) ) );
+			LOGGER("TammberModel::predict : Rates rev")
 			Rates.at(el.first.second).insert(std::make_pair(el.first.first,kb));
 			bar_count++;
 		}
@@ -1411,6 +1417,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 		// Boltzmann
 		int min_clust=10;
 		double rho_minE = 10.,rho_norm=0.0;
+		LOGGER("TammberModel::predict : Boltzmann over "<<ms<<" states")
 		for(int si=0; si<ms; si++) {
 			if(StateVertices.at(IndexLabel[si]).energy<rho_minE) rho_minE = StateVertices.at(IndexLabel[si]).energy;
 			if(StateVertices.at(IndexLabel[si]).clusters<min_clust) min_clust = StateVertices.at(IndexLabel[si]).clusters;
@@ -1471,6 +1478,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 				rhoinit[si] = 1.0;
 				found_init = true;
 			}
+			LOGGER("TammberModel::predict : times/ku/kuvar for "<<si<<" = "<<IndexLabel[si])
 			times[si] = StateVertices.at(IndexLabel[si]).target_state_time;
 			ku[si] = UnknownRates.at(IndexLabel[si]).unknown_rate;
 			kuvar[si] = UnknownRates.at(IndexLabel[si]).unknown_variance;
@@ -1516,6 +1524,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 
 
 		if (solved_one) {
+			LOGGER("TammberModel::predict : solved_one")
 			st_norm = 0.0;
 			for(int si=0; si<ms; si++) {
 				allocation[si] = iQI[si] * PiQ[si] * UnknownRates.at(IndexLabel[si]).optimal_gradient;
@@ -1555,6 +1564,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 				valid_time += -PiQ[si];
 				pabs[si] = -PiQ[si] * ku[si];
 				if(ku[si]<=0.0) pabs[si] = 0.; // hard condition
+				LOGGER("TammberModel::predict : solved_two")
 				if(StateVertices.at(IndexLabel[si]).clusters>std::max(ClusterThresh,min_clust)) {
 					LOGGERA("STATE "<<IndexLabel[si]<<" HAS "<<StateVertices.at(IndexLabel[si]).clusters<<" > "<<std::max(ClusterThresh,min_clust)<<" Clusters; SET TO ABSORBING (TBI) -> 0")
 					pabs[si] = 0.; // hard condition

@@ -76,6 +76,7 @@
 #include "CustomTypedefs.hpp"
 #include "Types.hpp"
 #include "TammberTypes.hpp"
+#include "Log.hpp"
 #include "Task.hpp"
 #include "Pack.hpp"
 #include "Constants.hpp"
@@ -115,7 +116,7 @@ AbstractPullWorkProducer(comm_,sharedStore_,children_,config){
 	defaultFlavor=config.get<int>("Configuration.TaskParameters.DefaultFlavor", 0);
 	nebonly = config.get<int>("Configuration.MarkovModel.OnlyNEBS",false);
   deleteVertex = config.get<uint64_t>("Configuration.MarkovModel.DeleteVertex",0);
-	std::cout<<"NEBONLY: "<<nebonly<<std::endl;
+	LOGGER("NEBONLY: "<<nebonly)
 
 	// initialConfigurations
 	boost::split(initialConfigurations,initialConfigurationString,boost::is_any_of(" "));
@@ -209,7 +210,7 @@ void initializeSystems() {
 
 	std::cout<<markovModel.info_str()<<std::endl;
 
-	std::cout<<"INIT DONE"<<std::endl;
+	LOGGERA("INIT DONE")
 
 	/*
 	TADSegment segment;
@@ -236,18 +237,18 @@ void initializeSystems() {
 
 virtual void processCompletedTasks(){
 	//process the completed results
-	//std::cout<<"PROCESSING "<<ready.size()<<" TASKS"<<std::endl;
+	LOGGER(PROCESSING "<<ready.size()<<" TASKS")
 
 	for(auto &seg: ready.segments) {
 		// log....
-		//std::cout<<"ADDING SEGMENT: "<<seg.info_str()<<std::endl;
+		LOGGER("ADDING SEGMENT: "<<seg.info_str())
 		markovModel.add_segment(seg);
 	}
 	ready.segments.clear();
 
 	for(auto &path: ready.pathways) {
 		// log....
-		//std::cout<<"ADDING PATHWAY: "<<path.info_str()<<std::endl;
+		LOGGER("ADDING PATHWAY: "<<path.info_str())
 		markovModel.add_pathway(path);
 	}
 	ready.pathways.clear();
@@ -260,14 +261,8 @@ virtual void report_impl(){
 	{
 		Timer t;
 		//output timings
-		#ifdef USE_BOOST_LOG
-		BOOST_LOG_SEV(lg,boost::log::trivial::info)<<std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now()-start).count()+carryOverTime;
-		BOOST_LOG_SEV(lg,boost::log::trivial::info)<<markovModel.info_str();
-		#else
-		std::cout<<std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now()-start).count()+carryOverTime<<"\n";
-		std::cout<<markovModel.info_str();
-		#endif
-		//std::cout<<"SPLICER DONE REPORTING "<<t.stop()<<std::endl;
+		LOGGER(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now()-start).count()+carryOverTime)
+		LOGGERA(markovModel.info_str())
 		completedTasks.report();
 	}
 };
