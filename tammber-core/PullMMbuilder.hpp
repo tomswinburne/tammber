@@ -237,7 +237,7 @@ void initializeSystems() {
 
 virtual void processCompletedTasks(){
 	//process the completed results
-	LOGGER(PROCESSING "<<ready.size()<<" TASKS")
+	LOGGER("PROCESSING "<<ready.size()<<" TASKS")
 
 	for(auto &seg: ready.segments) {
 		// log....
