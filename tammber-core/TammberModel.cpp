@@ -234,6 +234,8 @@ std::string StateEdge::info_str(bool seg) {
 	for(auto &pn: requestedNEBS) res += std::to_string(pn.first)+","+std::to_string(pn.second)+" ";
 	res+="\n   Pending NEBS: ";
 	for(auto &pn: pendingNEBS) res += std::to_string(pn.first)+","+std::to_string(pn.second)+" ";
+	res+="\n   Failed NEBS: "; // TO BE RENAMED
+	for(auto &pn: requestedPMS) res += std::to_string(pn.first)+","+std::to_string(pn.second)+" ";
 	res += "\n";
 	return res;
 };
@@ -543,25 +545,29 @@ void TammberModel::add_segment(TADSegment &seg) {
 		if(transitionMap.find(seg.transition)==transitionMap.end()) {
 			transitionMap.insert(std::make_pair(seg.transition,seg.transition));
 			transitionMap.insert(std::make_pair(seg.transition.rev(),seg.transition.rev()));
+			LOGGER("TammberModel::add_segment transitionMap adding map")
 		}
 
-		Transition trans =  seg.transition;
-		LOGGER("BEFORE TMap: "<<trans.first.first<<","<<trans.first.second<<" -> "<<trans.second.first<<","<<trans.second.second)
-		trans = transitionMap.at(seg.transition);
-		LOGGER("AFTER TMap (ADDING): "<<trans.first.first<<","<<trans.first.second<<" -> "<<trans.second.first<<","<<trans.second.second)
+		Transition trans =  transitionMap.at(seg.transition);
+		LOGGER("TammberModel::add_segment transitionMap mapping: ")
+		LOGGER(seg.transition.first.first<<","<<seg.transition.first.second<<" -> "<<seg.transition.second.first<<","<<seg.transition.second.second)
+		LOGGER("\t\t|\t\t|\t\t|\n\t\tV\t\tV\t\tV")
+		LOGGER(trans.first.first<<","<<trans.first.second<<" -> "<<trans.second.first<<","<<trans.second.second)
 
 		add_edge(trans); // find / create edge (also takes care of initializing self_edge_map)
 
 		bool forwards=bool(CanonTrans(trans).first==StateEdges.find(CanonTrans(trans))->first.first);
 
 		auto ep = &(StateEdges.find(CanonTrans(trans))->second); // pointer to edge
+
 		SymmLabelPair tl = NonCanonTrans(trans); // not nec. parallel
 
-		// No NEB? add to pendingNEBS
-		if(ep->completedNEBS.find(tl)==ep->completedNEBS.end()) {
-			if(forwards) ep->pendingNEBS.insert(tl);
-			else ep->pendingNEBS.insert(tl.rev());
-			LOGGER("APPENDING TO pendingNEBS")
+		// No NEB? add to pendingNEBS unless previously failed
+		if(ep->completedNEBS.find(tl)==ep->completedNEBS.end())
+			if(ep->requestedPMS.find(tl)==ep->requestedPMS.end()) { // TO BE RENAMED!
+				if(forwards) ep->pendingNEBS.insert(tl);
+				else ep->pendingNEBS.insert(tl.rev());
+				LOGGER("TammberModel::add_segment APPENDING TO pendingNEBS")
 		}
 
 		// what is the "canonical" noncanonical transition label?
@@ -574,7 +580,7 @@ void TammberModel::add_segment(TADSegment &seg) {
 				ttsl.push_back(seg);
 				pendingTADS.insert(std::make_pair(trans,ttsl));
 			} else pendingTADS[trans].push_back(seg);
-			LOGGER("APPENDING TO pendingTADS")
+			LOGGER("TammberModel::add_segment APPENDING TO pendingTADS")
 		} else { // otherwise we have a normal transition
 			ep->connections.find(ctl)->second.add_jump(seg.temperature,fpt,forwards);
 		}
@@ -621,7 +627,9 @@ void TammberModel::add_spacemaps(NEBPathway &path) {
 bool TammberModel::add_transitionMaps(NEBPathway &path) {
 	LOGGER("TammberModel::add_transitionMaps")
 	if (path.FoundTransitions.size()==0) return false;
-	LOGGER("REMAPPING ("<<path.InitialLabels.first<<","<<path.InitialLabels.second<<") -> "<<path.FinalLabels.first<<","<<path.FinalLabels.second<<")")
+	LOGGER("TammberModel::add_transitionMaps segment intial -> final :")
+	LOGGER(path.InitialLabels.first<<","<<path.InitialLabels.second<<") -> "<<path.FinalLabels.first<<","<<path.FinalLabels.second)
+	LOGGER("TammberModel::add_transitionMaps Going through FoundTransitions:")
 
 	for(auto ft:path.FoundTransitions) {
 		LOGGER(ft.print_str())
@@ -634,7 +642,8 @@ bool TammberModel::add_transitionMaps(NEBPathway &path) {
 		if(ep->second.requestedNEBS.find(nctp)==ep->second.requestedNEBS.end()) // not requested
 			if(ep->second.completedNEBS.find(nctp)==ep->second.completedNEBS.end()) // not completed
 				if(ep->second.pendingNEBS.find(nctp)==ep->second.pendingNEBS.end()) // not pending
-					ep->second.pendingNEBS.insert(nctp);
+					if(ep->second.requestedPMS.find(nctp)==ep->second.requestedPMS.end()) // not failed TO BE RENAMED!!
+						ep->second.pendingNEBS.insert(nctp);
 
 		// add to transitionMap
 		transitionMap[ft] = ft;
@@ -702,41 +711,29 @@ bool TammberModel::add_duplicate(NEBPathway &path) {
 void TammberModel::add_pathway(NEBPathway &path) {
 	LOGGER("TammberModel::add_pathway")
 	if(!path.valid && path.FoundTransitions.size()==0) {
-		std::string err_msg;
-		if(path.mismatch)
-			err_msg = "MISMATCHED PATH! ADDING TO TMAP, -(REQUESTED AND PENDING), +PENDING";
-		else err_msg = "SKIPPING";
-		LOGGERA("INVALID PATH! "<<path.info_str()<<"\n"<<err_msg)
 
-		Transition ftrans(path.InitialLabels,path.FinalLabels);
-		auto fep = StateEdges.find(CanonTrans(ftrans));
-		// remove from requested NEBS
-		if(fep!=StateEdges.end())
+		std::string err_msg = "";
+		if(path.mismatch)
+			err_msg = "MISMATCHED / ERRONEOUS LABELS IN PATH! \n"
+								"CURRENTLY REMOVING FROM REQUESTED AND PENDING\n"
+								"CONSIDER INCREASING MINIMIZATION TOLERANCES\n";
+		err_msg += "ADDING TO FAILED NEBS";
+		LOGGERA("TammberModel::add_pathway : \nINVALID PATH! "<<path.info_str())
+
+		Transition ftrans(path.InitialLabels,path.FinalLabels); // requested labels
+		auto fep = StateEdges.find(CanonTrans(ftrans)); // corresponding edge
+
+		if(fep!=StateEdges.end()) {
+			// In any case, remove from requested NEBS
 			if(fep->second.requestedNEBS.find(NonCanonTrans(ftrans))!=fep->second.requestedNEBS.end())
 				fep->second.requestedNEBS.erase(fep->second.requestedNEBS.find(NonCanonTrans(ftrans)));
-		//if(fep!=StateEdges.end())
-		//	if(path.mismatch && fep->second.pendingNEBS.find(NonCanonTrans(ftrans))!=fep->second.pendingNEBS.end())
-		//		fep->second.pendingNEBS.erase(fep->second.pendingNEBS.find(NonCanonTrans(ftrans)));
-		if(path.mismatch) {
-			SymmLabelPair nctp;
-			bool forwards=false;
-			Transition tp(path.MMInitialLabels,path.MMFinalLabels);
-			fep = StateEdges.find(CanonTrans(tp));
-			if (fep!=StateEdges.end()) { // found edge
-				if(CanonTrans(tp).first==fep->first.first) nctp = NonCanonTrans(tp);
-				else nctp = NonCanonTrans(tp.rev());
-				if(fep->second.completedNEBS.find(nctp)==fep->second.completedNEBS.end()) { // not completed
-					if(fep->second.requestedNEBS.find(nctp)==fep->second.requestedNEBS.end()) { // not requested
-						if(fep->second.pendingNEBS.find(nctp)==fep->second.pendingNEBS.end()) { // not pending
-							LOGGER("INSERTING NEW PATH REQUEST")
-							fep->second.pendingNEBS.insert(nctp); // insert it
-						}
-					}
-				}
-			}
-			LOGGER("ADDING TO TMAP")
-			transitionMap[ftrans] = tp;
-			transitionMap[ftrans.rev()] = tp.rev();
+
+			// In any case, remove from pending NEBS
+			if(fep->second.pendingNEBS.find(NonCanonTrans(ftrans))!=fep->second.pendingNEBS.end())
+				fep->second.requestedNEBS.erase(fep->second.requestedNEBS.find(NonCanonTrans(ftrans)));
+
+			// Add to failed NEBS TO BE RENAMED!
+			fep->second.requestedPMS.insert(NonCanonTrans(ftrans));
 		}
 		return;
 	}
@@ -751,6 +748,7 @@ void TammberModel::add_pathway(NEBPathway &path) {
 	SymmLabelPair tl = NonCanonTrans(trans);
 	add_edge(CanonTrans(trans)); // find / create edge - it should already exist!!
 	auto ep = &(StateEdges.find(CanonTrans(trans))->second);
+
 	// should always be forwards, no?
 	bool forwards = bool(CanonTrans(trans).first==StateEdges.find(CanonTrans(trans))->first.first);
 	if(!forwards) LOGGER("TammberModel::add_pathway : NEBPathway not parallel to StateEdge! Ignoring as likely bug")
@@ -789,18 +787,18 @@ void TammberModel::add_pathway(NEBPathway &path) {
 
 		tl = ep->self_edge_map.at(NonCanonTrans(ptrans)).first; // parallel even if ptrans not
 
-		LOGGER("ep->connections.find(tl)!=ep->connections.end()")
+		LOGGER("TammberModel::add_pathway ep->connections.find(tl)!=ep->connections.end()")
 		if(ep->connections.find(tl)!=ep->connections.end()) {
-			LOGGER("for(auto &pseg: pta.second)")
+			LOGGER("TammberModel::add_pathway for(auto &pseg: pta.second)")
 			for(auto &pseg: pta.second) { // list of TADSegments
 				double fpt = StateVertices.find(ptrans.first.first)->second.state_time(pseg.temperature);
 				ep->connections.find(tl)->second.add_jump(pseg.temperature,fpt,forwards);
 			}
-			LOGGER("pta.second.clear()")
+			LOGGER("TammberModel::add_pathway pta.second.clear()")
 			pta.second.clear();
 		}
 	}
-	LOGGER("pta=pendingTADS.erase(pta);")
+	LOGGER("TammberModel::add_pathway pta=pendingTADS.erase(pta);")
 	for(auto pta=pendingTADS.begin();pta!=pendingTADS.end();) {
 		if(pta->second.size()==0) pta=pendingTADS.erase(pta);
 		else pta++;
@@ -879,7 +877,8 @@ void TammberModel::write_model(std::string mmfile) {
 	std::ofstream res(mmfile.c_str(),std::ofstream::out);
 
 	std::ofstream state_list("StatesToExtract.list",std::ofstream::out);
-
+	std::ofstream pfn_list("PendingFailedNEBS.list",std::ofstream::out);
+	pfn_list<<"# InitialLabels FinalLabels 1=Pending/0=Failed\n";
 	double st=0.0;
 	unsigned blocks=0,overhead=0,nebc=0,jc=0;
 	double minE = 99999999.0;
@@ -982,12 +981,17 @@ void TammberModel::write_model(std::string mmfile) {
 				};
 			}
 			*/
+			for(auto pnl : e.second.pendingNEBS)
+				pfn_list<<e.first.first<<" "<<pnl.first<<" "<<e.first.second<<" "<<pnl.second<<" 1\n";
+			for(auto pnl : e.second.requestedPMS) // TO BE RENAMED!
+				pfn_list<<e.first.first<<" "<<pnl.first<<" "<<e.first.second<<" "<<pnl.second<<" 0\n";
 			res<<"  </Edge>\n";
 		}
 	}
 	res<<"</MarkovModel>\n";
 	res.close();
 	state_list.close();
+	pfn_list.close();
 };
 
 void TammberModel::generateNEBs(std::list<NEBjob> &jobs, int nMax) {
@@ -1174,11 +1178,15 @@ void TammberModel::calculate_rates(SymmLabelPair el, Rate &kf, Rate &kb) {
 // modelParams- list(SymmLabelPair,([dE_f,dE_b,nu_f,nu_b], PointShiftSymmetry))
 std::list<std::pair<SymmLabelPair,std::pair< std::array<double,6>,PointShiftSymmetry >>>
 	TammberModel::modelParams(SymmLabelPair el) {
+
 	LOGGER("TammberModel::modelParams")
+
 	std::list<std::pair<SymmLabelPair,std::pair< std::array<double,6>,PointShiftSymmetry >>> res;
+
 	auto isp = StateVertices.find(el.first);
 	auto fsp = StateVertices.find(el.second);
 	auto ep = StateEdges.find(el);
+
 	if(isp==StateVertices.end() || fsp==StateVertices.end() || ep==StateEdges.end()) return res;
 	bool forwards = bool(el.first==ep->first.first);
 	if(ep->second.connections.size()==0) return res;
@@ -1214,9 +1222,9 @@ std::list<std::pair<SymmLabelPair,std::pair< std::array<double,6>,PointShiftSymm
 		}
 		res.push_back(std::make_pair(SymmLabelPair(slab),std::make_pair(sres,op)));
 	}
-	// all incomplete transitions
 
-	if(ep->second.pendingNEBS.size()>1.0) {
+	// all incomplete transitions
+	if(sim_conn && ep->second.pendingNEBS.size()>1.0) {
 		double maxT = tadT[tadT.size()-1];
 		auto pslab = *(ep->second.pendingNEBS.begin());
 		slab.first = (forwards ? pslab.first : pslab.second);
