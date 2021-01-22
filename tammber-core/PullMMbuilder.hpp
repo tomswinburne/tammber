@@ -220,7 +220,7 @@ virtual void processCompletedTasks(){
 	LOGGER("PullMMbuilder::processCompletedTasks()")
 	//process the completed results
 	//
-	LOGGER("PROCESSING "<<ready.size()<<" TASKS")
+	LOGGER("PullMMbuilder::processCompletedTasks PROCESSING "<<ready.size()<<" TASKS")
 	for(auto &seg: ready.segments) {
 		LOGGER("ADDING SEGMENT: "<<seg.info_str())
 		markovModel.add_segment(seg);
@@ -229,7 +229,7 @@ virtual void processCompletedTasks(){
 	ready.segments.clear();
 
 	for(auto &path: ready.pathways) {
-		LOGGER("ADDING PATHWAY: "<<path.info_str())
+		LOGGER("PullMMbuilder::processCompletedTasks ADDING PATHWAY: "<<path.info_str())
 		markovModel.add_pathway(path);
 	}
 	ready.pathways.clear();
@@ -252,7 +252,7 @@ virtual void full_print(bool model) {
 	LOGGER("PullMMbuilder::full_print()")
 	// Save XML file
 	if(deleteVertex!=0) {
-		LOGGERA("DELETING "<<deleteVertex)
+		LOGGERA("PullMMbuilder::full_print DELETING "<<deleteVertex)
 		markovModel.deleteVertex(deleteVertex);
 		{
 			std::ofstream ofs("./TammberModelNew.chk");
