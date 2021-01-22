@@ -241,6 +241,7 @@ struct StateVertex {
   // TEST THIS
   void update(Label lab, double energy_);
 	void update(Label lab, double energy_,int clust, std::array<double,3> pos);
+	void update(Label lab, double energy_,int clust, std::array<double,3> pos, std::set<PointShiftSymmetry> ss);
 	void add_segment(TADSegment &seg);
 
   template<class Archive>
@@ -315,8 +316,8 @@ public:
 	int newIndex();
   // to be overloaded
   void add_vertex(LabelPair labels, double energy);
-
 	void add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos);
+	void add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos, std::set<PointShiftSymmetry> ss);
 
   void add_edge(SymmLabelPair el);
   void add_edge(SymmLabelPair el,SymmLabelPair tl);
@@ -339,7 +340,7 @@ public:
 
 	void write_model(std::string mmfile);
 
-	std::list<std::pair<SymmLabelPair,std::pair< std::array<double,4>,PointShiftSymmetry >>> modelParams(SymmLabelPair el);
+	std::list<std::pair<SymmLabelPair,std::pair< std::array<double,6>,PointShiftSymmetry >>> modelParams(SymmLabelPair el);
 
 	std::map<Label,std::pair<Label,std::set<Label>>> listStates();
 
@@ -393,12 +394,12 @@ protected:
   // Bayes parameters
   double min_barrier, prefactorCountThresh, max_ku, min_ku, max_k, HashCost, NEBCost;
   // TAD parameters
-  double  targetT, targetB, valid_time, valid_time_sd;
+  double  targetT, targetB, valid_time, valid_time_sd,pNEB_Prior;
 	int max_id, RhoInitFlavor, PredictionSize, AllocScheme;
 	int ClusterThresh;
   std::vector<double> tadT;
 	LabelPair InitialLabels;
-	bool safe_opt;
+	bool safe_opt,sim_conn;
 	std::string LatticeConstant, PrimitiveUnitCell, UnitCell, SuperCell;
 
 	std::map<Transition,Transition> transitionMap; // not symmetric ?

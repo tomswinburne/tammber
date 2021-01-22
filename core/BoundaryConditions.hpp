@@ -30,7 +30,6 @@ inline static std::pair<std::array<double, NDIM>, std::array<double, NDIM> > pri
 	std::array<double, NDIM> s;
 	for(int i=0; i<NDIM; i++) {
 		r[i]-=cell.origin[i];
-		//std::cout<<r[i]<<std::endl;
 	}
 
 	//project to cell-space
@@ -67,7 +66,6 @@ inline static std::pair<std::array<double, NDIM>, std::array<double, NDIM> > pri
 	std::array<double, NDIM> r;
 	for(int i=0; i<NDIM; i++) {
 		r[i]=system.getPosition(iAtom,i);
-		//std::cout<<"-"<<r[i]<<std::endl;
 	}
 
 	return primaryCellPosition(r,c);

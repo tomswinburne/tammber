@@ -44,19 +44,6 @@
 #include <boost/random.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/type_index.hpp>
-#ifdef USE_BOOST_LOG
-#include <boost/log/core.hpp>
-#include <boost/log/trivial.hpp>
-#include <boost/log/expressions.hpp>
-#include <boost/log/sinks/text_file_backend.hpp>
-#include <boost/log/utility/setup/file.hpp>
-#include <boost/log/utility/setup/common_attributes.hpp>
-#include <boost/log/sources/severity_logger.hpp>
-#include <boost/log/sources/record_ostream.hpp>
-#include <boost/log/utility/setup/settings.hpp>
-#include <boost/log/utility/setup/from_settings.hpp>
-
-#endif
 #include <iostream>
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/stats.hpp>
@@ -172,11 +159,11 @@ void report(std::string title="EXECUTION"){
 	}
 	BOOST_LOG_SEV(lg, boost::log::trivial::trace) <<"==================== END TIMER REPORT =====================";
 	#else
-	std::cout<<"==================== BEGIN "<< title <<" TIMER REPORT ====================="<<std::endl;
+	LOGGER("==================== BEGIN "<< title <<" TIMER REPORT =====================")
 	for(auto it=processes.begin(); it!=processes.end(); it++) {
-		std::cout<<std::setw(15)<< it->first<<" Interval: "<<logInterval<<" count: "<< boost::accumulators::count( it->second ) <<" min: "<<boost::accumulators::min( it->second )<<" mean: "<<boost::accumulators::mean( it->second )<<" max: "<<boost::accumulators::max( it->second )<<"\n";
+		LOGGER(std::setw(15)<< it->first<<" Interval: "<<logInterval<<" count: "<< boost::accumulators::count( it->second ) <<" min: "<<boost::accumulators::min( it->second )<<" mean: "<<boost::accumulators::mean( it->second )<<" max: "<<boost::accumulators::max( it->second ))
 	}
-	std::cout<<"==================== END TIMER REPORT =====================\n";
+	LOGGER("==================== END TIMER REPORT =====================")
 	#endif
 	logTimer.start();
 	processes.clear();

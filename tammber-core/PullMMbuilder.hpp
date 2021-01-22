@@ -31,19 +31,7 @@
 #include <thread>
 
 #include <mpi.h>
-#ifdef USE_BOOST_LOG
-#include <boost/log/core.hpp>
-#include <boost/log/trivial.hpp>
-#include <boost/log/expressions.hpp>
-#include <boost/log/sinks/text_file_backend.hpp>
-#include <boost/log/utility/setup/file.hpp>
-#include <boost/log/utility/setup/common_attributes.hpp>
-#include <boost/log/sources/severity_logger.hpp>
-#include <boost/log/sources/record_ostream.hpp>
-#include <boost/log/utility/setup/settings.hpp>
-#include <boost/log/utility/setup/from_settings.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
-#endif
+
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
 #include <boost/optional.hpp>
@@ -76,7 +64,6 @@
 #include "CustomTypedefs.hpp"
 #include "Types.hpp"
 #include "TammberTypes.hpp"
-#include "Log.hpp"
 #include "Task.hpp"
 #include "Pack.hpp"
 #include "Constants.hpp"
@@ -93,7 +80,7 @@ class TammberModelBuilder : public AbstractPullWorkProducer {
 public:
 TammberModelBuilder(MPI_Comm comm_,AbstractDDS *sharedStore_, std::set<int> children_, boost::property_tree::ptree &config) :
 AbstractPullWorkProducer(comm_,sharedStore_,children_,config){
-
+	LOGGER("TammberModelBuilder : public AbstractPullWorkProducer")
 	carryOverTime=0;
 	jobcount = 0;
 	uint64_t sharedBufferSize=config.get<uint64_t>("Configuration.MarkovModel.SharedCacheSize",1000000000);
@@ -116,7 +103,7 @@ AbstractPullWorkProducer(comm_,sharedStore_,children_,config){
 	defaultFlavor=config.get<int>("Configuration.TaskParameters.DefaultFlavor", 0);
 	nebonly = config.get<int>("Configuration.MarkovModel.OnlyNEBS",false);
   deleteVertex = config.get<uint64_t>("Configuration.MarkovModel.DeleteVertex",0);
-	LOGGER("NEBONLY: "<<nebonly)
+	//nstd::cout<<"NEBONLY: "<<nebonly<<std::endl;
 
 	// initialConfigurations
 	boost::split(initialConfigurations,initialConfigurationString,boost::is_any_of(" "));
@@ -147,6 +134,7 @@ BOOST_SERIALIZATION_SPLIT_MEMBER()
 
 
 virtual void initialize(){
+	LOGGER("PullMMbuilder::initialize()")
 	initialized=false;
 	initializeSystems();
 	initialized=true;
@@ -154,6 +142,7 @@ virtual void initialize(){
 
 
 void initializeSystems() {
+	LOGGER("PullMMbuilder::initializeSystems()")
 	std::string testfn;
 	for(auto initialConfiguration : initialConfigurations) {
 		boost::trim(initialConfiguration);
@@ -167,9 +156,9 @@ void initializeSystems() {
 		task.id=jobcount++;
 		insert("Filename",task.arguments,initialConfiguration);
 		extract("Filename",task.arguments,testfn);
-		std::cout<<"REQUESTING "<<testfn<<std::endl;
+		LOGGERA("REQUESTING "<<testfn)
 		taskQueue.insert(task);
-		std::cout<<"IN TQ: "<<taskQueue.count()<<std::endl;
+		LOGGERA("IN TQ: "<<taskQueue.count())
 	}
 
 
@@ -189,78 +178,70 @@ void initializeSystems() {
 		processRecv();
 		pcount = tasks.size();
 		ready.extract(mapper.type("TASK_INIT_MIN"),tasks);
+
 		counts += tasks.size()-pcount;
-		std::cout<<"Counts:"<<counts<<" "<<tasks.size()<<" "<<initialConfigurations.size()<<std::endl;
+		if (tasks.size()!=pcount) {
+			LOGGERA("Counts:"<<counts<<" "<<tasks.size()<<" "<<initialConfigurations.size())
+		}
 	}
 
 	for(auto &tt: tasks) {
 		LabelPair labels;
 		double energy;
 		std::array<double,3> position = {0.,0.,0.};
+		std::set<PointShiftSymmetry> self_symmetries;
+		PointShiftSymmetry null;
+		self_symmetries.insert(null);
 		int clusters=1;
+
 		extract("Labels",tt.returns,labels);
 		extract("Energy",tt.returns,energy);
 		extract("Clusters",tt.returns,clusters);
 		extract("Position",tt.returns,position);
-		std::cout<<"LABELS: "<<labels.first<<" "<<labels.second<<" E:"<<energy;
-		std::cout<<"eV, Clusters:"<<clusters<<" Position:"<<position[0]<<" "<<position[1]<<" "<<position[2]<<"\n";
-		markovModel.add_vertex(labels,energy,clusters,position);
+		LOGGERA("LABELS: "<<labels.first<<" "<<labels.second<<" E:"<<energy
+			<<"eV, Clusters:"<<clusters
+			<<" Position:"<<position[0]<<" "<<position[1]<<" "<<position[2])
+
+
+		#ifdef ISOMORPHIC
+		extract("SelfSymmetries",tt.returns,self_symmetries);
+		LOGGERA("SelfSymmetries:")
+		for(auto ss:self_symmetries) LOGGERA(ss.info_str());
+		#endif
+		markovModel.add_vertex(labels,energy,clusters,position,self_symmetries);
 	}
 
-
-	std::cout<<markovModel.info_str()<<std::endl;
-
-	LOGGERA("INIT DONE")
-
-	/*
-	TADSegment segment;
-
-	task.type=mapper.type("TASK_INIT_MIN");
-	task.flavor=0;
-	task.optional=false;
-	task.imposeOrdering=false;
-	task.nInstances=1;
-	task.id=0;
-
-	taskQueue.insert(task);
-	bool init=false;
-	while(not init) {
-		processSend();
-		processRecv();
-		ready.extract(mapper.type("TASK_INIT_MIN"),tasks);
-		init=bool(tasks.size()>0);
-	}
-	*/
+	LOGGERA(markovModel.info_str()<<"\nINIT DONE")
 
 };
 
 
 virtual void processCompletedTasks(){
+	LOGGER("PullMMbuilder::processCompletedTasks()")
 	//process the completed results
+	//
 	LOGGER("PROCESSING "<<ready.size()<<" TASKS")
-
 	for(auto &seg: ready.segments) {
-		// log....
 		LOGGER("ADDING SEGMENT: "<<seg.info_str())
 		markovModel.add_segment(seg);
+
 	}
 	ready.segments.clear();
 
 	for(auto &path: ready.pathways) {
-		// log....
 		LOGGER("ADDING PATHWAY: "<<path.info_str())
 		markovModel.add_pathway(path);
 	}
 	ready.pathways.clear();
-
+	LOGGER("END PullMMbuilder::processCompletedTasks()")
 };
 
 
 virtual void report_impl(){
+	LOGGER("PullMMbuilder::report_impl()")
 	//report at given intervals
 	{
 		Timer t;
-		//output timings
 		LOGGER(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now()-start).count()+carryOverTime)
 		LOGGERA(markovModel.info_str())
 		completedTasks.report();
@@ -268,15 +249,29 @@ virtual void report_impl(){
 };
 
 virtual void full_print(bool model) {
+	LOGGER("PullMMbuilder::full_print()")
 	// Save XML file
-	if(model) markovModel.write_model("MarkovModel.xml");
+	if(deleteVertex!=0) {
+		LOGGERA("DELETING "<<deleteVertex)
+		markovModel.deleteVertex(deleteVertex);
+		{
+			std::ofstream ofs("./TammberModelNew.chk");
+			{
+				boost::archive::text_oarchive oa(ofs);
+				oa << *this;
+			}
+		}
+	}
 	// Print analysis to screen
 	std::cout<<markovModel.info_str(true)<<std::endl;
+	if(model) markovModel.write_model("MarkovModel.xml");
 	std::list<TADjob> jobs;
 	markovModel.generateTADs(jobs,100);
+
 };
 
 virtual void checkpoint_impl() {
+	LOGGER("PullMMbuilder::checkpoint_impl()")
 	//checkpoint at given intervals
 	{
 		std::ofstream ofs("./TammberModel.chk");
@@ -294,8 +289,7 @@ virtual void checkpoint_impl() {
 
 virtual TaskDescriptorBundle generateTasks(int consumerID, int nTasks){
 
-	//std::cout<<"GENERATING "<<nTasks<<" TASKS"<<std::endl;
-	//std::cout<<"SPLICER TQ: "<<taskQueue.count()<<std::endl;
+	LOGGER("PullMMbuilder::generateTasks : GENERATING "<<nTasks<<" TASKS, SPLICER TQ: "<<taskQueue.count())
 
 	TaskDescriptorBundle tasks;
 	TaskDescriptor task;
@@ -306,6 +300,7 @@ virtual TaskDescriptorBundle generateTasks(int consumerID, int nTasks){
 
 	if (batchSize>=nTasks || not initialized) return tasks;
 
+	LOGGER("PullMMbuilder::generateTasks : initialized && batchSize<=nTasks")
 
 
 	std::list<NEBjob> nebs;
@@ -329,16 +324,12 @@ virtual TaskDescriptorBundle generateTasks(int consumerID, int nTasks){
 		pathway.InitialSymmetries = neb->InitialSymmetries;
 		pathway.FinalSymmetries = neb->FinalSymmetries;
 
-		#ifdef VERBOSE
-		std::cout<<"SUBMITTING PATHWAY FOR NEB ";
-		std::cout<<pathway.submit_info_str()<<std::endl;
+		LOGGER("PullMMbuilder::generateTasks : SUBMITTING PATHWAY FOR NEB "<<pathway.submit_info_str())
 		if(neb->ExistingPairs.size()>0) {
-			std::cout<<"ExistingPairs: \n";
+			LOGGER("ExistingPairs: \n")
 			for (auto epl: neb->ExistingPairs)
-				std::cout<<neb->TargetTransition.first.first<<","<<epl.first<<" -> "<<neb->TargetTransition.second.first<<","<<epl.second<<"\n";
-			std::cout<<std::endl;
+				LOGGER(neb->TargetTransition.first.first<<","<<epl.first<<" -> "<<neb->TargetTransition.second.first<<","<<epl.second<<"\n")
 		}
-		#endif
 
 		insert("Initial",neb->TargetTransition.first.second,LOCATION_SYSTEM_MIN,true,NECESSITY::REQUIRED,task.inputData);
 		insert("Final",neb->TargetTransition.second.second,LOCATION_SYSTEM_MIN,true,NECESSITY::REQUIRED,task.inputData);
@@ -357,7 +348,6 @@ virtual TaskDescriptorBundle generateTasks(int consumerID, int nTasks){
 		if (batchSize>=nTasks) return tasks;
 	}
 
-	//std::cout<<"NEBONLY: "<<nebonly<<std::endl;
 	if(nebonly) return tasks;
 
 	//taskQueue.transferTo(tasks,nTasks-batchSize);
@@ -382,23 +372,21 @@ virtual TaskDescriptorBundle generateTasks(int consumerID, int nTasks){
 		segment.temperature = tad->temperature;
 		for(auto bl: tad->BasinLabels) segment.BasinLabels.insert(bl);
 
-		#ifdef VERBOSE
-		std::cout<<"SUBMITTING SEGMENT "<<segment.submit_info_str()<<std::endl;
-		#endif
+		LOGGER("PullMMbuilder::generateTasks : SUBMITTING SEGMENT "<<segment.submit_info_str())
 
 		insert("TADSegment",task.arguments,segment);
 		insert("Minimum",tad->InitialLabels.second,LOCATION_SYSTEM_MIN,true,NECESSITY::REQUIRED,task.inputData);
 		std::string qsdstr = "QSD"+std::to_string(int(tad->temperature));
 		insert(qsdstr,tad->InitialLabels.second,task.flavor,false,NECESSITY::OPTIONAL,task.inputData);
-		#ifdef VERBOSE
-		std::cout<<"ADDING "<<task.nInstances<<" OF TASK "<<mapper.type(task.type)<<" "<<task.type<<std::endl;
-		#endif
+
+		LOGGER("PullMMbuilder::generateTasks : ADDING "<<task.nInstances<<" OF TASK "<<mapper.type(task.type)<<" "<<task.type)
+
 		tasks.insert(task);
 		tad = tads.erase(tad);
 		batchSize += task.nInstances;
 		if (batchSize>=nTasks) return tasks;
 	}
-	//std::cout<<"SPLICER TQ: "<<taskQueue.count()<<std::endl;
+	LOGGER("PullMMbuilder::generateTasks : SPLICER TQ: "<<taskQueue.count())
 
 	return tasks;
 
@@ -420,9 +408,6 @@ bool nebonly;
 Label deleteVertex;
 std::map< std::pair<int,int>, std::map<std::string,std::string> > taskParameters;
 //std::ofstream outTime;
-#ifdef USE_BOOST_LOG
-boost::log::sources::severity_logger< boost::log::trivial::severity_level > lg;
-#endif
 bool initialized, OnlyNEBS;
 
 

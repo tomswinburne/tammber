@@ -61,7 +61,7 @@ void AbstractLocalDataStore::purge(){
 	while(maxSize>0 and currentSize>maxSize) {
 		auto p=mru.oldest();
 		if(not p.first) {
-			std::cout<<"AbstractLocalDataStore::purge ERROR: "<<currentSize<<" "<<maxSize<< " "<<p.second.first<<" "<<p.second.second<<std::endl;
+			LOGGERA("AbstractLocalDataStore::purge ERROR: "<<currentSize<<" "<<maxSize<< " "<<p.second.first<<" "<<p.second.second)
 			break;
 		}
 		erase(p.second.first,p.second.second);
@@ -102,7 +102,6 @@ int PersistentLocalStore::initialize(std::string homeDir, std::string baseName){
 	bool restore=boost::filesystem::exists(dbName) && boost::filesystem::exists(offsetsName);
 
 	boost::filesystem::path p(homeDir);
-	//std::cout<<homeDir<<" "<<baseName<<" "<<p.parent_path().string()<<std::endl;
 	boost::filesystem::create_directories( p.parent_path().string() );
 
 	offsets.open(offsetsName, std::fstream::in | std::fstream::out | std::fstream::app);
@@ -119,7 +118,7 @@ int PersistentLocalStore::initialize(std::string homeDir, std::string baseName){
 		long int s;
 		offsets.seekg(0, offsets.beg);
 		while(offsets>>dbk>>k>>off>>s) {
-			std::cout<<"RESTORING DB: "<<dbk<<" "<<k<<" "<<off<<" "<<s<<std::endl;
+			LOGGER("RESTORING DB: "<<dbk<<" "<<k<<" "<<off<<" "<<s)
 			locations[std::make_pair(dbk,k)]=std::pair<std::streampos,std::streamsize>(off,s);
 			storedKeys[dbk].insert(k);
 		}
@@ -140,14 +139,11 @@ int PersistentLocalStore::put(unsigned int dbKey, uint64_t &key, RawDataVector &
 		offsets.seekp(0, offsets.end);
 		offsets<<k.first<<" "<<k.second<<" "<<locations[k].first<<" "<<locations[k].second<<" "<<std::flush;
 
-		//std::cout<<"PUT-IO "<<data.size()<<std::endl;
 		io.write(&data[0],data.size());
 		io.flush();
 
-		//std::cout<<"PUT-sk"<<std::endl;
 		storedKeys[dbKey].insert(key);
 
-		//std::cout<<"PUT-E: "<<k.first<<" "<<k.second<<" "<<locations[k].first<<" "<<locations[k].second<<" "<<offsets.tellp()<<" "<<dbKey<<" "<<key<<" "<<storedKeys[dbKey].size()<<" "<<storedKeys.size()<<std::endl;
 
 		/*
 		   {
@@ -172,8 +168,6 @@ int PersistentLocalStore::get(unsigned int dbKey, uint64_t &key, RawDataVector &
 		data=RawDataVector(loc.second);
 		io.read(&data[0],loc.second);
 		io.sync();
-		//std::cout<<"GET: "<<k.first<<" "<<k.second<<" "<<loc.first<<" "<<loc.second<<" "<<data.size()<<" "<<io.gcount()<<std::endl;
-		//std::cout<<io.good()<<" "<<io.eof()<<" "<<io.fail()<<" "<<io.bad()<<std::endl;
 	}
 	else{
 		return KEY_NOTFOUND;
@@ -188,7 +182,6 @@ int PersistentLocalStore::createDatabase(unsigned int dbKey, bool allowDuplicate
 int PersistentLocalStore::sync(){
 	offsets.flush();
 	io.flush();
-	//std::cout<<"SYNC"<<std::endl;
 	return 0;
 };
 
@@ -226,7 +219,6 @@ int CompressedPersistentLocalStore::initialize(std::string homeDir, std::string 
 };
 
 int CompressedPersistentLocalStore::put(unsigned int dbKey, uint64_t &key, RawDataVector &data){
-	//std::cout<<"============ PUT " <<dbKey <<" "<< key  << "=============="<<std::endl;
 	if(count(dbKey,key)==0) {
 		//put in the buffer
 
@@ -254,31 +246,10 @@ int CompressedPersistentLocalStore::put(unsigned int dbKey, uint64_t &key, RawDa
 		compressBuffer();
 	}
 
-	//std::cout<<"============ PUT " <<dbKey <<" "<< key  << " DONE =============="<<std::endl;
-	/*
-	   SystemType s;
-	   unpack(data,s);
-
-	   //test round trip
-	   RawDataVector dout;
-	   get(dbKey,key,dout);
-
-	   std::cout<<"ROUND TRIP: "<<dout.size()<<std::endl;
-	   SystemType sout;
-	   unpack(dout,sout);
-
-	   double maxd=0;
-	   for(int i=0; i<sout.x.size(); i++) {
-	        maxd=(fabs(sout.x[i]-s.x[i])  > maxd ? fabs(sout.x[i]-s.x[i])  : maxd);
-	   }
-	   std::cout<<"MAX COMPRESSION ERROR "<<maxd<<std::endl;
-	 */
-
 	return 0;
 };
 
 void CompressedPersistentLocalStore::compressBuffer(){
-	//std::cout<<"============  COMPRESS "<< buffer.size()<< "=============="<<std::endl;
 	SZ_Init("sz.config");
 
 
@@ -306,12 +277,7 @@ void CompressedPersistentLocalStore::compressBuffer(){
 		}
 		outd.close();
 	}
-	/*
-	   for(auto it=rdata.begin(); it!=rdata.end(); it++) {
-	        std::cout<<"RDATA: "<<*it<<std::endl;
-	   }
-	   std::cout<<"BLOCK: "<<blockSize<<" DATA: "<<rdata.size()<<" "<<buffer.size()<<" "<<&(rdata[0])<<std::endl;
-	 */
+
 
 	//generate the Huffman tree
 	unsigned char* huffmanTree = NULL;
@@ -323,7 +289,6 @@ void CompressedPersistentLocalStore::compressBuffer(){
 	RawDataVector tree(huffmanTree,huffmanTree+treeByteSize);
 	int ddd=0;
 	treeStore.put(ddd,treeIndex,tree);
-	//std::cout<<"PUT T: "<<treeIndex<<" "<<tree.size()<<" "<<treeByteSize<<" "<<ddd<<std::endl;
 
 
 	int ii=0;
@@ -336,10 +301,9 @@ void CompressedPersistentLocalStore::compressBuffer(){
 		SZ_compress_double_1D_exaalt_block(&(rdata[ii*blockSize]), blockSize, realPrecision, &(cmprBuffer[0]), &cmprSize);
 
 		cmprBuffer.resize(cmprSize);
-		std::cout<<"PUT C: compression ratio "<<1.0*blockSize*4/cmprSize<<std::endl;
+		LOGGER("PUT C: compression ratio "<<1.0*blockSize*4/cmprSize)
 		pack(d,treeIndex,blockSize,cmprBuffer);
 		compressedStore.put(k.first,k.second,d);
-		//std::cout<<"PUT C: "<<cmprSize<<" "<<treeIndex<<" "<<blockSize<<" "<<cmprBuffer.size()<<" "<<d.size()<<std::endl;
 
 	}
 
@@ -347,12 +311,10 @@ void CompressedPersistentLocalStore::compressBuffer(){
 	buffer.clear();
 	SZ_ReleaseHuffman();
 	SZ_Finalize();
-	//std::cout<<"============  COMPRESS "<< buffer.size()<< " DONE =============="<<std::endl;
 };
 
 
 int CompressedPersistentLocalStore::get(unsigned int dbKey, uint64_t &key, RawDataVector &data){
-	//std::cout<<"============ GET " <<dbKey <<" "<< key  << "=============="<<std::endl;
 	auto k=std::make_pair(dbKey,key);
 	if(uncompressedStore.count(dbKey,key)==0 ) {
 		return KEY_NOTFOUND;
@@ -360,7 +322,6 @@ int CompressedPersistentLocalStore::get(unsigned int dbKey, uint64_t &key, RawDa
 
 	RawDataVector d;
 	uncompressedStore.get(dbKey,key,d);
-	//std::cout<<"GET UC: "<<d.size()<<std::endl;
 
 	SystemType s;
 	unpack(d,s);
@@ -376,16 +337,13 @@ int CompressedPersistentLocalStore::get(unsigned int dbKey, uint64_t &key, RawDa
 		int blockSize;
 		double realPrecision2 = 0;
 		compressedStore.get(dbKey,key,dt);
-		//std::cout<<"GET C: "<<dt.size()<<std::endl;
 		unpack(dt,treeLabel,blockSize,dc);
-		//std::cout<<"GET C: "<<dt.size()<<" "<<treeLabel<<" "<<blockSize<<std::endl;
 		dd.resize(blockSize);
 
 
 		RawDataVector tdata;
 		int ddd=0;
 		treeStore.get(ddd,treeLabel,tdata);
-		//std::cout<<"GET T: "<<treeLabel<<" "<<tdata.size()<<std::endl;
 
 		unsigned char *p=(unsigned char *) &(tdata[0]);
 		node huffmanTreeRootNode = SZ_reconstruct_HuffmanEncoder(p, tdata.size(), &realPrecision2);
@@ -399,12 +357,10 @@ int CompressedPersistentLocalStore::get(unsigned int dbKey, uint64_t &key, RawDa
 		SZ_Finalize();
 	}
 
-	//std::cout<<dd.size()<<" "<<s.getNAtoms()<<std::endl;
 	//reassemble item
 	s.restoreCompressibleData(dd);
 	pack(data,s);
 
-	//std::cout<<"============ GET " <<dbKey <<" "<< key  << " DONE =============="<<std::endl;
 
 	return 0;
 };

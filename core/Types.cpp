@@ -21,7 +21,6 @@ void StateStatistics::update(uint64_t finalState){
 		nTransitions+=1;
 	}
 
-	//std::cout<<"UPDATE: "<<label<<" "<<finalState<<" "<<nSegments<<" "<<nTransitions<<std::endl;
 };
 
 void StateStatistics::update(StateStatistics s){
@@ -66,18 +65,15 @@ void StateStatistics::sampleEscapeBKL(double unknownPrior, boost::random::mt1121
 	double pstay=unknownPrior;
 	for(auto it=counts.begin(); it!=counts.end(); it++) {
 		pstay+=it->second;
-		//std::cout<<it->second<<" "<<pstay<<std::endl;
 	}
 	pstay/=(nSegments+unknownPrior+1);
 	pstay=1-pstay;
 
 
-	//std::cout<<"pstay: "<<pstay<<" "<<nSegments<<" "<<unknownPrior <<std::endl;
 	//sample a number of self transition before an escape
 	boost::random::negative_binomial_distribution<int,double> nbino(1,1-pstay);
 	nConsumed=nbino(rand);
 
-	//std::cout<<"pstay: "<<pstay<<" "<<nConsumed <<std::endl;
 
 	//sample a transition
 	double r1=uniform(rand);
@@ -195,7 +191,6 @@ void Trajectory::log(){
 	boost::log::sources::severity_logger< boost::log::trivial::severity_level > lg;
 	BOOST_LOG_SEV(lg, boost::log::trivial::info) <<"============";
 	for(auto it=visits.begin(); it!=visits.end(); it++) {
-		//std::cout<<it->label<<" "<<it->duration<<std::endl;
 		BOOST_LOG_SEV(lg, boost::log::trivial::info) <<it->label<<" "<<it->duration;
 	}
 	#else
@@ -392,7 +387,6 @@ void SegmentDatabase::log(){
 	boost::log::sources::severity_logger< boost::log::trivial::severity_level > lg;
 	BOOST_LOG_SEV(lg, boost::log::trivial::info) <<"SEGMENT DB ";
 	for(auto it=db.begin(); it!=db.end(); it++) {
-		//std::cout<<it->first.first<<" "<<it->first.second<<std::endl;
 		BOOST_LOG_SEV(lg, boost::log::trivial::info) <<it->first.first<<" "<<it->first.second<<" "<<it->second.size();
 		for(auto itt=it->second.begin(); itt!=it->second.end(); itt++) {
 			itt->log();
@@ -423,7 +417,6 @@ void SegmentDatabase::print(){
 int SegmentDatabase::duration(){
 	int dura=0;
 	for(auto it=db.begin(); it!=db.end(); it++) {
-		//std::cout<<it->first.first<<" "<<it->first.second<<std::endl;
 		for(auto itt=it->second.begin(); itt!=it->second.end(); itt++) {
 			dura+=itt->duration();
 		}

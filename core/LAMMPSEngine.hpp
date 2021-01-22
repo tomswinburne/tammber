@@ -31,6 +31,7 @@
 #include "lammps/library.h"
 
 using namespace LAMMPS_NS;
+
 /*
 	Templated out base class, to allow more than one abstract engine type to be adapted to lammps
 	Idea is that we can derive modified abstract classes from MDEngine (c.f. TADEngine)
@@ -60,13 +61,12 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 	if(log_lammps) logfile="log_"+std::to_string(local_rank)+"_"+std::to_string(seed_)+".lammps";
 
 	int argc=5;
-	char *lammps_argv[]={(char *)"parsplice",(char *)"-screen",(char *)"none",(char *)"-log",(char *)logfile.c_str()};
+	char *lammps_argv[]={(char *)"tammber",(char *)"-screen",(char *)"none",(char *)"-log",(char *)logfile.c_str()};
 
 	LOGGER("Trying to open lammps worker "<<local_rank)
 
 	lmp = NULL;
 	lmp = new LAMMPS(argc,lammps_argv,localComm_);
-	//lammps_open(argc,lammps_argv,localComm_,&lmp);
 
 	LOGGER("Opened lammps worker "<<local_rank)
 
@@ -141,7 +141,7 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 	MDBaseEngine::BaseEngine::impls["TASK_CENTRO"] = LAMMPSEngine::centro_impl;
 };
 
-virtual bool failed() {
+virtual bool failed(){
 	if(bool(lammps_has_error(lmp))) {
 		char error_message[2048];
 		int error_type = lammps_get_last_error_message(lmp,error_message,2048);
@@ -547,7 +547,7 @@ std::vector<double> calculateCentroSymmetry(System &s,int nn=8) {
 
 // LAMMPS specific variables
 int me,nprocs;               // MPI info
-LAMMPS *lmp; // instance of LAMMPS
+LAMMPS *lmp;                  // instance of LAMMPS
 void error(const char *str){
 	if (me == 0) printf("ERROR: %s\n",str);
 	MPI_Abort(MPI_COMM_WORLD,1);

@@ -66,7 +66,7 @@
 #include "PullWorkManager.hpp"
 #include "RankPlacement.hpp"
 
-
+#include "Log.hpp"
 
 
 #include <boost/random/mersenne_twister.hpp>
@@ -81,9 +81,7 @@
 bool opt_parser(int argc, char * argv[]);
 
 int main(int argc, char * argv[]) {
-	//std::cout << "ParSplice\n";
 	pid_t pid=getpid();
-	//std::cout<<"PID: "<<pid<<std::endl;
 
 	// Check for special flags
 	if(opt_parser(argc, argv)) return 0;
@@ -97,7 +95,6 @@ int main(int argc, char * argv[]) {
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &nranks);
 
-	//std::cout << "ParSplice: MPI_Init done\n";
 
 	// Create empty property tree object
 	boost::property_tree::ptree tree;
@@ -105,7 +102,6 @@ int main(int argc, char * argv[]) {
 	boost::property_tree::read_xml("./input/ps-config.xml", tree,boost::property_tree::xml_parser::no_comments | boost::property_tree::xml_parser::trim_whitespace);
 	//boost::property_tree::read_info("./input/ps-config.info", tree);
 
-	//std::cout << "ParSplice: XML read\n";
 
 	std::string dbRoot=tree.get<std::string>("Configuration.DB.RootDirectory","./");
 
@@ -205,7 +201,6 @@ int main(int argc, char * argv[]) {
 		MPI_Comm_split(MPI_COMM_WORLD,1,0,&workComm);
 
 
-		//std::cout<<"INTRA"<<std::endl;
 
 
 		//form intercommunicator with child
@@ -219,7 +214,6 @@ int main(int argc, char * argv[]) {
 		   }
 		 */
 
-		//std::cout<<"INTER"<<std::endl;
 
 		std::set<int> children;
 		int nrankWork;
@@ -236,7 +230,6 @@ int main(int argc, char * argv[]) {
 		mmbuilder.server();
 	}
 
-	//std::cout<<"CHECKPOINT 1 myType="<<myType<<std::flush;
 
 	if(myType=="WorkManager") {
 
@@ -245,7 +238,6 @@ int main(int argc, char * argv[]) {
 		//work comm
 		MPI_Comm_split(MPI_COMM_WORLD,1,1,&workComm);
 
-		//std::cout<<"INTRA"<<std::endl;
 
 		//form intercommunicators with children
 		std::set<MPI_Comm> workers;
@@ -255,7 +247,6 @@ int main(int argc, char * argv[]) {
 			MPI_Intercomm_create( localComm, 0, MPI_COMM_WORLD, it->second, it->first, &interComm);
 			workers.insert(interComm);
 		}
-		//std::cout<<"INTER"<<std::endl;
 
 		STLLocalDataStore qsdStore;
 		qsdStore.initialize("","");
@@ -266,7 +257,6 @@ int main(int argc, char * argv[]) {
 		std::cout<<"WorkManager is done"<<std::endl;
 	}
 
-	//std::cout<<"CHECKPOINT 2 myType="<<myType<<std::flush;
 
 	if(myType=="PersistentDB") {
 
@@ -275,7 +265,6 @@ int main(int argc, char * argv[]) {
 		//work comm
 		MPI_Comm_split(MPI_COMM_WORLD,MPI_UNDEFINED,0,&workComm);
 
-		//std::cout<<"INTRA"<<std::endl;
 
 
 		uint64_t maxDataSize=100000000;
@@ -294,10 +283,9 @@ int main(int argc, char * argv[]) {
 			//minimaStore.printStatus();
 
 			if(std::chrono::high_resolution_clock::now() - lastSync > syncDelay  ) {
-				#ifdef VERBOSE
-				std::cout<<"DB SYNC"<<std::endl;
+				LOGGER("DB SYNC")
 				minimaStore.printStatus();
-				#endif
+
 				minimaStore.sync();
 				lastSync=std::chrono::high_resolution_clock::now();
 			}
@@ -313,7 +301,6 @@ int main(int argc, char * argv[]) {
 		std::cout<<"PersistentDB is done"<<std::endl;
 	}
 
-	//std::cout<<"CHECKPOINT 3 myType="<<myType<<std::flush;
 
 	if(myType=="InMemoryDB") {
 		//db-comm
@@ -321,7 +308,6 @@ int main(int argc, char * argv[]) {
 		//work comm
 		MPI_Comm_split(MPI_COMM_WORLD,MPI_UNDEFINED,0,&workComm);
 
-		//std::cout<<"INTRA"<<std::endl;
 		uint64_t sharedBufferSize=tree.get<uint64_t>("Configuration.DB.SharedCacheSize",1000000000);
 
 		HDDS3<STLLocalDataStore> minimaStore(dbComm,0,dbRoot+"./db0/","min",maxDataSize,sharedBufferSize,dbKeys,dbAttributesMin,true);
@@ -331,22 +317,19 @@ int main(int argc, char * argv[]) {
 		while(true) {
 			minimaStore.singleServe();
 			if(std::chrono::high_resolution_clock::now() - lastSync > syncDelay  ) {
-				#ifdef VERBOSE
-				std::cout<<"DB SYNC"<<std::endl;
+				LOGGER("DB SYNC")
 				minimaStore.printStatus();
-				#endif
 				//minimaStore.sync();
 				lastSync=std::chrono::high_resolution_clock::now();
 			}
 			if(std::chrono::high_resolution_clock::now() - start > runTime  ) {
-				std::cout<<"DB is going down"<<std::endl;
+				LOGGERA("DB is going down")
 				minimaStore.sync();
 				minimaStore.cancelCommunications();
 				break;
 			}
 		}
 		std::cout<<"InMemoryDB is done"<<std::endl;
-		//std::cout<<"CHECKPOINT 4 myType="<<myType<<std::flush;
 
 	}
 
@@ -359,14 +342,12 @@ int main(int argc, char * argv[]) {
 		int nloc;
 		MPI_Comm_size(localComm, &nloc);
 
-		//std::cout<<"INTRA "<<nloc<<std::endl;
 
 		std::cout<<myParent<<" "<<myGroup<<std::endl;
 
 		MPI_Comm interComm;
 		MPI_Intercomm_create( localComm, 0, MPI_COMM_WORLD, myParent, myGroup, &interComm);
 
-		//std::cout<<"INTER"<<std::endl;
 
 		worker(localComm,interComm,mySeed);
 		std::cout<<"Worker is done"<<std::endl;
@@ -381,7 +362,6 @@ bool opt_parser(int argc, char * argv[]){
 
 	// Quick Return if there are no command-line options
 	if(argc < 2) return 0;
-	//std::cout<<" ParSplice command-line argv[1] = "<<argv[1]<<std::endl;
 
 	namespace po = boost::program_options;
 	po::options_description desc("Allowed command-line options");

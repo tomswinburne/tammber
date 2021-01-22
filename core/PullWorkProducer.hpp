@@ -32,20 +32,6 @@
 
 #include <mpi.h>
 
-#ifdef USE_BOOST_LOG
-#include <boost/log/core.hpp>
-#include <boost/log/trivial.hpp>
-#include <boost/log/expressions.hpp>
-#include <boost/log/sinks/text_file_backend.hpp>
-#include <boost/log/utility/setup/file.hpp>
-#include <boost/log/utility/setup/common_attributes.hpp>
-#include <boost/log/sources/severity_logger.hpp>
-#include <boost/log/sources/record_ostream.hpp>
-#include <boost/log/utility/setup/settings.hpp>
-#include <boost/log/utility/setup/from_settings.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
-#endif
-
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
 #include <boost/optional.hpp>
@@ -76,6 +62,7 @@
 
 
 #include "Types.hpp"
+#include "Log.hpp"
 #include "Task.hpp"
 #include "Pack.hpp"
 #include "Constants.hpp"
@@ -147,35 +134,30 @@ void server(){
 	while(true) {
 
 		if(std::chrono::high_resolution_clock::now() - start > runTime  ) {
-			std::cout<<"WP: TIME TO DIE"<<std::endl;
+			LOGGERA("WP: TIME TO DIE")
 			die=true;
 		}
 
-		//std::cout<<"updateStores(); "<<std::endl<<std::flush;
 		//update databases
 		timer.start("UpdateDB");
 		updateStores();
 		timer.stop("UpdateDB");
 
-		//std::cout<<"processRecv(); "<<std::endl<<std::flush;
 		//process non-blocking receives (completed segments from WM)
 		timer.start("Recv");
 		processRecv();
 		timer.stop("Recv");
 
-		//std::cout<<"processSend(); "<<std::endl<<std::flush;
 		//process non-blocking sends (tasks to WM)
 		timer.start("Send");
 		processSend();
 		timer.stop("Send");
 
-		//std::cout<<"report(); "<<std::endl<<std::flush;
 		//write outputs if needed
 		timer.start("Report");
 		report();
 		timer.stop("Report");
 
-		//std::cout<<"checkpoint(); "<<std::endl<<std::flush;
 		//checkpoint if needed
 		checkpoint(false);
 
@@ -185,7 +167,7 @@ void server(){
 			//force a checkpoint
 			//checkpoint(true);
 			break;
-			std::cout<<"WP: DONE"<<std::endl;
+			LOGGERA("WP: DONE")
 		}
 	}
 };
@@ -210,17 +192,15 @@ void processRecv(){
 	}
 
 	if(recvCompleted and not die) {
-		timer.start("Recv-Mesg");
+		//timer.start("Recv-Mesg");
 		int count=0;
 		MPI_Get_count( &recvStatus, MPI_BYTE, &count );
 		int from=recvStatus.MPI_SOURCE;
-		//std::cout<<"SPLICER RECEIVED "<<count<<" BYTES "<<std::endl;
 
 		int requests;
 		std::multimap<std::string, DataItem> results;
 		unpack(rbuf,results,requests,count);
 
-		std::cout<<"RESULTS: "<<results.size()<<std::endl;
 		//assimilate the results
 		timer.start("Recv-Assimilate");
 		completedTasks.assimilate(results);
@@ -239,7 +219,7 @@ void processRecv(){
 			taskRequests[from]+=requests;
 		}
 
-		std::cout<<"SPLICER RECEIVED "<<requests<<" TASK REQUESTS FROM "<<from<<std::endl;
+		LOGGER("SPLICER RECEIVED "<<requests<<" TASK REQUESTS FROM "<<from)
 
 		//post a new receive for tasks
 		MPI_Irecv(&(rbuf[0]),rbufSize,MPI_BYTE,MPI_ANY_SOURCE,MPI_ANY_TAG,comm,&incomingRequest);
@@ -255,9 +235,7 @@ bool processSend(){
 	//fulfill requests
 
 	if(not sendCompleted) {
-		//std::cout<<"SPLICER TESTING FOR SEND"<<std::endl;
 		MPI_Test(&outgoingRequest,&sendCompleted,&sendStatus);
-		//std::cout<<"SPLICER DONE TESTING FOR SEND "<<sendCompleted<<std::endl;
 	}
 
 	//according to the MPI standard, TEST after CANCEL should eventually succeed.
@@ -285,8 +263,9 @@ bool processSend(){
 					//TaskDescriptorBundle tt;
 					//unpack(sbuf,tt);
 
-					std::cout<<"WORK PRODUCER FULFILLING "<<it->second<<" TASK REQUESTS FROM "<<it->first<<" "<<tasks.count()<<" "<< sbuf.size()<<" "<<boost::hash_value(sbuf)<<std::endl;
-					//std::cout<<"HASH: "<<boost::hash_value(d.data)<<" SIZE: :"<<d.data.size()<<std::endl;
+					LOGGER("WORK PRODUCER FULFILLING "<<it->second<<" TASK REQUESTS FROM "
+					<<it->first<<" "<<tasks.count()<<" "<< sbuf.size()<<" "<<boost::hash_value(sbuf))
+
 
 					MPI_Issend( &(sbuf[0]),sbuf.size(),MPI_BYTE,it->first,TASK_REQUEST_TAG, comm, &outgoingRequest);
 					sendCompleted=0;
@@ -295,11 +274,9 @@ bool processSend(){
 					break;
 				}
 			}
-			//std::cout<<"SPLICER FULFILLED "<<it->second<<" TASK REQUESTS FROM "<<it->first<<" "<<std::endl;
 		}
 	}
 
-	//std::cout<<"SPLICER OUT"<<std::endl;
 	return true;
 
 };
@@ -310,12 +287,7 @@ void report(){
 	if(std::chrono::high_resolution_clock::now() - lastReport> reportDelay  ) {
 		Timer t;
 		timer.report();
-		#ifdef USE_BOOST_LOG
-		boost::log::sources::severity_logger< boost::log::trivial::severity_level > lg;
-		BOOST_LOG_SEV(lg, boost::log::trivial::trace) <<"PENDING TASK REQUESTS: "<<taskRequests.size();
-		#else
-		std::cout<<"PENDING TASK REQUESTS: "<<taskRequests.size()<<std::endl;
-		#endif
+		LOGGERA("PENDING TASK REQUESTS: "<<taskRequests.size())
 		report_impl();
 		lastReport=std::chrono::high_resolution_clock::now();
 	}

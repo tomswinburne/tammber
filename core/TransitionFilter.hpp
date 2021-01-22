@@ -144,11 +144,9 @@ virtual bool isValid(AbstractSystem &before, AbstractSystem &after, std::unorder
 		}
 	}
 	//activeDomain.print();
-	//std::cout<<"TRANSITION CM"<<std::endl;
 	for(int k=0; k<NDIM; k++) {
 		//cm[k]/=nAtoms;
 		cm[k]/=sd[k];
-		//std::cout<<cm[k]<<" ";
 	}
 	std::cout<<std::endl;
 //is the center of mass in the active domain?

@@ -2,6 +2,7 @@
 #define TammberTypes_hpp
 
 #include "Types.hpp"
+#include "Log.hpp"
 
 // Tammber specific types
 typedef std::pair<Label,Label> LabelPair;

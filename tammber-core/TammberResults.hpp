@@ -16,10 +16,10 @@
 #ifndef TammberTask_hpp
 #define TammberTask_hpp
 
-#include "Log.hpp"
 #include "Task.hpp"
 #include "Pack.hpp"
 #include "Types.hpp"
+#include "Log.hpp"
 
 //#include "CustomTypedefs.hpp"
 
@@ -51,12 +51,16 @@ virtual bool empty(){
 };
 
 void assimilate(TaskResultBundle &t){
-	//std::cout<<"TammberResultBundle:: ASSIMILATING BUNDLE "<<t.completedTasks.size()<<std::endl;
+	LOGGER("TammberResultBundle::assimilate(TaskResultBundle)")
+
+	LOGGER("TammberResultBundle:: ASSIMILATING BUNDLE "<<t.completedTasks.size())
+
 	TammberResultBundle &tt=dynamic_cast<TammberResultBundle&>(t);
 	// no need to group, just a list is fine.....
-	//std::cout<<"TammberResultBundle:: segments.size()=="<<tt.segments.size()<<"\n";
+	LOGGER("TammberResultBundle:: segments.size()=="<<tt.segments.size())
 	for(auto it=tt.segments.begin();it!=tt.segments.end();it++) segments.push_back(*it);
-	//std::cout<<"TammberResultBundle:: pathways.size()=="<<tt.pathways.size()<<"\n";
+
+	LOGGER("TammberResultBundle:: pathways.size()=="<<tt.pathways.size())
 	for(auto it=tt.pathways.begin();it!=tt.pathways.end();it++) {
 		LOGGER("ASSIMILATING NEB / PAIRMAP: "<<it->info_str())
 		pathways.push_back(*it);
@@ -66,7 +70,8 @@ void assimilate(TaskResultBundle &t){
 
 
 virtual void assimilate(GenericTask &t) {
-	//std::cout<<"ASSIMILATING TASK "<<t.type<<std::endl;
+	LOGGER("TammberResultBundle::assimilate(GenericTask)")
+	LOGGER("ASSIMILATING TASK "<<t.type)
 	if(t.type == mapper.type("TASK_SEGMENT")) {
 		std::list<TADSegment> new_segments;
 		::extract("TADSegment",t.returns,new_segments);

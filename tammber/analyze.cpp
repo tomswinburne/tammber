@@ -100,7 +100,6 @@ int main(int argc, char * argv[]) {
 	// Parse the XML into the property tree.
 	boost::property_tree::read_xml("./input/ps-config.xml", tree,boost::property_tree::xml_parser::no_comments | boost::property_tree::xml_parser::trim_whitespace);
 
-	//std::cout << "ParSplice: XML read\n";
 
 	std::string dbRoot=tree.get<std::string>("Configuration.DB.RootDirectory","./");
 	bool modelStr=tree.get<bool>("Configuration.MarkovModel.ModelStr",true);
@@ -230,7 +229,6 @@ int main(int argc, char * argv[]) {
 		//work comm
 		MPI_Comm_split(MPI_COMM_WORLD,1,1,&workComm);
 
-		//std::cout<<"INTRA"<<std::endl;
 
 		//form intercommunicators with children
 		std::set<MPI_Comm> workers;
@@ -240,7 +238,6 @@ int main(int argc, char * argv[]) {
 			MPI_Intercomm_create( localComm, 0, MPI_COMM_WORLD, it->second, it->first, &interComm);
 			workers.insert(interComm);
 		}
-		//std::cout<<"INTER"<<std::endl;
 
 		STLLocalDataStore qsdStore;
 		qsdStore.initialize("","");
@@ -258,7 +255,6 @@ int main(int argc, char * argv[]) {
 		//work comm
 		MPI_Comm_split(MPI_COMM_WORLD,MPI_UNDEFINED,0,&workComm);
 
-		//std::cout<<"INTRA"<<std::endl;
 
 
 		uint64_t maxDataSize=100000000;
@@ -300,7 +296,6 @@ int main(int argc, char * argv[]) {
 		//work comm
 		MPI_Comm_split(MPI_COMM_WORLD,MPI_UNDEFINED,0,&workComm);
 
-		//std::cout<<"INTRA"<<std::endl;
 		uint64_t sharedBufferSize=tree.get<uint64_t>("Configuration.DB.SharedCacheSize",1000000000);
 
 		HDDS3<STLLocalDataStore> minimaStore(dbComm,0,dbRoot+"./db0/","min",maxDataSize,sharedBufferSize,dbKeys,dbAttributesMin,true);
@@ -323,7 +318,6 @@ int main(int argc, char * argv[]) {
 			}
 		}
 		std::cout<<"InMemoryDB is done"<<std::endl;
-		//std::cout<<"CHECKPOINT 4 myType="<<myType<<std::flush;
 
 	}
 
@@ -336,14 +330,12 @@ int main(int argc, char * argv[]) {
 		int nloc;
 		MPI_Comm_size(localComm, &nloc);
 
-		//std::cout<<"INTRA "<<nloc<<std::endl;
 
 		std::cout<<myParent<<" "<<myGroup<<std::endl;
 
 		MPI_Comm interComm;
 		MPI_Intercomm_create( localComm, 0, MPI_COMM_WORLD, myParent, myGroup, &interComm);
 
-		//std::cout<<"INTER"<<std::endl;
 
 		worker(localComm,interComm,mySeed);
 		std::cout<<"Worker is done"<<std::endl;
@@ -358,7 +350,6 @@ bool opt_parser(int argc, char * argv[]){
 
 	// Quick Return if there are no command-line options
 	if(argc < 2) return 0;
-	//std::cout<<" ParSplice command-line argv[1] = "<<argv[1]<<std::endl;
 
 	namespace po = boost::program_options;
 	po::options_description desc("Allowed command-line options");

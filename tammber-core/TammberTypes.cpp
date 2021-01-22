@@ -253,6 +253,7 @@ std::string TADSegment::submit_info_str() {
 
 
 NEBPathway::NEBPathway() {
+	LOGGER("NEBPathway::NEBPathway")
 	duplicate=false;
 	dX = 10.0*MSD_THRESH;
 	valid=true;
@@ -262,6 +263,7 @@ NEBPathway::NEBPathway() {
 };
 
 std::string NEBPathway::info_str(bool full){
+	LOGGER("NEBPathway::info_str")
 	std::string res="NEBPathway:\n";
 	res += "("+std::to_string(InitialLabels.first)+","+std::to_string(InitialLabels.second)+") -> ";
 	res += "("+std::to_string(SaddleLabels.first)+","+std::to_string(SaddleLabels.second)+") -> ";
@@ -310,6 +312,7 @@ std::string NEBPathway::info_str(bool full){
 };
 
 std::string NEBPathway::submit_info_str(){
+	LOGGER("NEBPathway::submit_info_str")
 	std::string res="NEBPathway:\n";
 	res += "("+std::to_string(InitialLabels.first)+","+std::to_string(InitialLabels.second)+") -> ";
 	res += "("+std::to_string(FinalLabels.first)+","+std::to_string(FinalLabels.second)+")\n";

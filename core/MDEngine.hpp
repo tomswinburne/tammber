@@ -20,7 +20,6 @@
 #include "SystemModifier.hpp"
 #include "Task.hpp"
 #include "Graph.hpp"
-#include "Syncer.hpp"
 #include "TransitionFilter.hpp"
 #include <map>
 #include <string>
@@ -45,7 +44,6 @@ MDTaskMapper() : AbstractTaskMapper() {
 	AbstractTaskMapper::insert("TASK_LABEL");
 	AbstractTaskMapper::insert("TASK_REMAP");
 	AbstractTaskMapper::insert("TASK_INIT_VELOCITIES");
-	AbstractTaskMapper::insert("TASK_SYNC");
 	AbstractTaskMapper::insert("TASK_INIT_MIN");
 	AbstractTaskMapper::insert("TASK_MODIFY");
 	AbstractTaskMapper::insert("TASK_FILTER_TRANSITION");
@@ -92,7 +90,6 @@ MDEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_) : 
 				std::string data=vv.second.data();
 				boost::trim(key);
 				boost::trim(data);
-				//std::cout<<key<<" "<<data<<std::endl;
 				taskParameters[std::make_pair(type,flavor)][key]=data;
 			}
 		}
@@ -110,7 +107,6 @@ MDEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_) : 
 	BaseEngine::impls["TASK_LABEL"] = MDEngine::label_impl; // insert("TASK_LABEL");
 	BaseEngine::impls["TASK_REMAP"] = MDEngine::remap_impl; // insert("TASK_REMAP");
 	BaseEngine::impls["TASK_INIT_VELOCITIES"] = MDEngine::init_velocities_impl; // insert("TASK_INIT_VELOCITIES");
-	BaseEngine::impls["TASK_SYNC"] = MDEngine::sync_impl; // insert("TASK_SYNC");
 	BaseEngine::impls["TASK_INIT_MIN"] = MDEngine::init_min_impl; // insert("TASK_INIT_MIN");
 	BaseEngine::impls["TASK_MODIFY"] = MDEngine::modify_impl; // insert("TASK_MODIFY");
 	BaseEngine::impls["TASK_FILTER_TRANSITION"] = MDEngine::filter_transition_impl; // insert("TASK_FILTER_TRANSITION");
@@ -151,57 +147,6 @@ std::function<void(GenericTask&)> file_init_impl = [this](GenericTask &task) {
 };
 std::function<void(GenericTask&)> file_write_impl = [this](GenericTask &task) {
 	/* to be overwritten (in impls as well) */
-};
-
-/**
- * This should expect:
- * arguments: TrajectoryIndex
- * arguments:InitialLabel
- * inputData: InitialState, the configurations to modify
- *
- * This should return:
- * returns: TrajectoryIndex
- * returns: InitialLabel
- * returns: FinalLabel
- * outputData: FinalState
- */
-std::function<void(GenericTask&)> sync_impl = [this](GenericTask &task){
-	Label initialLabel,finalLabel;
-	int trajectory;
-
-	extract("InitialLabel",task.arguments,initialLabel);
-	extract("TrajectoryIndex",task.arguments,trajectory);
-	insert("InitialLabel",task.returns,initialLabel);
-	insert("TrajectoryIndex",task.returns,trajectory);
-
-
-	System reference,synced;
-	std::list<System> neighbors;
-	std::list< AbstractSystem* > neigh;
-
-	extract("ReferenceState",task.inputData,reference);
-	extract("NeighboringState",task.inputData,neighbors);
-	for(auto it=neighbors.begin(); it!=neighbors.end(); it++) {
-		neigh.push_back(dynamic_cast<AbstractSystem*>(&(*it)));
-	}
-
-	std::unordered_map<std::string,std::string> parameters=extractParameters(task.type,task.flavor,defaultFlavor,taskParameters);
-	std::string syncerType=parameters["Type"];
-	boost::trim(syncerType);
-	std::cout<<"TYPE: "<<syncerType<<std::endl;
-	std::shared_ptr<AbstractSyncer> syncer=syncerFactory.at(syncerType)();
-	syncer->initialize(parameters);
-	syncer->sync(reference, neigh, synced);
-
-	GenericTask t;
-	insert("State",t.inputData,synced);
-	min_label_remap(t);
-	extract("State",t.outputData,synced);
-	extract("Label",t.returns, finalLabel);
-
-	insert("FinalLabel", task.returns, finalLabel);
-	insert("State",finalLabel, LOCATION_SYSTEM_MIN, true, task.outputData, synced);
-
 };
 
 /**
@@ -359,8 +304,6 @@ std::function<void(GenericTask&)> init_min_impl = [this](GenericTask &task) {
  */
 std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task){
 
-	//std::cout<<"GENERATING SEGMENT "<<std::endl;
-	//std::cout<<"INPUTS: "<<task.inputData.size()<<std::endl;
 
 	std::unordered_map<std::string,std::string> parameters=extractParameters(task.type,task.flavor,defaultFlavor,taskParameters);
 
@@ -427,7 +370,6 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task){
 	GenericTask filterTransitions;
 	filterTransitions.type=BaseEngine::mapper.type("TASK_FILTER_TRANSITION");;
 	filterTransitions.flavor=task.flavor;
-	//std::cout<<preCorrelationTime<<" "<<postCorrelationTime<<" "<<minimumSegmentLength<<" "<<blockTime<<" "<<nDephasingTrialsMax<<" "<<std::endl;
 
 
 
@@ -512,7 +454,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task){
 
 		nDephasingTrials++;
 		if(nDephasingTrials>=nDephasingTrialsMax) {
-			std::cout<<"DEPHASING FAILED"<<std::endl;
+			LOGGERA("DEPHASING FAILED")
 			if(reportIntermediates) {
 				insert("State",currentLabel,LOCATION_SYSTEM_MIN,true,task.outputData,currentMin);
 			}
@@ -520,7 +462,6 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task){
 		}
 	}
 
-	//std::cout<<"DEPHASING DONE"<<std::endl;
 
 	bool segmentIsSpliceable=false;
 	double lastTransitionTime=-postCorrelationTime;
@@ -542,7 +483,6 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task){
 		reference=currentMin;
 
 		//take a block of MD
-		//std::cout<<"MD"<<std::endl;
 		md.inputData.clear();
 		insert("State",md.inputData,current);
 		BaseEngine::process(md);
@@ -570,7 +510,6 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task){
 		extract("Label",label.returns,currentLabel);
 
 
-		//std::cout<<"CURRENT LABEL: "<<currentLabel<<std::endl<<std::flush;
 
 		if( currentLabel!=previousLabel ) {
 
@@ -580,7 +519,6 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task){
 			insert("ReferenceState",filterTransitions.inputData,reference);
 			BaseEngine::process(filterTransitions);
 			extract("Valid",filterTransitions.returns,segmentIsValid);
-			//std::cout<<"TRANSITION DETECTED, "<<previousLabel<<" to "<<currentLabel<<" "<<segmentIsValid<<" "<<reportIntermediates<<std::endl;
 
 			lastTransitionTime=elapsedTime;
 			if(reportIntermediates) {
@@ -588,12 +526,11 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task){
 			}
 		}
 
-		//std::cout<<"SEGMENT DONE - CURRENT LABEL: "<<currentLabel<<std::endl<<std::flush;
 		//a segment is spliceable if the last transition occurred at least postCorrelationTime in the past
 		segmentIsSpliceable=(elapsedTime-lastTransitionTime >= postCorrelationTime*0.999999999);
 
 		if(trajectory.duration()>=maximumSegmentLength) {
-			std::cout<<"SEGMENT EXCEEDED MAXIMUM LENGTH. BAILING OUT."<<std::endl;
+			LOGGER("SEGMENT EXCEEDED MAXIMUM LENGTH. BAILING OUT.")
 			break;
 		}
 
@@ -601,7 +538,6 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task){
 			break;
 		}
 	}
-	//std::cout<<"SEGMENT DONE "<<trajectory.visits.size()<<std::endl;
 
 	if(not segmentIsValid) {
 		task.clearOutputs();
@@ -670,8 +606,6 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task){
 		remappedQSD=current;
 	}
 
-	//std::cout<<"CURRENT LABEL: "<<currentLabel<<std::endl<<std::flush;
-	//std::cout<<"REMAPPED LABEL: "<<remappedLabel<<std::endl;
 
 
 	insert("FinalMinimum",remappedLabel,LOCATION_SYSTEM_MIN,true,task.outputData,remappedMin);
@@ -681,7 +615,6 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task){
 		v.label=0;
 		v.duration=0;
 		trajectory.appendVisit(v);
-		//std::cout<<"REMAPPED"<<std::endl;
 	}
 	v.label=remappedLabel;
 	v.duration=0;
@@ -691,10 +624,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task){
 	std::map<int,TransitionStatistics> stats;
 	TransitionStatistics ts;
 	ts.update(trajectory.front().label,trajectory.back().label);
-	//std::cout<<"STATS: "<<trajectory.front().label<<" "<<trajectory.back().label<<std::endl;
 
 	for(auto it=contributeSegmentsTo.begin(); it!=contributeSegmentsTo.end(); it++) {
-		//std::cout<<"STORING RESULTS FOR FLAVOR "<<*it<<std::endl;
 		insert("FinalQSD",remappedLabel,*it,false,task.outputData,remappedQSD);
 		db.add(*it,trajectory);
 		stats[*it]=ts;

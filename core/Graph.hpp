@@ -30,12 +30,14 @@
 #include <boost/functional/factory.hpp>
 #include <boost/foreach.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/optional/optional.hpp>
 #include <Eigen/Dense>
 #include <boost/timer/timer.hpp>
 
 #include "AbstractSystem.hpp"
 #include "NeighborList.hpp"
 #include "Hash.hpp"
+#include "Log.hpp"
 
 
 
@@ -146,85 +148,12 @@ private:
 };
 
 
-#if 0
-class KMCStateLabeler : public AbstractStateLabeler {
-public:
-virtual void initialize(boost::property_tree::ptree &config){
-};
-virtual uint64_t hash(AbstractSystem &s, bool canonical){
-	return s.label;
-};
-};
-
-#endif
-
-#if 0
-
-class VoronoiStateLabeler : public AbstractStateLabeler {
-public:
-VoronoiStateLabeler(boost::property_tree::ptree &config) : AbstractStateLabeler(config) {
-	BOOST_FOREACH(boost::property_tree::ptree::value_type &v, config.get_child("Configuration.StateLabeler.Bonds")) {
-		std::string s=v.second.get<std::string>("Between");
-		boost::trim(s);
-		std::vector<std::string> sp;
-		boost::split(sp, s, boost::is_any_of("\t "), boost::token_compress_on);
-		int i0=boost::lexical_cast<int>(sp[0]);
-		int i1=boost::lexical_cast<int>(sp[1]);
-		double cut=v.second.get<double>("Cutoff");
-
-		cutoffs[std::make_pair(i0,i1)]=cut;
-		cutoffs[std::make_pair(i1,i0)]=cut;
-	}
-
-	//Initialize the reference!!!!
-
-};
-
-virtual uint64_t hash(AbstractSystem &s, bool canonical){
-
-	NeighborList nList;
-	AbstractSystem *system=dynamic_cast<AbstractSystem*>(&s);
-	nList.buildJoint(reference,*system,cutoffs);
-
-	std::map<int,std::multiset<int> > occupations;
-	for(int i=0; i<s.getNAtoms(); i++) {
-		double minDr=1e10;
-		int imin=i;
-		std::vector<double> positions(NDIM);
-		for(int kk=0; kk<NDIM; kk++) {
-			positions[kk]=s.getPosition(i,kk);
-		}
-		for(int j=0; j<nList.getNumberOfNeighbors(i); j++) {
-			int ij=nList.getNeighbor(i,j);
-			double dr=nearestImageDistance(positions, ij, reference, bc);
-			if(dr<minDr) {
-				minDr=dr;
-
-				imin=j;
-			}
-		}
-		//atom i is in the Voronoi volume of reference atom imin
-		occupations[imin].insert(s.getSpecies(i));
-	};
-	boost::hash<std::map<int,std::multiset<int> > > stateHash;
-	std::size_t h = stateHash(occupations);
-	return fmix64(h);
-};
-
-
-private:
-std::map<std::pair<int,int>,double> cutoffs;
-//System reference;
-Cell bc;
-};
-#endif
-
-
 class ConnectivityGraphStateLabeler : public AbstractStateLabeler {
 public:
 std::map<std::pair<int,int>,double> cutoffs;
-std::map<std::pair<int,int>,double> nlcutoffs;
+std::map<std::pair<int,int>,double> mcutoffs;
 std::set<int> distinguishableSpecies;
+std::map<int,int> TypeMap; // between MDEngineTypes
 bool canonical;
 double skin;
 double cut;
@@ -233,17 +162,14 @@ virtual void initialize(boost::property_tree::ptree &config) {
 	std::string ts=config.get<std::string>("Configuration.StateLabeler.DistinguishableSpecies", "");
 	boost::trim(ts);
 	if(ts.size()>0) {
-		//std::cout<<ts<<std::endl;
 		std::vector<std::string> strs;
 		boost::split(strs,ts,boost::is_any_of(","));
 		for(auto it=strs.begin(); it!=strs.end(); it++) {
-			//std::cout<<*it<<std::endl;
 			std::string s=*it;
 			boost::trim(s);
 			int sp=boost::lexical_cast<int>(s);
 
 			distinguishableSpecies.insert(sp);
-			//std::cout<<"SPECIE "<<sp<<" IS DISTINGUISHABLE"<<std::endl;
 		}
 	}
 
@@ -255,12 +181,35 @@ virtual void initialize(boost::property_tree::ptree &config) {
 		int i0=boost::lexical_cast<int>(sp[0]);
 		int i1=boost::lexical_cast<int>(sp[1]);
 		double cut=v.second.get<double>("Cutoff");
+		mcutoffs[std::make_pair(i0,i1)]=cut;
+		mcutoffs[std::make_pair(i1,i0)]=cut;
+	}
 
-		cutoffs[std::make_pair(i0,i1)]=cut;
-		cutoffs[std::make_pair(i1,i0)]=cut;
+	// Mapping between species and type for MD ENGINE- many species for a single type
+	TypeMap.clear(); // can't be a vector as may not be sequential
+	boost::optional< boost::property_tree::ptree& >
+		has_type_maps = config.get_child_optional("Configuration.StateLabeler.TypeMaps");
 
-		nlcutoffs[std::make_pair(i0,i1)]=cut+skin;
-		nlcutoffs[std::make_pair(i1,i0)]=cut+skin;
+	if( has_type_maps ) {
+		BOOST_FOREACH(boost::property_tree::ptree::value_type &v, config.get_child("Configuration.StateLabeler.TypeMaps")) {
+			std::string s=v.second.data();
+			boost::trim(s);
+			std::vector<std::string> sp;
+			boost::split(sp, s, boost::is_any_of("\t "), boost::token_compress_on);
+			int i0=boost::lexical_cast<int>(sp[0]);
+			int i1=boost::lexical_cast<int>(sp[1]);
+			TypeMap.insert(std::make_pair(i0,i1));
+			LOGGER("TypeMap: "<<i0<<" -> "<<i1)
+		}
+	}
+	if(TypeMap.size()==0) for(int i=1;i<10;i++)
+		TypeMap.insert(std::make_pair(i,i)); // backup option
+
+	// need to inverse TypeMap here- so go through double loop
+	cutoffs.clear();
+	for(auto &s0: TypeMap) for(auto &s1: TypeMap) {
+		cutoffs[std::make_pair(s0.first,s1.first)] = mcutoffs[std::make_pair(s0.second,s1.second)];
+		LOGGER(s0.second<<","<<s1.second<<" -> "<<s0.first<<","<<s1.first<<" = "<<mcutoffs[std::make_pair(s0.second,s1.second)])
 	}
 };
 
@@ -310,7 +259,8 @@ void buildGraph(AbstractSystem &system,std::map<std::pair<int,int>,double> &cuto
 	for(int i=0; i<nAtoms; i++) {
 		vp.consecutiveIndex=i;
 		vp.uniqueIndex=system.getUniqueID(i);
-		vp.specie=system.getSpecies(i);
+		vp.specie=TypeMap[system.getSpecies(i)];
+
 		int color;
 		if(distinguishableSpecies.count(vp.specie)>0) {
 			color=(vp.uniqueIndex+nAtoms+666);
@@ -337,7 +287,6 @@ void buildGraph(AbstractSystem &system,std::map<std::pair<int,int>,double> &cuto
 		}
 	}
 
-	//std::cout<<"BUILDING GRAPH "<<num_vertices(graph)<<" "<<num_edges(graph)<<std::endl;
 
 };
 
@@ -407,7 +356,6 @@ std::map<int,int> canonicalSort(graph_type &ga){
 	int ie=0;
 	//create the edges in traces ordering
 
-	//std::cout<<"BONDS IN TRACE INDEX"<<std::endl;
 	for(auto itv=vi.first; itv!=vi.second; itv++) {
 
 		unsigned long na=boost::out_degree(*itv, ga);
@@ -419,7 +367,6 @@ std::map<int,int> canonicalSort(graph_type &ga){
 		int j=0;
 		for(auto itva=va.first; itva!=va.second; itva++) {
 			sg1.e[sg1.v[i]+j]=ivertexMap[ga[*itva].consecutiveIndex];
-			//std::cout<<i<<" <-> "<<ivertexMap[ga[*itva].consecutiveIndex]<<std::endl;
 			j++;
 		}
 		ie+=j;
@@ -543,11 +490,6 @@ uint64_t hashGraph(graph_type &ga, bool canonical, std::map<int,int> &canonicalM
 	//find the canonical labeling if necessary
 	if(canonical) {
 		canonicalMap=canonicalSort(ga);
-		/*
-		   for(auto it=canonicalMap.begin(); it!=canonicalMap.end(); it++) {
-		        std::cout<<it->first<<" -> "<<it->second<<std::endl;
-		   }
-		 */
 	}
 	else{
 		//identity mapping
@@ -582,7 +524,6 @@ uint64_t hashGraph(graph_type &ga, bool canonical, std::map<int,int> &canonicalM
 		//add it to the hash
 		hash = hash ^ lh;
 	}
-	//std::cout<<"VERTEX HASH "<<hash<<std::endl;
 
 	//hash the edges
 	BGL_FORALL_EDGES_T(ed, ga, graph_type)
@@ -609,11 +550,8 @@ uint64_t hashGraph(graph_type &ga, bool canonical, std::map<int,int> &canonicalM
 		//add it to the hash
 		hash = hash ^ lh;
 
-		//std::cout<<unique1<<" "<<unique2<<std::endl;
-		//std::cout<<l<<" "<<lh<<" "<<hash<<std::endl;
 	}
 
-	//std::cout<<"VERTEX + EDGE HASH "<<hash<<std::endl;
 
 	return hash;
 

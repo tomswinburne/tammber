@@ -32,6 +32,7 @@
 
 #include "Types.hpp"
 #include "Data.hpp"
+#include "Log.hpp"
 #include <iostream>
 
 
@@ -54,7 +55,7 @@ struct Transaction {
 
 
 	void print(){
-		std::cout<<" type: "<<type<<" dbKey: "<<dbKey<<" key: "<<key<<" source: "<<source<<" destination: "<<destination<<" pending: "<<pending<<std::endl;
+		LOGGER(" type: "<<type<<" dbKey: "<<dbKey<<" key: "<<key<<" source: "<<source<<" destination: "<<destination<<" pending: "<<pending)
 	};
 
 	unsigned int dbKey;

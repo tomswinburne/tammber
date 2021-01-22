@@ -18,7 +18,7 @@
 
 #include <stdio.h>
 #include "AbstractSystem.hpp"
-
+#include "Log.hpp"
 
 #include "Constants.hpp"
 #include <vector>

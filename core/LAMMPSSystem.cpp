@@ -267,7 +267,7 @@ void LAMMPSSystem::copyAtom(AbstractSystem &s, int iAtom){
 	setUniqueID(natoms-1,other->getUniqueID(iAtom));
 	setSpecies(natoms-1,other->getSpecies(iAtom));
 
-	if (qflag != other->qflag) std::cout<<"copyAtom charge mismatch! "<<iAtom<<std::endl; // should BOOST_LOG this
+	if (qflag != other->qflag) LOGGERA("copyAtom charge mismatch! "<<iAtom)
 	else if (qflag && other->qflag) q[natoms-1]=other->q[iAtom];
 };
 
@@ -296,51 +296,7 @@ void LAMMPSSystem::remap(std::map<int,int> newUniqueID){
 
 	int nAtoms=getNAtoms();
 
-	/*
-	int minid=1900,maxid=0;
-	std::set<int> aaa;
-
-	for(int i=0; i<nAtoms; i++) {
-		minid=std::min(minid,getUniqueID(i));
-		maxid=std::max(maxid,getUniqueID(i));
-		aaa.insert(getUniqueID(i));
-	}
-	std::cout<<"RM: PUID: MIN MAX CARDINALITY SIZE "<<minid<<" "<<maxid<<" "<<aaa.size()<<" "<<nAtoms<<"\n";
-
-	aaa.clear();
-	minid=10; maxid=0;
-	for(auto nnn: newUniqueID) {
-		aaa.insert(nnn.first);
-		minid = std::min(minid,nnn.first);
-		maxid = std::max(maxid,nnn.first);
-	}
-	std::cout<<"RM: NUID LHS: MIN MAX CARDINALITY SIZE "<<minid<<" "<<maxid<<" "<<aaa.size()<<" "<<nAtoms<<"\n";
-
-	aaa.clear();
-	minid=10; maxid=0;
-	for(auto nnn: newUniqueID) {
-		aaa.insert(nnn.second);
-		minid = std::min(minid,nnn.second);
-		maxid = std::max(maxid,nnn.second);
-	}
-	std::cout<<"RM: NUID RHS: MIN MAX CARDINALITY SIZE "<<minid<<" "<<maxid<<" "<<aaa.size()<<" "<<nAtoms<<"\n";
-	*/
-
 	for(int i=0; i<nAtoms; i++) setUniqueID(i, newUniqueID[getUniqueID(i)]);
-	//std::list<int> ii_ids;
-	//ii_ids.push_back(getUniqueID(i));
-	//for(auto iii: ii_ids)
-
-	/*
-	aaa.clear();
-	for(int i=0; i<nAtoms; i++) aaa.insert(getUniqueID(i));
-	std::cout<<"RM: GUI UNIQUE ELEMENTS"<<aaa.size()<<"/"<<nAtoms<<std::endl;
-
-	minid=190;
-	for(int i=0; i<nAtoms; i++) minid=std::min(minid,getUniqueID(i));
-	std::cout<<"RM: MIN ID "<<minid<<"\n";
-	*/
-
 	std::vector<int> asort(id.size()), ids=id, tid=id, tsp=species;
 	std::vector<double> tx=x, tv=v, tf=f, tq=q;
 

@@ -424,21 +424,17 @@ virtual void initialize(int nProducers, int nConsumers){
 };
 
 virtual void openBatch(){
-	//std::cout<<"OPEN BATCH"<<std::endl;
 	required.clear();
 	optional.clear();
 };
 
 virtual void insert(int iProducer, TaskDescriptor &t){
-	//std::cout<<"INSERTING TASK "<<t.type<<" "<<t.id<<" "<<t.optional<<" "<<t.imposeOrdering<<std::endl;
 	int i=int(iProducer/double(p)*c);
 	//if i is negative, assign in round-robin fashion
 	if(i<0) {
 		i=r%c;
 		r++;
 	}
-
-	//std::cout<<"INSERTING TASK "<<t.type<<" "<<t.id<<" "<<t.optional<<" "<<t.imposeOrdering<<" "<<i<<" "<<c<<" "<<p<<" "<<r<<" "<<iProducer<<std::endl;
 
 	if(t.optional) {
 		optional[i].insert(t);
@@ -535,9 +531,7 @@ virtual void assimilate(std::list<TaskResultBundle> &t) {
 };
 
 virtual void assimilate(TaskResultBundle &t){
-	//std::cout<<"TaskResultBundle:: ASSIMILATING BUNDLE "<<t.completedTasks.size()<<std::endl;
 	for(auto itm=t.completedTasks.begin(); itm!=t.completedTasks.end(); itm++) {
-		//std::cout<<itm->first<<std::endl;
 		for(auto it=itm->second.begin(); it!=itm->second.end(); it++) {
 			assimilate(*it);
 		}
@@ -545,7 +539,6 @@ virtual void assimilate(TaskResultBundle &t){
 };
 
 virtual void assimilate(GenericTask &t){
-	//std::cout<<"TaskResultBundle:: ASSIMILATING TASK "<<t.type<<std::endl;
 	completedTasks[t.type].push_back(t);
 	completedTasks[t.type].back().outputData.clear();
 };
@@ -640,17 +633,14 @@ void release(int workerId, Label promiseId){
  * Deliver the results corresponding to a reservation
  */
 template <class Result> void checkin(int workerId, Label promiseId, Result &t){
-	//std::cout<<"CHECKIN BUNDLE "<<workerId<<" "<<promiseId<<std::endl;
-	//this was an unreserved bundle. Pass straigth through
+	// this was an unreserved bundle. Pass straigth through
 	auto p=std::pair<int,Label>(workerId,promiseId);
 	auto itr=reservations.find(p);
 
 	if(itr==reservations.end() ) {
-		//std::cout<<"UNRESERVED BUNDLE "<<std::endl;
 		passthroughBundle.assimilate(t);
 	}
 	else{
-		//std::cout<<"RESERVED BUNDLE"<<std::endl;
 		auto it=bundleIterators[itr->second];
 		it->second.assimilate(t);
 		it->second.nPendingReservations--;
@@ -667,7 +657,6 @@ virtual void release(std::multimap<std::string,DataItem> &out){
 
 	out.clear();
 
-	//std::cout<<"RELEASE"<<std::endl;
 	if(unreportedBundles.size() > 0) {
 		insert("RESERVATIONS",out,unreportedBundles);
 		unreportedBundles.clear();
@@ -689,7 +678,6 @@ virtual void release(std::multimap<std::string,DataItem> &out){
 	}
 
 	if(not passthroughBundle.empty()) {
-		//std::cout<<"RELEASING PASSTHROUGH BUNDLE "<<passthroughBundle.completedTasks.size()<<std::endl;
 		insert("COMPLETED_BUNDLE",out,passthroughBundle);
 		passthroughBundle.clear();
 	}
@@ -726,27 +714,21 @@ void assimilate(std::multimap<std::string,DataItem> &in){
 	std::set<std::pair<int,Label> > newReservations;
 	::extract("RESERVATIONS",in,newReservations);
 	for(auto it=newReservations.begin(); it!=newReservations.end(); it++) {
-		//std::cout<<"ASSIMILATING RESERVATION: "<<it->first<<" "<<it->second<<std::endl;
+
 		reserve(it->first,it->second);
 	}
 
 	std::list<Bundle> bundles;
 	::extract("COMPLETED_BUNDLE",in,bundles);
-	//std::cout<<"ASSIMILATING BUNDLES "<<bundles.size()<<std::endl;
 	for(auto it=bundles.begin(); it!=bundles.end(); it++) {
-		std::cout<<"ASSIMILATING BUNDLE: "<<it->completedTasks.size()<<std::endl;
+		LOGGER("ASSIMILATING BUNDLE: "<<it->completedTasks.size())
 		checkin(it->workerId, it->bundleId, *it);
 	}
 };
 
 
 void report(){
-	#ifdef USE_BOOST_LOG
-	boost::log::sources::severity_logger< boost::log::trivial::severity_level > lg;
-	BOOST_LOG_SEV(lg, boost::log::trivial::trace) <<"RESULT MANAGER REPORT: "<<inProcessBundles.size()<<" BUNDLES, "<<reservations.size()<<" RESERVATIONS";
-	#else
-	std::cout<<"RESULT MANAGER REPORT: "<<inProcessBundles.size()<<" BUNDLES, "<<reservations.size()<<" RESERVATIONS"<<std::endl;
-	#endif
+	LOGGER("RESULT MANAGER REPORT: "<<inProcessBundles.size()<<" BUNDLES, "<<reservations.size()<<" RESERVATIONS")
 };
 
 private:
