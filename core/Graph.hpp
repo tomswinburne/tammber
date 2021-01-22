@@ -188,7 +188,7 @@ virtual void initialize(boost::property_tree::ptree &config) {
 	// Mapping between species and type for MD ENGINE- many species for a single type
 	TypeMap.clear(); // can't be a vector as may not be sequential
 	boost::optional< boost::property_tree::ptree& >
-		has_type_maps = node.get_child_optional("Configuration.StateLabeler.TypeMaps");
+		has_type_maps = config.get_child_optional("Configuration.StateLabeler.TypeMaps");
 
 	if( has_type_maps ) {
 		BOOST_FOREACH(boost::property_tree::ptree::value_type &v, config.get_child("Configuration.StateLabeler.TypeMaps")) {
