@@ -30,6 +30,7 @@
 #include <boost/functional/factory.hpp>
 #include <boost/foreach.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/optional/optional.hpp>
 #include <Eigen/Dense>
 #include <boost/timer/timer.hpp>
 
@@ -186,15 +187,20 @@ virtual void initialize(boost::property_tree::ptree &config) {
 
 	// Mapping between species and type for MD ENGINE- many species for a single type
 	TypeMap.clear(); // can't be a vector as may not be sequential
-	BOOST_FOREACH(boost::property_tree::ptree::value_type &v, config.get_child("Configuration.StateLabeler.TypeMaps")) {
-		std::string s=v.second.data();
-		boost::trim(s);
-		std::vector<std::string> sp;
-		boost::split(sp, s, boost::is_any_of("\t "), boost::token_compress_on);
-		int i0=boost::lexical_cast<int>(sp[0]);
-		int i1=boost::lexical_cast<int>(sp[1]);
-		TypeMap.insert(std::make_pair(i0,i1));
-		LOGGER("TypeMap: "<<i0<<" -> "<<i1)
+	boost::optional< boost::property_tree::ptree& >
+		has_type_maps = node.get_child_optional("Configuration.StateLabeler.TypeMaps");
+
+	if( has_type_maps ) {
+		BOOST_FOREACH(boost::property_tree::ptree::value_type &v, config.get_child("Configuration.StateLabeler.TypeMaps")) {
+			std::string s=v.second.data();
+			boost::trim(s);
+			std::vector<std::string> sp;
+			boost::split(sp, s, boost::is_any_of("\t "), boost::token_compress_on);
+			int i0=boost::lexical_cast<int>(sp[0]);
+			int i1=boost::lexical_cast<int>(sp[1]);
+			TypeMap.insert(std::make_pair(i0,i1));
+			LOGGER("TypeMap: "<<i0<<" -> "<<i1)
+		}
 	}
 	if(TypeMap.size()==0) for(int i=1;i<10;i++)
 		TypeMap.insert(std::make_pair(i,i)); // backup option
