@@ -1,23 +1,25 @@
 cmake_minimum_required(VERSION 3.5)
-set(PREFIX "$ENV{PREFIX}")
-message("PREFIX VALUE : ${PREFIX}")
+
+set(PREFIX "$ENV{PREFIX}") # example value
 set(CMAKE_CXX_COMPILER mpic++) # example value
 set(CMAKE_C_COMPILER mpicc) # example value
 
 # Setting VERBOSE=1 will generate a lot of output for debugging purposes
 # To toggle LAMMPS output use the LogLammps option in input/ps-config.xml
-set(VERBOSE 0)
+#set(VERBOSE 0)
 
-# BOOST_LOG often raises linking errors so is diabled by default (log to stdout)
+# BOOST_LOG is often raises linking errors- disabled by default, log to stdout
 set(USE_BOOST_LOG 0)
 
 # If ON force search for static BOOST libs. Found to be essential for BlueGene
 set(Boost_USE_STATIC_LIBS OFF)
 
+
 set(CMAKE_PREFIX_PATH "${PREFIX}")
 set(CMAKE_INSTALL_PREFIX "${PREFIX}")
 set(CMAKE_INCLUDE_PATH ${PREFIX}/include)
 set(CMAKE_LIBRARY_PATH ${PREFIX}/lib)
+
 
 project (TAMMBER)
 
@@ -25,7 +27,7 @@ enable_testing()
 
 if(VERBOSE)
 	message("VERBOSE OUTPUT ON")
-	add_definitions(-DVERBOSE)
+	add_definitions(-DVERBOSE -g)
 endif(VERBOSE)
 
 # Cmake modules/macros are in a subdirectory to keep this file cleaner
@@ -75,7 +77,7 @@ link_directories(${CMAKE_LIBRARY_PATH})
 file(GLOB CORE_FILES "core/*")
 file(GLOB TAMMBER_CORE_FILES "tammber-core/*")
 
-set(EXTRA_FLAGS -g -DLAMMPS_EXCEPTIONS -DISOMORPHIC -DLAMMPS_LIB_MPI)
+set(EXTRA_FLAGS -DLAMMPS_EXCEPTIONS -DLAMMPS_LIB_MPI -DISOMORPHIC -DBOOST_BIND_GLOBAL_PLACEHOLDERS)
 set(EXTRA_LINK_FLAGS pthread lammps_mpi)
 
 set(TAMMBER_TARGETS tammber tammber-dbextract tammber-analyze)
@@ -112,13 +114,3 @@ foreach(mytarget ${TAMMBER_TARGETS})
   target_link_libraries( ${mytarget} ${MY_DEPENDENCIES})
   install(TARGETS ${mytarget} DESTINATION ${CMAKE_INSTALL_BINDIR})
 endforeach(mytarget)
-
-
-
-#set(mpi_exe "mpirun")
-set(exe_root "${CMAKE_CURRENT_BINARY_DIR}")
-file(GLOB test_dirs ${CMAKE_CURRENT_SOURCE_DIR}/tests/*test)
-foreach(test_dir ${test_dirs})
-    string(REGEX REPLACE ".*/" "" test_name "${test_dir}")
-    add_test(NAME ${test_name} COMMAND ${PYTHON_EXECUTABLE} ../runtest.py ${MPIEXEC} ${exe_root} ${test_name} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/${test_name})
-endforeach(test_dir)

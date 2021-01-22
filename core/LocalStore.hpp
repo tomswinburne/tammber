@@ -27,6 +27,7 @@
 
 
 #include "HCDS.hpp"
+#include "Log.hpp"
 
 #define DBKEY_NOTFOUND 1
 #define KEY_NOTFOUND 2

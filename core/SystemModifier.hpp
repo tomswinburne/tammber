@@ -150,7 +150,6 @@ void initialize(boost::property_tree::ptree &config){
 			std::string data=vv.second.data();
 			boost::trim(key);
 			boost::trim(data);
-			//std::cout<<key<<" "<<data<<std::endl;
 			attributes[sp][key]=data;
 		}
 	}
@@ -215,13 +214,11 @@ virtual bool modify ( AbstractSystem &s, uint64_t previousTime, uint64_t current
 					xr[k]+=bc.rsp[k][l]*xs[l];
 				}
 			}
-			//std::cout<<xr[0]<<" "<<xr[1]<<" "<<xr[2]<<std::endl;
 			//compute min and max distances
 			for(int i=0; i<nAtoms; i++) {
 				double r=nearestImageDistance(xr, i, s, bc);
 				rmin=std::min(rmin,r);
 			}
-			//std::cout<<"RMIN: "<<rmin<<" "<<insertionRanges[sp].first<<" "<<insertionRanges[sp].second<<std::endl;
 			if(rmin>insertionRanges[sp].first and rmin<insertionRanges[sp].second) {
 				inRange=true;
 				s.addAtom(xr,sp,attributes[sp]);

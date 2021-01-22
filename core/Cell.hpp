@@ -87,12 +87,9 @@ void update(){
 bool inside(std::array<double,NDIM> r){
 
 	std::array<double, NDIM> s;
-	//std::cout<<"r"<<std::endl;
 	for(int i=0; i<NDIM; i++) {
 		r[i]-=origin[i];
-		//std::cout<<r[i]<<" ";
 	}
-	//std::cout<<std::endl;
 
 	//project to cell-space
 	for(int i=0; i<NDIM; i++) {
@@ -103,15 +100,12 @@ bool inside(std::array<double,NDIM> r){
 	}
 
 	bool in=true;
-	//std::cout<<"s"<<std::endl;
 	for(int i=0; i<NDIM; i++) {
-		//std::cout<<s[i]<<" ";
 		if( (s[i]<0 or s[i]>=1)and not periodic[i] ) {
 			in=false;
 			break;
 		}
 	}
-	//std::cout<<std::endl;
 	return in;
 };
 
@@ -132,10 +126,7 @@ bool inside(std::array<double,NDIM> r, Cell globalCell,std::array<double, NDIM> 
 			x[i]-=globalCell.rsp[i][i];
 		}
 
-		//std::cout<<r[i]<<" ";
-		//std::cout<<x[i]<<" ";
 	}
-	//std::cout<<std::endl;
 
 	//project to cell-space
 	for(int i=0; i<NDIM; i++) {
@@ -143,10 +134,7 @@ bool inside(std::array<double,NDIM> r, Cell globalCell,std::array<double, NDIM> 
 		for(int j=0; j<NDIM; j++) {
 			s[i]+=csp[i][j]*r[j];
 		}
-		//std::cout<<s[i]<<" ";
 	}
-	//std::cout<<std::endl;
-	//std::cout<<std::endl;
 
 	bool in=true;
 	for(int i=0; i<NDIM; i++) {

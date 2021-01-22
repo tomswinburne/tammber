@@ -110,7 +110,6 @@ void NeighborList::build(AbstractSystem &system, std::map<std::pair<int,int>,dou
 				edgeLength[i]+=bc.rsp[j][i]*bc.rsp[j][i];
 			}
 			edgeLength[i]=sqrt(edgeLength[i]);
-			//std::cout<<"EDGE LENGTH("<<i<<")= "<<edgeLength[i]<<std::endl;
 		}
 
 
@@ -164,7 +163,6 @@ void NeighborList::build(AbstractSystem &system, std::map<std::pair<int,int>,dou
 			nCells[j]=std::max(nCells[j],1);
 			cellSizeR[j]=(edgeLength[j]/nCells[j]);
 			cellSizeS[j]=1.0/nCells[j];
-			//std::cout<<j<<" NCELLS "<<nCells[j]<<" "<<cellSizeR[j]<<std::endl;
 		}
 
 
@@ -186,11 +184,9 @@ void NeighborList::build(AbstractSystem &system, std::map<std::pair<int,int>,dou
 
 			int cellIndex=sc[0]*nCells[1]*nCells[2]+sc[1]*nCells[2]+sc[2];
 
-			//std::cout<<cellIndex<<" "<<sc[0]<<" "<<sc[1]<<" "<<sc[2]<<" "<<sPosition[0]<<" "<<sPosition[1]<<" "<<sPosition[2]<<std::endl;
 			cells[cellIndex].push_back(i);
 		}
 
-		//std::cout<<"CELLS: "<<cells.size()<<std::endl;
 	}
 
 	{
@@ -250,7 +246,6 @@ void NeighborList::build(AbstractSystem &system, std::map<std::pair<int,int>,dou
 						}
 					}
 
-					//std::cout<<scannedCells.size()<<" "<<shifts.size()<<std::endl;
 					//loop on the neighboring cells
 					for(std::set<int>::iterator itCell2=scannedCells.begin(); itCell2!=scannedCells.end(); itCell2++) {
 						int iCell2=*itCell2;

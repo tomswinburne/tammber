@@ -31,6 +31,7 @@
 
 
 #include "Task.hpp"
+#include "Log.hpp"
 #include "Constants.hpp"
 #include "Pack.hpp"
 #include "TaskManager.hpp"
@@ -49,7 +50,6 @@ bool pullTask( GenericTask &t){
 		return false;
 	}
 	GenericTask tt;
-	//std::cout<<"PULLING TASK"<<std::endl;
 	//receive size
 	int count=0;
 	int rb=MPI_SUCCESS;
@@ -61,7 +61,6 @@ bool pullTask( GenericTask &t){
 		healthy=false;
 	}
 	buffer.resize(count);
-	//std::cout<<"pull - size: "<<count<<std::endl;
 	//receive data
 	if(healthy) {
 		rb=MPI_Bcast(&(buffer[0]), count, MPI_BYTE, 0, parentComm);
@@ -84,7 +83,6 @@ bool pushTask( GenericTask &t){
 	if(!healthy) {
 		return false;
 	}
-	//std::cout<<"PUSHING TASK"<<std::endl;
 	//Send the task back to parent
 	if(rank==0) {
 		std::vector<char> b;
@@ -165,7 +163,6 @@ virtual bool assign(GenericTask &t){
 	pack(b,t);
 
 	int count=int(b.size());
-	//std::cout<<"ASSIGN "<<count<<std::endl;
 	//send the size
 	if(healthy) {
 		rb=MPI_Bcast(&count, 1, MPI_INT, MPI_ROOT, parentComm);
@@ -189,12 +186,11 @@ virtual bool assign(GenericTask &t){
 	if(rb!=MPI_SUCCESS) {
 		healthy=false;
 	}
-	//std::cout<<"DONE ASSIGN "<<std::endl;
 	if(healthy) {
 		idle=false;
 	}
 	else{
-		std::cout<<"ASSIGN: MPI ERROR DETECTED"<<std::endl;
+		LOGGERA("ASSIGN: MPI ERROR DETECTED")
 		dead=true;
 		//MPIX_Comm_revoke(parentComm);
 	}
@@ -208,7 +204,6 @@ virtual bool probe(GenericTask &t){
 
 	GenericTask tt;
 	int rb=MPI_SUCCESS;
-	//std::cout<<"PROBE "<<std::endl;
 
 	//there is no task pending on this driver
 	if(idle or dead or !healthy) {
@@ -232,7 +227,6 @@ virtual bool probe(GenericTask &t){
 		return false;
 	}
 	//if we make it here, the size of the result was received, so the task is complete
-	//std::cout<<"probe - size: "<<resultCount<<std::endl;
 	//receive the data
 
 	buffer.resize(resultCount);
@@ -255,7 +249,6 @@ virtual bool probe(GenericTask &t){
 	}
 	t=tt;
 
-	//std::cout<<"PROBE SUCCESSFUL "<<resultCount<<std::endl;
 
 	return healthy;
 };

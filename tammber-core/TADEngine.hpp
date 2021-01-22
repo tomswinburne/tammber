@@ -22,7 +22,6 @@
 #include "Task.hpp"
 #include "Log.hpp"
 #include "Graph.hpp"
-#include "Syncer.hpp"
 #include "MDEngine.hpp"
 #include "TransitionFilter.hpp"
 #include <map>
@@ -69,7 +68,6 @@ TADEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_) :
 	BaseEngine::impls["TASK_LABEL"] = TADEngine::label_impl; // overwriting
 	BaseEngine::impls["TASK_REMAP"] = TADEngine::remap_impl; // overwriting
 	BaseEngine::impls["TASK_INIT_MIN"] = TADEngine::init_min_impl; // overwriting
-
 	BaseEngine::impls["TASK_NEB"] = TADEngine::neb_impl; // new task
 	BaseEngine::impls["TASK_SPACEMAP"] = TADEngine::spacemap_impl; // new task
 	BaseEngine::impls["TASK_CARVE"] = TADEngine::carve_impl; // new_task
@@ -553,7 +551,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  		pathway.SaddleLabels = saddle_labels;
  	}
  	// not implemented yet...
- 	pathway.priornu = std::make_pair(-1.0,-1.0);
+ 	pathway.priornu = std::make_pair(PRIOR_NU,PRIOR_NU);
 
 
  	// minimize everything (found to be useful; really needed?)
@@ -1107,7 +1105,6 @@ std::function<void(GenericTask&)> init_min_impl = [this](GenericTask &task) {
 	BaseEngine::process(t);
 
 	// dump it
-
 	int clusters=1;
 	std::array<double,3> position={0.,0.,0.};
 	extract("Clusters",t.returns,clusters);
@@ -1116,8 +1113,28 @@ std::function<void(GenericTask&)> init_min_impl = [this](GenericTask &task) {
 	insert("Clusters",task.returns,clusters);
 	insert("Position",task.returns,position);
 
+	#ifdef ISOMORPHIC
+
+	std::unordered_map<std::string,std::string> parameters =
+ 		extractParameters(BaseEngine::mapper.type("TASK_NEB"),task.flavor,
+			BaseMDEngine::defaultFlavor,BaseMDEngine::taskParameters);
+
+	bool self_check=safe_extractor<bool>(parameters,"SelfCheck",true);
+	bool thresh_check=safe_extractor<bool>(parameters,"ThreshCheck",false);
+	std::map<Label,std::set<PointShiftSymmetry>> self_symmetries;
+	t.clear();
+	t.type=BaseEngine::mapper.type("TASK_SPACEMAP");
+ 	insert("Targets",labels.first, labels.second,0,false,t.inputData,s);
+	insert("SelfCheck",t.arguments,self_check);
+	insert("ThreshCheck",t.arguments,thresh_check);
+	BaseEngine::process(t);
+	extract("SelfSymmetries",t.returns,self_symmetries);
+	if(self_symmetries.find(labels.first) != self_symmetries.end()) {
+		insert("SelfSymmetries",task.returns,self_symmetries[labels.first]);
+	}
+	#endif
 	insert("State",labels.first, labels.second, LOCATION_SYSTEM_MIN, true, task.outputData, s);
-	//insert("State",labels.first,labels.second,0,true,task.outputData,s);
+
 };
 
 std::function<void(GenericTask&)> label_impl = [this](GenericTask &task) {
@@ -1449,7 +1466,6 @@ std::function<void(GenericTask&)> spacemap_impl = [this](GenericTask &task) {
 				*/
 
 				// =?
-				// check this can be done...
 				bool compatible = bool(op.operation==f_op.operation); // assume the same at this point...
 				if(compatible) {
 					for(int ii=0;ii<NDIM;ii++) shift[ii] = op.shift[ii]-f_op.shift[ii];
@@ -1480,7 +1496,6 @@ std::function<void(GenericTask&)> spacemap_impl = [this](GenericTask &task) {
 					cop_i = i_sym_i.compound(op);
 					cop_f = i_sym_f.compound(f_op);
 					compatible = bool(cop_i.operation==cop_f.operation);
-					// assume the same at this point...
 					/*
 					if(compatible) {
 						std::cout<<"cop_i==cop_f....";
@@ -1492,17 +1507,11 @@ std::function<void(GenericTask&)> spacemap_impl = [this](GenericTask &task) {
 							compatible=false;
 							std::cout<<"but "<<sqrt(shift_mag)<<">0.2A!\n";
 						} else std::cout<<"and it's good!\n";
-					}*/
+					}
+					*/
 					if(compatible) break;
 
 				}
-
-				//if(t_i_l.first==t_f_l.first) {
-					//if(std::fabs(cand_shift_mag-self_shift_mag)>0.1){
-						//std::cout<<"SHIFT MAG MISMATCH: "<<self_shift_mag<<" "<<cand_shift_mag<<std::endl;
-						//compatible=false; // just to be extra sure....
-					//}
-				//}
 
 				if (compatible) {
 					LOGGER("Mapping compatible after accounting for self symmetries!\n")
@@ -1715,7 +1724,7 @@ std::set<PointShiftSymmetry> find_transforms(System &one, System two, std::map<i
 				temp[j] -= shift[j]; // T(x1[i]) - x0[i] - shift = T(x1[i]-x1[0]) - (x0[i]-x0[0])
 			}
 			bc.wrapc(temp);
-			for(int j=0;j<NDIM;j++) if(temp[j] * temp[j] > 0.01) {
+			for(int j=0;j<NDIM;j++) if(temp[j] * temp[j] > 0.05) {
 				complete=false;
 				break;
 			}
@@ -1726,29 +1735,6 @@ std::set<PointShiftSymmetry> find_transforms(System &one, System two, std::map<i
 			LOGGER("matrix:["<<T[3]<<" "<<T[4]<<" "<<T[5]<<"]")
 			LOGGER("       ["<<T[6]<<" "<<T[7]<<" "<<T[8]<<"]")
 			LOGGER("shift: ["<<shift[0]<<" "<<shift[1]<<" "<<shift[2]<<"]")
-			/*
-			for(int j=0;j<NDIM;j++) temp[j] = shift[j];
-			bc.wrap(temp);
-			for(int j=0;j<NDIM;j++) shift[j] = temp[j];
-
-			#ifdef VERBOSE
-			std::cout<<"wrap: ["<<temp[0]<<" "<<temp[1]<<" "<<temp[2]<<"]\n\n";
-			#endif
-
-			for(int j=0;j<NDIM;j++) temp[j] = shift[j];
-			bc.wrapin(temp);
-			#ifdef VERBOSE
-			std::cout<<"wrapin: ["<<temp[0]<<" "<<temp[1]<<" "<<temp[2]<<"]"<<std::endl;
-			#endif
-
-
-			for(int j=0;j<NDIM;j++) shift[j] = temp[j];
-			bc.wrap(temp);
-			std::cout<<"wrap: ["<<temp[0]<<" "<<temp[1]<<" "<<temp[2]<<"]"<<std::endl;
-			for(int j=0;j<NDIM;j++) temp[j] = shift[j];
-			bc.wrapc(temp);
-			std::cout<<"wrapc: ["<<temp[0]<<" "<<temp[1]<<" "<<temp[2]<<"]"<<std::endl;
-			*/
 			op.operation=operation;
 			op.matrix=T;
 			for(int j=0;j<NDIM;j++) op.shift[j] = shift[j];
@@ -1760,14 +1746,22 @@ std::set<PointShiftSymmetry> find_transforms(System &one, System two, std::map<i
 };
 
 bool SelfSymmetries(System &one, std::set<PointShiftSymmetry> &syms,bool return_maps=false) {
+	LOGGER("TADEngine::SelfSymmetries")
 	std::list<std::map<int,int>> amaps;
 	syms.clear();
 	BaseMDEngine::labeler->isomorphicSelfMaps(one,amaps);
+	LOGGER("FOUND "<<amaps.size()<<" SELF MAPS");
+	int count = 0;
 	for (auto &map: amaps) {
 		auto ops = find_transforms(one, one, map);
 		for(auto op: ops) {
 			if(return_maps) op.map = map;
 			syms.insert(op);
+		}
+		count++;
+		if(count>48) {
+			LOGGER("TRIED 96 SELF MAPS, FOUND "<<syms.size()<<" OPERATIONS. EXITING")
+			break;
 		}
 	}
 	return bool(amaps.size()<=syms.size());

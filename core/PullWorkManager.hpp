@@ -46,6 +46,7 @@
 #include "TaskManager.hpp"
 #include "LocalStore.hpp"
 #include "DDS.hpp"
+#include "Log.hpp"
 #include "Types.hpp"
 #include "Constants.hpp"
 #include "Pack.hpp"
@@ -102,8 +103,6 @@ WorkManager(MPI_Comm comm_, int parent_, AbstractDDS *sharedStore_, AbstractLoca
 
 	nWorkers=workers.size();
 
-	//std::cout<<"N WORKERS: "<<nWorkers<<std::endl;
-
 	batchId=1;
 
 	//initialize communications
@@ -143,7 +142,7 @@ void server(){
 	while(true) {
 
 		if(std::chrono::high_resolution_clock::now() - start > runTime) {
-			//std::cout<<"WM: TIME TO DIE"<<std::endl;
+			LOGGERA("WM: TIME TO DIE")
 			die=true;
 		}
 
@@ -185,15 +184,9 @@ void server(){
 		report();
 
 
-		/*
-		   if(die) {
-		        std::cout<<sendCompleted<<" "<<recvCompleted<<" "<<everybodyIsDead<<std::endl;
-		   }
-		 */
-
 		//if(sendCompleted and recvCompleted and everybodyIsDead ) {
 		if( everybodyIsDead ) {
-			std::cout<<"WM: DONE"<<std::endl;
+			LOGGERA("WM: DONE")
 			break;
 		}
 	}
@@ -205,9 +198,7 @@ void processSend(){
 
 	//test for send completion
 	if(not sendCompleted) {
-		//std::cout<<"WORK MANAGER TESTING FOR SEND"<<std::endl;
 		MPI_Test(&outgoingRequest,&sendCompleted,&sendStatus);
-		//std::cout<<"WORK MANAGER DONE TESTING FOR SEND "<<sendCompleted<<std::endl;
 	}
 
 	if(not sendCompleted and die) {
@@ -216,8 +207,6 @@ void processSend(){
 
 	//TODO use a timer to avoid sending too often
 	if(sendCompleted and not die) {
-		//std::cout<<"WORK MANAGER: SENDING"<<std::endl;
-
 		std::multimap<std::string,DataItem> done;
 		completedTasks.release(done);
 
@@ -234,7 +223,6 @@ void processSend(){
 			pack(sbuf,done,nTaskRequests);
 			int count=sbuf.size();
 			assert(count<=rbufSize);
-			//std::cout<<"WORK MANAGER: processSend SENDING RESULTS "<<done.size()<<" "<< nTaskRequests <<" "<<pendingTaskRequest<<" "<<workQueue.count()<<" "<<prefetch.count()<<std::endl;
 			MPI_Issend( &(sbuf[0]),count,MPI_BYTE,parent,COMPLETED_TASK_TAG, comm, &outgoingRequest);
 			sendCompleted=0;
 			timer.stop("Send-Mesg");
@@ -250,9 +238,7 @@ void processRecv(){
 
 	//did we receive new tasks?
 	if(not recvCompleted) {
-		//std::cout<<"WORK MANAGER TESTING FOR RECV"<<std::endl;
 		MPI_Test(&incomingTaskRequest,&recvCompleted,&recvStatus);
-		//std::cout<<"WORK MANAGER DONE TESTING FOR RECV "<<recvCompleted<<std::endl;
 	}
 
 	if(not recvCompleted and die) {
@@ -264,22 +250,18 @@ void processRecv(){
 		timer.start("Recv-Mesg");
 		Timer t;
 
-		//extract
+		// extract streambuf
 		int count=0;
 		MPI_Get_count (&recvStatus, MPI_BYTE, &count);
 		std::vector<char> bb(rbuf.begin(), rbuf.begin() + count);
-		//std::cout<<"WORK MANAGER "<<rank<<" RECEIVED TASKS "<<count<<" "<<boost::hash_value(bb)<<std::endl;
 
 
+		// unpack incoming tasks
 		TaskDescriptorBundle incomingTasks;
-		//std::cout<<"WORK MANAGER "<<rank<<" UNPACKING "<<count<<std::endl;
 		unpack(rbuf,incomingTasks,std::size_t(count));
-		//std::cout<<"INCOMING: "<<rank<<" "<<incomingTasks.tasks.size()<<" "<<incomingTasks.count()<<std::endl;
 
-
-		//std::cout<<"PREFETCH: "<<prefetch.count()<<std::endl;
+		// add to prefetch
 		prefetch.transferFrom(incomingTasks);
-		//std::cout<<"PREFETCH: "<<rank<<" "<<prefetch.count()<<std::endl;
 
 
 		//issue reservations for the data we need to fulfill these tasks
@@ -288,11 +270,11 @@ void processRecv(){
 		for(auto it=requiredData.begin(); it!=requiredData.end(); it++) {
 			if(activeReservations.count(std::make_pair(it->location,it->label))==0) {
 				activeReservations[std::make_pair(it->location,it->label)]=sharedStore->reserve(it->location,it->label);
-				std::cout<<"WORK MANAGER "<<rank<<" ISSUING RESERVATION FOR DATA ITEM "<<it->location<<" "<<it->label<<std::endl;
+				LOGGER("WorkManager: "<<rank<<" ISSUING RESERVATION FOR DATA ITEM "<<it->location<<" "<<it->label)
 			}
 		}
 		batchId++;
-		//std::cout<<"WORK MANAGER: DONE RECEIVING "<<t.stop()<<std::endl;
+
 
 		MPI_Irecv(&(rbuf[0]),rbufSize,MPI_BYTE,MPI_ANY_SOURCE,TASK_REQUEST_TAG,comm,&incomingTaskRequest);
 		recvCompleted=0;
@@ -310,30 +292,11 @@ void releaseStaleReservations(){
 
 	Timer t;
 	std::unordered_set<DataPlaceholder> required;
-	//std::cout<<"REQUIRED DATA"<<std::endl;
 
 	prefetch.requiredData(required);
 	workQueue.requiredData(required);
 	backfillQueue.requiredData(required);
 
-
-/*
-        std::cout<<"ACTIVE"<<std::endl;
-        for(auto it=activeReservations.begin(); it!=activeReservations.end(); it++ ) {
-                std::cout<<it->first.second<<" "<<it->first.first<<std::endl;
-        }
-        std::cout<<"REQUIRED"<<std::endl;
-        for(auto it=required.begin(); it!=required.end(); it++) {
-                DataPlaceholder s;
-                s.necessity=NECESSITY::REQUIRED;
-                s.label=it->label;
-                s.location=it->location;
-                s.shared=true;
-                std::cout<<"it: "<<it->label<<" "<<it->location<<" "<<(it->necessity==NECESSITY::REQUIRED)<<" "<<required.count(s)<<std::endl;
-                std::cout<<"s: "<<s.label<<" "<<s.location<<" "<<(s.necessity==NECESSITY::REQUIRED)<<" "<<(s==*it)<<std::endl;
-
-        }
- */
 
 
 	for(auto it=activeReservations.begin(); it!=activeReservations.end(); ) {
@@ -343,7 +306,7 @@ void releaseStaleReservations(){
 		s.location=it->first.first;
 		s.shared=true;
 		if(required.count(s)==0) {
-			//std::cout<<"WORK MANAGER "<<rank<<" RELEASING RESERVATION ON ITEM "<<s.location<<" "<<s.label<<std::endl;
+			LOGGER("WorkManager: "<<rank<<" RELEASING RESERVATION ON ITEM "<<s.location<<" "<<s.label)
 			sharedStore->release(it->second);
 			it=activeReservations.erase(it);
 		}
@@ -351,7 +314,6 @@ void releaseStaleReservations(){
 			it++;
 		}
 	}
-	//std::cout<<"NODE MANAGER: DONE RELEASING: "<<t.stop()<<std::endl;
 	localStore->purge();
 };
 
@@ -373,10 +335,9 @@ void assignTasks(){
 				tasks[i]=promoteTaskDescriptor(td);
 				workers[i].assign(tasks[i]);
 				workers[i].die();
-				std::cout<<"KILLED WORKER "<<i<<" "<<workers[i].isDead()<<std::endl;
+				LOGGERA("KILLED WORKER "<<i<<" "<<workers[i].isDead())
 			}
 			else {
-				//std::cout<<"WORKER "<<i<<" HERE "<<workQueue.size()<<" "<<backfillQueue.size()<<std::endl;
 				TaskDescriptor td;
 
 				// always put non
@@ -393,27 +354,26 @@ void assignTasks(){
 						backfillQueue.resize(nWorkers);
 					}
 					taskTimer[i].start();
-					std::cout<<"WORK MANAGER "<<rank<<" ASSIGNED TASK TYPE "<< mapper.type(tasks[i].type) <<" TO WORKER "<<i<<" "<<tasks[i].arguments.size()<<" "<<td.arguments.size()<<" "<<tasks[i].imposeOrdering<<" "<<tasks[i].optional<<" "<<tasks[i].id<< std::endl;
+					LOGGERA("WorkManager: "<<rank<<" ASSIGNED TASK TYPE "<< mapper.type(tasks[i].type) <<" TO WORKER "<<i<<" "<<tasks[i].arguments.size()<<" "<<td.arguments.size()<<" "<<tasks[i].imposeOrdering<<" "<<tasks[i].optional<<" "<<tasks[i].id);
 				}
 			}
 		}
 		everybodyIsDead = everybodyIsDead and workers[i].isDead();
-		//std::cout<<"DEAD? "<<i<<" "<< workers[i].isDead()<<std::endl;
+
 	}
-	//std::cout<<"NODE MANAGER: DONE ASSIGNING: "<<t.stop()<<" "<<everybodyIsDead<<std::endl;
 }
 
 void extractData(GenericTask &t){
-	//std::cout<<"WORK MANAGER "<<rank<<" EXTRACTING DATA "<<std::endl;
+
 
 	for(auto it=t.outputData.begin(); it!=t.outputData.end(); it++) {
-		std::cout<<"EXTRACTING: "<<it->first<<" "<<it->second.location<<" "<<it->second.label<<" "<<it->second.shared<<" "<<it->second.data.size()<<std::endl;
+		LOGGER("EXTRACTING: "<<it->first<<" "<<it->second.location<<" "<<it->second.label<<" "<<it->second.shared<<" "<<it->second.data.size())
 		if(it->second.shared==true) {
-			std::cout<<"SHARED"<<std::endl;
+			LOGGER("SHARED")
 			sharedStore->put(it->second.location,it->second.label,it->second.data);
 		}
 		else{
-			//std::cout<<"LOCAL"<<std::endl;
+			LOGGER("LOCAL")
 			localStore->put(it->second.location,it->second.label,it->second.data);
 		}
 
@@ -422,15 +382,11 @@ void extractData(GenericTask &t){
 
 void populateData(TaskDescriptor &td, GenericTask &t){
 	t.inputData.clear();
-
-	//std::cout<<"POPULATING DATA"<<std::endl;
 	//loop over systems in the task descriptor
 
 	for(auto it=td.inputData.begin(); it!=td.inputData.end(); it++) {
 		StoredDataItem data(it->second);
 		bool dataIsAvailable=false;
-		//std::cout<<it->second.location<<" "<<it->second.label<<std::endl;
-		//std::cout<<data.location<<" "<<data.label<<std::endl;
 
 		if(data.shared==true) {
 			if(sharedStore->count(data.location,data.label)>0) {
@@ -444,10 +400,6 @@ void populateData(TaskDescriptor &td, GenericTask &t){
 				dataIsAvailable=true;
 			}
 		}
-		//std::cout<<"POPULATING: "<<it->first<<" "<<data.location<<" "<<data.label<<" "<<data.shared<<" "<<data.data.size()<<" "<<dataIsAvailable<<std::endl;
-
-
-		//std::cout<<data.location<<" "<<data.label<<" "<<data.tag<<" "<<data.shared<<" "<<it->shared<<" "<<dataIsAvailable<<std::endl;
 		if(dataIsAvailable) {
 			insert(it->first,t.inputData,data);
 		}
@@ -458,11 +410,6 @@ void populateData(TaskDescriptor &td, GenericTask &t){
  * Promote prefetches to ready state
  */
 void promoteTasks(){
-
-
-	//std::cout<<"NODE MANAGER:  PROMOTING: "<<std::endl;
-	//Timer t;
-
 	//promote required tasks
 	for(auto it=prefetch.tasks.begin(); it!=prefetch.tasks.end(); ) {
 		std::unordered_set<DataPlaceholder> deps;
@@ -470,21 +417,11 @@ void promoteTasks(){
 		bool ready=true;
 		for(auto itd=deps.begin(); itd!=deps.end(); itd++) {
 			ready= ready and  (sharedStore->count(itd->location,itd->label) > 0 );
-			/*
-			#ifdef VERBOSE
-			std::cout<<"PROMOTION: "<<itd->label<<" "<<itd->location<<" "<<sharedStore->count(itd->location,itd->label)<<" "<<ready<<std::endl;
-			#endif
-			*/
 			if(not ready) {
 				break;
 			}
 		}
 		if(ready) {
-			/*
-			#ifdef VERBOSE
-			std::cout<<"PROMOTION DONE "<<" "<<it->id<<std::endl;
-			#endif
-			*/
 			workQueue.push(*it);
 			it=prefetch.tasks.erase(it);
 		}
@@ -492,8 +429,6 @@ void promoteTasks(){
 			it++;
 		}
 	}
-
-	//std::cout<<"NODE MANAGER: DONE PROMOTING: "<<t.stop()<<std::endl;
 };
 
 
@@ -509,20 +444,14 @@ void processCompletedTasks(){
 
 	for(int i=0; i<nWorkers; i++) {
 		if( (not workers[i].isDead()) and workers[i].probe(tasks[i])) {
-			//std::cout<<"WORK MANAGER "<<rank<<" PROCESSING COMPLETED TASK FROM WORKER "<<i<<" "<<tasks[i].type<<std::endl;
+			LOGGER("WorkManager: "<<rank<<" PROCESSING COMPLETED TASK FROM WORKER "<<i<<" "<<tasks[i].type)
 			processCompletedTask(i,tasks[i]);
-			//std::cout<<"WORK MANAGER "<<rank<<" PROCESSED COMPLETED TASK FROM WORKER "<<i<<std::endl;
+			LOGGER("WorkManager: "<<rank<<" PROCESSED COMPLETED TASK FROM WORKER "<<i)
 		}
 
 		if( (workers[i].isDead() and deadWorkers.count(i)==0)or ( deadWorkers.count(i)==0 and taskTimer[i].lapInSeconds()>timeout  ) ) {
 			//this worker just died. We won't get a reply.
-			#ifdef USE_BOOST_LOG
-			boost::log::sources::severity_logger< boost::log::trivial::severity_level > lg;
-			BOOST_LOG_SEV(lg, boost::log::trivial::error) <<"WORKER "<<i<<" DIED";
-			#else
-			std::cout<<"WORKER "<<i<<" DIED"<<std::endl;
-			#endif
-
+			LOGGERA("WORKER "<<i<<" DIED")
 
 			//release the reservation
 			completedTasks.release(i,reservationIds[i]);
@@ -534,7 +463,6 @@ void processCompletedTasks(){
 			workers[i].die();
 		}
 	}
-	//std::cout<<"NODE MANAGER: DONE PROCESSING: "<<t.stop()<<std::endl;
 };
 
 void processCompletedTask(int workerID, GenericTask &t){
@@ -555,12 +483,7 @@ void processCompletedTask(int workerID, GenericTask &t){
 
 		//pretend that the worker is dead
 		workers[workerID].die();
-		#ifdef USE_BOOST_LOG
-		boost::log::sources::severity_logger< boost::log::trivial::severity_level > lg;
-		BOOST_LOG_SEV(lg, boost::log::trivial::error) <<"WORKER "<<workerID<<" FAILED";
-		#else
-		std::cout<<"WORKER "<<workerID<<" FAILED"<<std::endl;
-		#endif
+		LOGGERA("WORKER "<<workerID<<" FAILED")
 	}
 	else{
 		//process the results
@@ -576,7 +499,6 @@ void updateStores(){
 	while(sharedStore->singleServe()>0 and i<imax) {
 		i++;
 	}
-	//std::cout<<"NODE MANAGER: DONE UPDATING STORES: "<<t.stop()<<std::endl;
 }
 
 
@@ -585,14 +507,7 @@ virtual void report(){
 	if(std::chrono::high_resolution_clock::now() - lastReport> reportDelay  ) {
 		timer.report();
 		completedTasks.report();
-		#ifdef USE_BOOST_LOG
-		boost::log::sources::severity_logger< boost::log::trivial::severity_level > lg;
-		BOOST_LOG_SEV(lg, boost::log::trivial::trace) <<workQueue.count()<<" TASKS IN WORK QUEUE";
-		BOOST_LOG_SEV(lg, boost::log::trivial::trace) <<backfillQueue.count()<<" TASKS IN BACKFILL QUEUE";
-		#else
-		std::cout<<workQueue.count()<<" TASKS IN WORK QUEUE"<<std::endl;
-		std::cout<<backfillQueue.count()<<" TASKS IN BACKFILL QUEUE"<<std::endl;
-		#endif
+		LOGGERA("WorkManager: "<<workQueue.count()<<"/"<<backfillQueue.count()<<" TASKS IN WORK/BACKFILL QUEUE");
 		lastReport=std::chrono::high_resolution_clock::now();
 	}
 };
@@ -676,4 +591,4 @@ std::map<int, Timer> taskTimer;
 
 
 
-#endif 
+#endif

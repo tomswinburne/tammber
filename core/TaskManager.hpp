@@ -48,12 +48,10 @@ MPIDriverTaskManager(MPI_Comm parentComm_,MPI_Comm localComm_){
 
 bool pullTask( GenericTask &t){
 	GenericTask tt;
-	//std::cout<<"PULLING TASK"<<std::endl;
 	//receive size
 	int count;
 	MPI_Bcast(&(count), 1, MPI_INT, 0, parentComm);
 	buffer.resize(count);
-	//std::cout<<"pull - size: "<<count<<std::endl;
 	//receive data
 	MPI_Bcast(&(buffer[0]), count, MPI_BYTE, 0, parentComm);
 
@@ -65,7 +63,6 @@ bool pullTask( GenericTask &t){
 };
 
 bool pushTask( GenericTask &t){
-	//std::cout<<"PUSHING TASK"<<std::endl;
 	//Send the task back to parent
 	if(rank==0) {
 		std::vector<char> b;
@@ -134,7 +131,6 @@ virtual bool assign(GenericTask &t){
 	pack(b,t);
 
 	int count=int(b.size());
-	//std::cout<<"ASSIGN "<<count<<std::endl;
 	//send the size
 	MPI_Bcast(&count, 1, MPI_INT, MPI_ROOT, parentComm);
 	//send the data
@@ -145,7 +141,6 @@ virtual bool assign(GenericTask &t){
 	//post a receive for the size of the result
 	MPI_Irecv(&(resultCount), 1, MPI_INT, MPI_ANY_SOURCE, TASK_MANAGER_SIZE_TAG, parentComm, &resultSizeRequest );
 
-	//std::cout<<"DONE ASSIGN "<<std::endl;
 
 	return true;
 };
@@ -155,7 +150,6 @@ virtual bool probe(GenericTask &t){
 
 	GenericTask tt;
 
-	//std::cout<<"PROBE "<<std::endl;
 
 	//there is no task pending on this driver
 	if(idle or dead) {
@@ -169,7 +163,6 @@ virtual bool probe(GenericTask &t){
 		return false;
 	}
 	//if we make it here, the size of the result was received, so the task is complete
-	//std::cout<<"probe - size: "<<resultCount<<std::endl;
 	//receive the data
 	buffer.resize(resultCount);
 	MPI_Recv(&(buffer[0]), resultCount, MPI_BYTE, MPI_ANY_SOURCE, TASK_MANAGER_DATA_TAG, parentComm, &status);
@@ -180,7 +173,6 @@ virtual bool probe(GenericTask &t){
 
 	t=tt;
 
-	//std::cout<<"PROBE SUCCESSFUL "<<resultCount<<std::endl;
 
 	return true;
 };

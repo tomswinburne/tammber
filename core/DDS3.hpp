@@ -36,6 +36,8 @@
 
 #include "DDS.hpp"
 
+#include "Log.hpp"
+
 
 
 
@@ -81,19 +83,16 @@ bool test(){
 		pending_=false;
 	}
 	//pending_=!bool(complete);
-	//std::cout<<"TEST "<<complete<<" "<<pending_<<std::endl;
 	return bool(complete);
 };
 
 bool postRecv(size_t maxMesgSize, int sourceTag, int msgTag, MPI_Comm &communicator){
-	//std::cout<<"RECV PENDING "<<pending_<<std::endl;
 	if(pending_) {
 		return false;
 	}
 	buf.resize(maxMesgSize);
 	MPI_Irecv(&(buf[0]),maxMesgSize,MPI_BYTE,sourceTag,msgTag,communicator,&req);
 	pending_=true;
-	//std::cout<<"RECV POSTED "<<pending_<<std::endl;
 	return pending_;
 };
 
@@ -111,13 +110,12 @@ bool test(){
 		pending_=false;
 	}
 	//pending_=!bool(complete);
-	//std::cout<<"TEST "<<complete<<" "<<pending_<<std::endl;
 	return bool(complete);
 };
 
 bool postSend(size_t dataSize, RawDataVector data,int destinationTag, int msgTag, MPI_Comm &communicator){
 	if(pending_) {
-		std::cout<<"WARNING: MESSAGE WAS ALREADY PENDING"<<std::endl;
+		LOGGERA("WARNING: MESSAGE WAS ALREADY PENDING")
 		return false;
 	}
 
@@ -125,7 +123,6 @@ bool postSend(size_t dataSize, RawDataVector data,int destinationTag, int msgTag
 	MPI_Issend( &(buf[0]),dataSize,MPI_BYTE,destinationTag, msgTag, communicator, &req);
 
 	pending_=true;
-	//std::cout<<"SEND POSTED "<<destinationTag<<std::endl;
 	return pending_;
 };
 };
@@ -182,12 +179,13 @@ void serve(){
 
 
 void printStatus(){
-	std::cout<<" HDDS on RANK: "<<self<<std::endl;
-	std::cout<<self<<" "<<maxDataSize<<" "<<std::endl;
-	std::cout<<self<<" MEMORY USAGE: "<<memoryUsage<<" "<<maxCacheSize<<std::endl;;
 
-	std::cout<<self<<" HOLDS: "<<nActiveHolds<<std::endl;
-	std::cout<<self<<" RESERVATION ID: "<<reservationID<<" "<<reservations.size()<<std::endl;
+	LOGGER(" HDDS on RANK: "<<self)
+	LOGGER(self<<" "<<maxDataSize<<" ")
+	LOGGER(self<<" MEMORY USAGE: "<<memoryUsage<<" "<<maxCacheSize)
+
+	LOGGER(self<<" HOLDS: "<<nActiveHolds)
+	LOGGER(self<<" RESERVATION ID: "<<reservationID<<" "<<reservations.size())
 
 };
 
@@ -215,27 +213,16 @@ int singleServe(){
 		std::list<Transaction> transactions;
 		unpack(recvChannel.buf,transactions,std::size_t(size));
 
-
-		/*
-		   std::cout<<"N TRANSACTIONS "<<transactions.size()<<std::endl;
-		   for(auto it=transactions.begin(); it!=transactions.end(); it++) {
-		        it->print();
-		   }
-		 */
-
 		incomingTransactions.splice(incomingTransactions.begin(),transactions);
 
 
 
 		recvChannel.postRecv(maxDataSize,MPI_ANY_SOURCE,DDS_MESG_TAG,comm);
-		//std::cout<<"DATA RECEIVED "<<size<<std::endl;
-		//std::cout<<recvChannel.pending_ <<std::endl;
 	}
 
 
 	//purge if using too much memory
 	if(purge and memoryUsage>maxCacheSize) {
-		//std::cout<<"RANK: "<<self<<" PURGING" <<" "<<memoryUsage<<" "<<maxCacheSize<<std::endl;
 		//flush the least recently touched items. Make sure we don't flush elements that are still needed
 		for(auto it=mru.begin(); it!=mru.end(); ) {
 			unsigned int dbKey=it->first;
@@ -245,7 +232,7 @@ int singleServe(){
 
 
 			if(not onHold) {
-				std::cout<<"RANK: "<<self<<" PURGING ITEM "<<key<<std::endl;
+				LOGGER("RANK: "<<self<<" PURGING ITEM "<<key)
 				assert(lstore.count(dbKey,key)>0);
 				int size=lstore.erase(dbKey,key);
 				memoryUsage-=size;
@@ -256,7 +243,6 @@ int singleServe(){
 				else{
 					it++;
 				}
-				//std::cout<<"RANK: "<<self<<" PURGING ITEM "<<key<<std::endl;
 			}
 			else{
 				it++;
@@ -267,7 +253,7 @@ int singleServe(){
 			}
 		}
 		if(memoryUsage>maxCacheSize) {
-			std::cout<<"RANK: "<<self<<" WARNING: UNABLE TO PURGE ENOUGH DATA TO MEET MEMORY LIMIT "<<std::endl;
+			LOGGERA("RANK: "<<self<<" WARNING: UNABLE TO PURGE ENOUGH DATA TO MEET MEMORY LIMIT ")
 		}
 	}
 
@@ -283,7 +269,6 @@ int singleServe(){
 		auto it=incomingTransactions.begin();
 		Transaction &transaction=*it;
 
-		//std::cout<<"RANK: "<<self<<" INCOMING: "<<std::endl;
 		//transaction.print();
 
 		if(transaction.type==DDS_GET or transaction.type==DDS_PREFETCH) {
@@ -293,7 +278,6 @@ int singleServe(){
 			//bool transactionCompleted=false;
 			bool inStore=(lstore.count(transaction.dbKey,transaction.key)>0);
 
-			//std::cout<<"RANK: "<<self<<" GET OR PREFETCH INSTORE: "<<inStore<<" PENDING GETS: "<<pendingGets.count( std::make_pair(transaction.dbKey, transaction.key) )<<" "<<std::endl;
 
 
 			//we have the item in store
@@ -314,7 +298,6 @@ int singleServe(){
 					if(transaction.type==DDS_GET and not transaction.pending) {
 						requestCounter[transaction.dbKey][transaction.key].insert(transaction.source);
 						nActiveHolds++;
-						//std::cout<<"INSERTED A HOLD ON "<<transaction.dbKey<<" "<<transaction.key<<" "<<transaction.source<<std::endl;
 					}
 				}
 				//update the MRU log
@@ -344,7 +327,6 @@ int singleServe(){
 					requestCounter[transaction.dbKey][transaction.key].insert(transaction.source);
 					nActiveHolds++;
 
-					//std::cout<<"INSERTED A HOLD ON "<<transaction.dbKey<<" "<<transaction.key<<" "<<transaction.source<<std::endl;
 					transaction.pending=true;
 
 
@@ -360,11 +342,9 @@ int singleServe(){
 		if(transaction.type==DDS_PUT) {
 			bool inStore=(lstore.count(transaction.dbKey, transaction.key)>0);
 
-			//std::cout<<"RANK: "<<self<<" PROCESSING INCOMING PUT "<<transaction.key<<" "<<inStore<<" "<<std::endl;
 
 			//add it to the store if we don't have it already
 			if( not inStore ) {
-				//std::cout<<"RANK: "<<self<<" ADDING  "<<transaction.dbKey<<" "<<transaction.key<<" TO STORE "<<std::endl;
 				lstore.put(transaction.dbKey,transaction.key,transaction.data);
 				memoryUsage+=transaction.data.size();
 
@@ -392,7 +372,6 @@ int singleServe(){
 
 					//Register a hold on this item until we process the corresponding DDS_PUT to parent
 					requestCounter[forward.dbKey][forward.key].insert(parent);
-					//std::cout<<"INSERTED A HOLD ON "<<forward.dbKey<<" "<<forward.key<<" "<<parent<<std::endl;
 					nActiveHolds++;
 					outgoingTransactions[forward.destination].push_back(forward);
 				}
@@ -419,7 +398,6 @@ int singleServe(){
 
 		//initiate send of transactions
 		if(not pending) {
-			//std::cout<<"OUTGOING TRANSACTIONS TO "<<it->first<<std::endl;
 			//gather the data
 			std::list<Transaction> outgoing;
 			int nt=0;
@@ -429,7 +407,7 @@ int singleServe(){
 
 				if(transaction.type==DDS_PUT) {
 
-					std::cout<<DDS_PUT<<" "<<transaction.destination<<" "<<transaction.dbKey<<" "<<transaction.key<<std::endl;
+					LOGGER(DDS_PUT<<" "<<transaction.destination<<" "<<transaction.dbKey<<" "<<transaction.key)
 					bool inStore=(lstore.count(transaction.dbKey,transaction.key)>0);
 					//this item should be in store
 					assert(inStore);
@@ -440,14 +418,12 @@ int singleServe(){
 					assert( requestCounter[transaction.dbKey][transaction.key].count(transaction.destination) > 0 );
 					auto itr=requestCounter[transaction.dbKey][transaction.key].find(transaction.destination);
 					requestCounter[transaction.dbKey][transaction.key].erase(itr);
-					//std::cout<<"RELEASED A HOLD ON "<<transaction.dbKey<<" "<<transaction.key<<" "<<transaction.destination<<std::endl;
 					nActiveHolds--;
 
 					outgoing.push_back(transaction);
 				}
 
 				if(transaction.type==DDS_GET) {
-					//std::cout<<DDS_GET<<" "<<transaction.destination<<" "<<transaction.dbKey<<" "<<transaction.key<<std::endl;
 					outgoing.push_back(transaction);
 				}
 
@@ -465,7 +441,6 @@ int singleServe(){
 			int count=sbuf.size();
 
 			bool ret=sendChannels[it->first].postSend(count,sbuf,it->first,DDS_MESG_TAG,comm);
-			//std::cout<<"Sending "<<count<<" TO "<<it->first<<" "<<ret<<std::endl;
 		}
 
 		if(it->second.size()==0) {

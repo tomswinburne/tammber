@@ -19,6 +19,7 @@
 #include "Task.hpp"
 #include "Graph.hpp"
 #include "Types.hpp"
+#include "Log.hpp"
 
 #include <mpi.h>
 #include <functional>
@@ -72,7 +73,6 @@ std::string parse(std::string r){
 		int r=d(rng);
 		std::string s=boost::str(boost::format("%1%" ) % r );
 		boost::replace_first(raw, key, s);
-		//std::cout<<"RANDU: "<<r<<std::endl;
 	}
 	key="%COUNT%";
 	while(not boost::find_first(raw, key).empty()) {
@@ -92,13 +92,11 @@ std::string parse(std::string r){
 		const boost::regex filter( filep );
 
 
-		//std::cout<<r<<std::endl;
 		bool match=false;
 		try{
 			boost::filesystem::directory_iterator end_itr; // Default ctor yields past-the-end
 			for( boost::filesystem::directory_iterator i( parent ); i != end_itr; ++i )
 			{
-				//std::cout<<i->path()<<std::endl;
 				// Skip if not a file
 				if( !boost::filesystem::is_regular_file( i->status() ) ) continue;
 
@@ -109,9 +107,7 @@ std::string parse(std::string r){
 				// File matches, extract number
 				for(int ii=1; ii<what.size(); ii++) {
 					match=true;
-					//std::cout<<"- "<<what[ii]<<std::endl;
 					int index=boost::lexical_cast<int>(what[ii]);
-					//std::cout<<index<<std::endl;
 					max=std::max(max,index);
 				}
 			}
@@ -165,13 +161,7 @@ std::function<void(GenericTask&)> nothing_impl = [this](GenericTask &task) {
 virtual void process(GenericTask &task) {
 	std::string str_id = mapper.type(task.type);
 	if(impls.find(str_id)!=impls.end()) {
-		#ifdef VERBOSE
-		#ifdef USE_BOOST_LOG
-		BOOST_LOG_SEV(lg, boost::log::trivial::trace)<<"EXECUTING "<<str_id<<", "<<task.type;
-		#else
-		std::cout<<"EXECUTING "<<str_id<<", "<<task.type<<"\n";
-		#endif
-		#endif
+		LOGGER("EXECUTING "<<str_id<<", "<<task.type)
 		impls[str_id](task);
 
 	}

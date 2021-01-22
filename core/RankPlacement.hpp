@@ -99,7 +99,6 @@ public:
 				if(nl>0) {
 					allocate(nl,"Nothing",-1);
 				}
-				//std::cout<<i<<" "<<nn<<" "<<budget<<" "<<nl<<std::endl;
 			}
 		}
 		else{
@@ -124,7 +123,6 @@ public:
 				if(nl>0) {
 					allocate(nl,"Nothing",-1);
 				}
-				//std::cout<<i<<" "<<nn<<" "<<budget<<" "<<nl<<std::endl;
 			}
 
 		}
