@@ -179,11 +179,14 @@ class DiffusionModel:
 					elif ele.tag == 'TADBarrier':
 						ss.TADBarrier = np.float64(ele.text)
 					elif ele.tag == 'SelfSymmetries':
-						dd = np.genfromtxt(ele.text.splitlines(),dtype=(np.int,np.float,np.float,np.float))
-						#np.fromstring(ele.text,dtype=np.float64,sep=' ')
-						#dd[1:] = self.pucsnap(dd[1:])
+						if ele.text.strip() == "":
+							dd = np.zeros((1,4))
+						else:
+							dd = np.genfromtxt(ele.text.splitlines())
+							if dd.size<5:
+								dd = np.zeros((1,4))
 						for _dd in dd:
-							ss.selfsyms.append([_dd[0],_dd[1],_dd[2],_dd[3]])
+							ss.selfsyms.append([int(_dd[0]),*_dd[1:]])
 					elif ele.tag == 'SeenEquivalents':
 						sid = np.genfromtxt(ele.text.splitlines(),dtype=np.uint64)
 						dd = np.genfromtxt(ele.text.splitlines())
@@ -196,6 +199,8 @@ class DiffusionModel:
 						for _dd in zip(sid,dd):
 							ss.equivalents.append([_dd[0][0].astype(np.uint64),_dd[0][1].astype(np.int),_dd[1][2],_dd[1][3],_dd[1][4]])
 							#list(_dd))
+				if len(ss.selfsyms)==0:
+					ss.selfsyms.append(np.genfromtxt("0 0 0 0".splitlines(),dtype=(np.int,np.float,np.float,np.float)))
 				ss.conjugate =  self.conjugate_set(ss).copy()
 				self.states.append(ss)
 			elif child.tag=='Edge':
@@ -264,6 +269,8 @@ class DiffusionModel:
 			every member of :math:`S` by every member of :math:`C`, which is what
 			this function finds
 		"""
+		if len(s.selfsyms) < 2:
+			return self.PointGroup
 		S = set([ss[0] for ss in s.selfsyms]) ## selfsymmetry of state
 		P, N = set([0]), set([0])
 		# While Union(P,S) does not have all the elements of G
@@ -292,14 +299,14 @@ class DiffusionModel:
 			The intersection of the set :math:`c\prime=\{gs^{-1} \forall s\in{S}\}`
 			with the conjugate set :math:`C` should therefore return one element
 		"""
-
 		ss = set([j[0] for j in self.states[state].selfsyms]) # S
 		cj = set(self.states[state].conjugate.copy()) # C
 		nn = set(opMult(operation,opInv(s)) for s in ss) # op s^{-1}
+
 		#nn = set(opMult(opInv(s),operation) for s in ss)
 
 		if len(nn&cj)!=1:
-			print("DEGEN!!",len(nn&cj))
+			#print("Degeneracy: ",len(nn&cj))
 			return -1
 		return list(nn&cj)[0]
 
