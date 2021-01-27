@@ -1454,10 +1454,10 @@ void TammberModel::generateTADs(std::list<TADjob> &jobs, int nMax) {
 			jobs.push_back(job);
 			line += " ALLOC.";
 		}
-		LOGGER(line)
+		LOGGERA(line)
 		tot_count += count;
 	}
-	LOGGER("======================================")
+	LOGGERA("======================================")
 };
 
 void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
@@ -1760,9 +1760,8 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 	}
 
 	for(auto &v: StateVertices) {
-		temp = std::max(1.0,v.second.target_state_time);
-		temp = (LOG_NU_MIN + log(std::max(temp,1.0)))*targetT/log(2.0*PRIOR_NU);
-		temp = std::max(tadT[0],temp);
+		temp = log(PRIOR_NU*std::max(1.0,v.second.target_state_time))*targetT;
+		temp = std::max(tadT[0],temp/log(2.0*PRIOR_NU));
 		for(auto tt:tadT) if(temp<tt) {
 			temp=tt;
 			break;
