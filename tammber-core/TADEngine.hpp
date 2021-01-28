@@ -88,17 +88,18 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
 	//read parameters from the tasks
 	double preCorrelationTime=safe_extractor<double>(parameters,"PreCorrelationTime",1.0);
-
-	double postCorrelationTime=safe_extractor<double>(parameters,"PostCorrelationTime",1.0);
 	double minimumSegmentLength=safe_extractor<double>(parameters,"MinimumSegmentLength",1.0);
-	double blockTime=safe_extractor<double>(parameters,"BlockTime",1.0);
+	double BlockTime=safe_extractor<double>(parameters,"BlockTime",1.0);
+	double annealingTime=safe_extractor<double>(parameters,"AnnealingTime",0.25);
+	double annealingTemperature=safe_extractor<double>(parameters,"AnnealingTemperature",0.25);
+
 	int nDephasingTrialsMax=safe_extractor<int>(parameters,"MaximumDephasingTrials",3);
 	bool reportIntermediates=safe_extractor<bool>(parameters,"ReportIntermediates",false);
 	int segmentFlavor=(BaseMDEngine::taskParameters.count(std::make_pair(task.type,task.flavor))>0 ? task.flavor : BaseMDEngine::defaultFlavor);
 	int maximumSegmentLength = safe_extractor<int>(parameters,"MaximumSegmentLength",25*minimumSegmentLength);
 
 	//create tasks
-	GenericTask md,min,label,carve,initVelocities;//,write;
+	GenericTask md,min,label,carve,initVelocities,filter;//,write;
 	//write.type = BaseEngine::mapper.type("TASK_WRITE_TO_FILE");
 	//write.flavor = task.flavor;
 
@@ -117,12 +118,10 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 	initVelocities.type=BaseEngine::mapper.type("TASK_INIT_VELOCITIES");
 	initVelocities.flavor=task.flavor;
 
-	/*
-	GenericTask filterTransitions; // have this??
-	filterTransitions.type=BaseEngine::mapper.type("TASK_FILTER_TRANSITION");
-	filterTransitions.flavor=task.flavor;
-	*/
-	LOGGER(preCorrelationTime<<" "<<postCorrelationTime<<" "<<minimumSegmentLength<<" "<<blockTime<<" "<<nDephasingTrialsMax)
+	filter.type=BaseEngine::mapper.type("TASK_FILTER_TRANSITION");
+	filter.flavor=task.flavor;
+
+	// LOGGER(preCorrelationTime<<" "<<postCorrelationTime<<" "<<minimumSegmentLength<<" "<<BlockTime<<" "<<nDephasingTrialsMax)
 
 	// in input and output data here
 	TADSegment segment;
@@ -131,14 +130,6 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 	//extract the systems we were provided
 	System minimum, reference, qsd, initial, current, currentMin;
 
-	/*bool gotMin=false;
-	std::string key="Minimum";
-	if(task.inputData.find(key)!=task.inputData.end()) {
-		auto it = task.inputData.find(key);
-		std::cout<<" FOUND "<<key<<" "<<it->second.data.size()<<std::endl;
-		unpack(it->second.data,initial);
-		gotMin=true;
-	}*/
 	bool gotMin = extract("Minimum",task.inputData,minimum);
 
 	// to be completed
@@ -201,7 +192,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 	// transition check
 	bool BasinTransition = false;
 	bool NewBasinTransition = false;
-	bool NoTransition = false;
+	bool Transition = false;
 
 	// set labels
 	CurrentLabels=InitialLabels;
@@ -235,12 +226,12 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 		while( elapsedTime  < preCorrelationTime*0.999999999 ) {
 			// one block of MD
 			md.clearInputs(); md.clearOutputs();
-			insert("BlockTime",md.arguments,blockTime);
+			insert("BlockTime",md.arguments,BlockTime);
 			insert("Temperature",md.arguments,temperature);
 			insert("State",md.inputData,current);
 			BaseEngine::process(md);
 			extract("State",md.outputData,current);
-			elapsedTime += blockTime;
+			elapsedTime += BlockTime;
 			segment.overhead++;
 
 			// minimize
@@ -263,41 +254,40 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
 			// Current "Basin" implementation: anything below MSD thresh from reference
 
-			// check for transition - should have TASK_FILTER_TRANSITION ....
+			// check for transition out of "superbasin"
 			BasinTransition = bool(segment.BasinLabels.find(CurrentLabels)!=segment.BasinLabels.end());
 			NewBasinTransition = bool(newBasinLabels.find(CurrentLabels)!=newBasinLabels.end());
-			NoTransition = bool(reference.msd(currentMin,true) < MSD_THRESH);
 
+			// See TASK_FILTER_TRANSITION for how "Valid" is determined
+			filter.clearInputs(); filter.clearOutputs();
+			insert("ReferenceState",filter.inputData,reference);
+			insert("State",filter.inputData,currentMin);
+			BaseEngine::process(filter);
+			extract("Valid",filter.returns,Transition);
 
 			// If a new state is seen it must be revisited for the basin dephased
-			segment.dephased = NoTransition;// or BasinTransition or NewBasinTransition;
+			// currently we just log the basin transitions, we do not use them
+			// segment.dephased = !Transition or BasinTransition or NewBasinTransition;
+			segment.dephased = !Transition;
 
-			LOGGER("Dephased: "<<segment.dephased<<" "<<NoTransition)
+			LOGGER("Dephased: "<<segment.dephased<<" "<<Transition<<" "<<BasinTransition<<" "<<NewBasinTransition)
 
-			if(!NoTransition) { // carve
+			if(Transition) { // i.e. a transition. We
 				carve.clearInputs(); carve.clearOutputs();
 				insert("State",carve.inputData,currentMin);
 				BaseEngine::process(carve);
 				extract("Clusters",carve.returns,clusters);
-				segment.dephased = bool(clusters==segment.initialClusters);
+				//segment.dephased = bool(clusters==segment.initialClusters);
 			}
 
-			/*
-			write.clearInputs(); write.clearOutputs();
-			std::string filename="state-"+std::to_string(CurrentLabels.first)+"-"+std::to_string(CurrentLabels.second)+"_"+std::to_string(segment.overhead)+".dat";
-			insert("Filename",write.arguments,filename);
-			insert("State",write.inputData,currentMin);
-			BaseEngine::process(write);
-			*/
-
 			// i.e. unknown transition
-			if(!BasinTransition and !NewBasinTransition and NoTransition) {
+			if(!BasinTransition and !NewBasinTransition and !Transition) {
 				newBasinLabels[CurrentLabels] = currentMin.getEnergy();
 				if(reportIntermediates)
 					insert("State",CurrentLabels.first,CurrentLabels.second,LOCATION_SYSTEM_MIN,true,task.outputData,currentMin);
 			}
 
-			if(NoTransition) {
+			if(!Transition) {
 				CurrentLabels=InitialLabels;
 				currentMin = initial;
 			}
@@ -306,16 +296,17 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 		nDephasingTrials++;
 		if(nDephasingTrials>=nDephasingTrialsMax) break;
 
-		if(NoTransition) break;
+		if(!Transition) break;
 	}
 	segment.trials = nDephasingTrials;
 	// if we have dephased, newBasinLabels have participated in superbasin dephasing so are valid
 	if(segment.dephased) for(auto &nbl: newBasinLabels) segment.BasinLabels.insert(nbl);
 
-	#ifdef VERBOSE
-	if(segment.dephased) LOGGER("DEPHASED WITH "<<newBasinLabels.size()<<" NEW BASIN STATES")
-	else LOGGER("NOT DEPHASED; TRIED "<<newBasinLabels.size()<<" NEW FAKE BASIN STATES; EXITING")
-	#endif
+	if(segment.dephased) {
+		LOGGER("DEPHASED WITH "<<newBasinLabels.size()<<" NEW BASIN STATES (NOT CURRENTLY USED)")
+	} else {
+		LOGGER("NOT DEPHASED; TRIED "<<newBasinLabels.size()<<" NEW FAKE BASIN STATES; EXITING")
+	}
 
 	if(!segment.dephased) {
 		insert("TADSegment",task.returns,segment);
@@ -323,35 +314,40 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 		return ;
 	}
 
-
 	segment.duration = 0;
 	segment.elapsedTime = 0.0;
 
 	bool annealing = false;
-	double tempblockTime=blockTime;
+	double segmentBlockTime=BlockTime;
+	double segmentTemperature = segment.temperature;
 
 	reference=currentMin;
 	qsd = current;
-	//insert("State",InitialLabels.first,InitialLabels.second,LOCATION_SYSTEM_MIN,true,task.outputData,reference);
 
 	previousLabels = InitialLabels;
 
 	while ( segment.duration<=maximumSegmentLength ) {
 
-		if (annealing) tempblockTime = blockTime/4.0;
-		else tempblockTime = blockTime;
+		if (annealing) {
+			segmentBlockTime = annealingTime * BlockTime;
+			segmentTemperature = annealingTemperature;
+		}
+		else {
+			segmentBlockTime = BlockTime;
+			segmentTemperature = segment.temperature;
+		}
 
 		//take a block of MD
 		md.clearInputs(); md.clearOutputs();
-		insert("BlockTime",md.arguments,tempblockTime);
-		insert("Temperature",md.arguments,segment.temperature);
+		insert("BlockTime",md.arguments,segmentBlockTime);
+		insert("Temperature",md.arguments,segmentTemperature);
 		insert("State",md.inputData,current);
 		BaseEngine::process(md);
 		extract("State",md.outputData,current);
 
 		if(!annealing) {
 			segment.duration += 1;
-			segment.elapsedTime += blockTime;
+			segment.elapsedTime += BlockTime;
 		}
 
 		previousLabels=CurrentLabels;
@@ -379,26 +375,23 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 		msd_thresh = reference.msd(currentMin,true);
 		LOGGER("REFERENCE CURRENTMIN MSD_INF (2nd MIN): "<<msd_thresh)
 		LOGGER("CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
+
 		// transition check
-		NoTransition = bool(msd_thresh < MSD_THRESH);
 		BasinTransition = bool(segment.BasinLabels.find(CurrentLabels)!=segment.BasinLabels.end());
+		filter.clearInputs(); filter.clearOutputs();
+		insert("ReferenceState",filter.inputData,reference);
+		insert("State",filter.inputData,currentMin);
+		BaseEngine::process(filter);
+		extract("Valid",filter.returns,Transition);
+
 		if(annealing) {
-			if(!NoTransition and !BasinTransition) { // annealing + transition == exit
+			//if(Transition and BasinTransition) { // annealing + transition == exit
+			if(Transition) { // annealing + transition == exit
+
 				LOGGER("ANNEALED! TRANSITION MADE!")
 
 				//LOGGER("INSERTING "<<CurrentLabels.first<<","<<CurrentLabels.second<<" , E="<<currentMin.getEnergy())
 				insert("FinalMinimum",CurrentLabels.first,CurrentLabels.second,LOCATION_SYSTEM_MIN,true,task.outputData,currentMin);
-
-				// check for self symmetry here? No- always done in NEB
-				/*if (CurrentLabels.first==InitialLabels.first) {
-					LOGGER("EXTRACTING SYMMETRY FOR ISOMORPHIC TRANSITION")
-					std::map<int,int> c_map;
-					BaseMDEngine::labeler->isomorphicMap(reference,currentMin,c_map); // 2 -> C -> 1
-					segment.ops = find_transforms(reference,currentMin,c_map);
-					#ifdef VERBOSE
-					for(auto _op: segment.ops) LOGGER("Found!\n"<<_op.info_str())
-					#endif
-				}*/
 
 				// carve
 				carve.clearInputs(); carve.clearOutputs();
@@ -422,21 +415,28 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 				annealing = false;
 			}
 		} else {
-			if((not NoTransition) and (not BasinTransition) ) { // !annealing + transition == anneal
-				LOGGER("TRANSITION DETECTED! ANNEALING for 1/4 BLOCK")
+
+
+			//if(Transition and (not BasinTransition) ) { // no basin labels yet
+			if(Transition) { // not annealing + not no transition == transition has been made
+				LOGGER("TRANSITION DETECTED! ANNEALING FOR AnnealingTime BLOCKS AT AnnealingTemperature")
 				segment.transition.first = InitialLabels;
 				annealing=true;
-			} else {
-				if(NoTransition and (CurrentLabels!=InitialLabels)) {
+
+			} else { // no transition, continue MD
+
+				// reset labels as the only change was due to small fluctuations
+				if(!Transition and (CurrentLabels!=InitialLabels)) {
 					LOGGER("NO TRANSITION FROM MSD CHECK");
 					CurrentLabels=InitialLabels; //
 				}
+
 				segment.transition.first = InitialLabels;
 				segment.transition.second = CurrentLabels;
 			}
 		}
 		if(segment.duration>=maximumSegmentLength and !annealing) {
-			LOGGER("SEGMENT EXCEEDED MAXIMUM LENGTH. BAILING OUT.")
+			LOGGER("SEGMENT EXCEEDED MaximumSegmentLength BLOCKS. EXITING.")
 
 			segment.initialE = reference.getEnergy();
 			segment.finalE = currentMin.getEnergy();

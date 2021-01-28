@@ -26,6 +26,7 @@
 #include "AbstractSystem.hpp"
 #include "Constants.hpp"
 #include "BoundaryConditions.hpp"
+#include "Types.hpp"
 
 class AbstractTransitionFilter {
 public:
@@ -47,10 +48,8 @@ public:
 	virtual bool isValid(AbstractSystem &before, AbstractSystem &after, std::unordered_map<std::string,std::string> &parameters) {
 
 		Cell bc = before.getCell();
-		bool maxd=true;
-		double thresh = 0.6;
-		if (parameters.find("MaxNorm")!=parameters.end()) maxd = boost::lexical_cast<bool>(parameters["MaxNorm"]);
-		if (parameters.find("Thresh")!=parameters.end()) thresh = boost::lexical_cast<double>(parameters["Thresh"]);
+		bool maxd = safe_extractor<bool>(parameters,"MaxNorm",true);
+		double thresh = safe_extractor<double>(parameters,"Thresh",0.6);
 		int natoms = before.getNAtoms();
 		double mag=0., max_mag=0.;
 

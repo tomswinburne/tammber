@@ -19,6 +19,7 @@
 #include "AbstractEngine.hpp"
 #include "SystemModifier.hpp"
 #include "Task.hpp"
+#include "Log.hpp"
 #include "Graph.hpp"
 #include "TransitionFilter.hpp"
 #include <map>
@@ -203,12 +204,9 @@ std::function<void(GenericTask&)> filter_transition_impl = [this](GenericTask &t
 	filter->initialize(parameters);
 
 	bool valid = filter->isValid(reference, state, parameters);
-	double dXmax = boost::lexical_cast<double>(parameters["dXmax"]);
-	double dX = boost::lexical_cast<double>(parameters["dX"]);
+	LOGGER("MDEngine::FilterTransition: "<<valid<<" dX: "<<dX<<" dXmax: "<<dXmax)
 
 	insert("Valid", task.returns, valid);
-	insert("dXmax", task.returns, dXmax);
-	insert("dX", task.returns, dX);
 };
 
 virtual void min_label_remap(GenericTask &task){

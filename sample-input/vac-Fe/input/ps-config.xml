@@ -223,16 +223,19 @@
 <TaskParameter>
 <Task> TASK_SEGMENT </Task>
 <Flavor> 0 </Flavor>
-<PreCorrelationTime> 1 </PreCorrelationTime>
-<PostCorrelationTime> 1 </PostCorrelationTime>
-<MinimumSegmentLength> 1 </MinimumSegmentLength>
+<!-- Duration of block in MD time units. =1ps for LAMMPS metal units -->
 <BlockTime> 1 </BlockTime>
+<!-- dephasing blocks for segment - should be equal 1ps for energy minima -->
+<PreCorrelationTime> 1 </PreCorrelationTime>
+<!-- If a transition is detected, we "anneal" for AnnealingTime (sub-)blocks at
+a low AnnealingTemperature to check newly found state is somewhat stable -->
+<AnnealingTime>0.25</AnnealingTime>
+<AnnealingTemperature>300.0</AnnealingTemperature>
+
+<MinimumSegmentLength> 1 </MinimumSegmentLength>
 <MaximumDephasingTrials> 3 </MaximumDephasingTrials>
 <MaximumSegmentLength> 5 </MaximumSegmentLength>
 <ReportIntermediates> 1 </ReportIntermediates>
-<ConsumeSegmentsFrom> 0  </ConsumeSegmentsFrom>
-<ContributeSegmentsTo> 0  </ContributeSegmentsTo>
-<UsePredictionsFrom> 0 </PredictionsFrom>
 </TaskParameter>
 
 <!-- InitTemperature is typically overwritten but must be specified -->
