@@ -193,20 +193,44 @@ std::function<void(GenericTask&)> filter_transition_impl = [this](GenericTask &t
 	extract("ReferenceState",task.inputData,reference);
 	extract("State",task.inputData,state);
 
-	std::string filterType = parameters["Type"];
-	if(task.arguments.find("Type")!=task.arguments.end())
-		extract("Type",task.arguments,filterType);
-	boost::trim(filterType);
+	double dX=0.0,dXmax=0.0;
+	bool valid=false;
 
-	std::shared_ptr<AbstractTransitionFilter>
-		filter = transitionFilterFactory.at(filterType)();
+	/*
+	Label reference_label,state_label;
+	GenericTask t;
+	t.arguments=task.arguments;
+	t.type=BaseEngine::mapper.type("TASK_LABEL");
+	t.flavor=task.flavor;
 
-	filter->initialize(parameters);
+	t.clearInputs(); t.clearOutputs();
+	insert("State",t.inputData,reference);
+	BaseEngine::process(t);
+	extract("Label",t.returns, reference_label);
 
-	bool valid = filter->isValid(reference, state, parameters);
+	t.clearInputs(); t.clearOutputs();
+	insert("State",t.inputData,state);
+	BaseEngine::process(t);
+	extract("Label",t.returns, state_label);
+
+	if(reference_label!=state_label) {
+	*/
+		std::string filterType = parameters["Type"];
+		if(task.arguments.find("Type")!=task.arguments.end())
+			extract("Type",task.arguments,filterType);
+		boost::trim(filterType);
+		std::shared_ptr<AbstractTransitionFilter>
+			filter = transitionFilterFactory.at(filterType)();
+		filter->initialize(parameters);
+		valid = filter->isValid(reference, state, parameters);
+		dXmax = boost::lexical_cast<double>(parameters["dXmax"]);
+		dX = boost::lexical_cast<double>(parameters["dX"]);
+	//}
+
 	LOGGER("MDEngine::FilterTransition: "<<valid<<" dX: "<<dX<<" dXmax: "<<dXmax)
-
 	insert("Valid", task.returns, valid);
+	insert("dX", task.returns, dX);
+	insert("dXmax", task.returns, dXmax);
 };
 
 virtual void min_label_remap(GenericTask &task){

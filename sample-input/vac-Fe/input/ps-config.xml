@@ -293,11 +293,19 @@ a low AnnealingTemperature to check newly found state is somewhat stable -->
 <TaskParameter>
 <Task> TASK_FILTER_TRANSITION </Task>
 <Flavor> 0 </Flavor>
+<!-- dXTransitionFilter requires a change of state label
+AND an above-threshold change in atomic positions for a transition to be valid
+-->
 <Type> dXTransitionFilter </Type>
-<!-- 0: L_2 norm. 1: L_inf norm. (L_inf often gives less false positives)-->
+<!--
+0: L_2 norm, i.e. magnitude
+1: L_inf norm, i.e. max component. Typically gives less false positives
+-->
 <MaxNorm> 1 </MaxNorm>
-<!-- Distance threshold (should be < 0.25nn bond to be safe) -->
+
+<!-- Threshold distance threshold (should be < 0.25nn bond to be safe) -->
 <Thresh> 0.6 </Thresh>
+
 </TaskParameter>
 
 
