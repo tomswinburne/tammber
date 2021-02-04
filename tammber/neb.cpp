@@ -36,6 +36,8 @@
 #include "LocalStore.hpp"
 #include "DDS.hpp"
 #include "AbstractSystem.hpp"
+#include "DummyMMbuilder.hpp"
+
 
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/discrete_distribution.hpp>
@@ -80,19 +82,8 @@ int main(int argc, char * argv[]) {
 
 		DriverHandleType handle(workerComm);
 
-
-		TammberModel markovModel;
-		bool rs=false;
-		if(boost::filesystem::exists("./TammberModel.chk")) {
-			rs=true;
-			std::ifstream ifs("TammberModel.chk");
-			boost::archive::text_iarchive ia(ifs);
-			// read class state from archive
-			ia >> *this;
-		}
-		markovModel.initialize(config,rs);
-
-		std::cout<<"LOADED MARKOV MODEL"<<std::endl;
+		DummyModelBuilder mmbuilder(config);
+		std::cout<<"TammberModel loaded"<<std::endl;
 
 		GenericTask label,neb;
 
@@ -114,41 +105,57 @@ int main(int argc, char * argv[]) {
 			std::ifstream infile("./RedoNEBS.list");
 			trans.clear();
 			while(infile>>t.first.first>>t.first.second>>t.second.first>>t.second.second);
-				trans.insert(tran);
-		}
+				trans.insert(t);
 
-		for(auto tran : trans) {
-			RawDataVector data;
-			SystemType initial,final;
-			Transition rl_tran;
+			for(auto tran : trans) {
+				RawDataVector data;
+				SystemType initial,final;
+				Transition rl_tran;
 
-			minimaStore.get(LOCATION_SYSTEM_MIN,tran.first.second,data);
-			if(data.size()==0) continue;
-			unpack(data,intial,data.size());
+				minimaStore.get(LOCATION_SYSTEM_MIN,tran.first.second,data);
+				if(data.size()==0) continue;
+				unpack(data,initial,data.size());
 
-			minimaStore.get(LOCATION_SYSTEM_MIN,tran.second.second,data);
- 			if(data.size()==0) continue;
-			unpack(data,final,data.size());
+				minimaStore.get(LOCATION_SYSTEM_MIN,tran.second.second,data);
+	 			if(data.size()==0) continue;
+				unpack(data,final,data.size());
 
-			std::cout<<tran.print_str()<<" "<<data.size()<<std::endl;
+				LOGGERA("READ "<<tran.print_str()<<" "<<data.size())
 
-			write.clearInputs(); write.clearOutputs();
+				label.clearInputs(); label.clearOutputs();
+				insert("State",label.inputData,initial);
+				handle.assign(label);
+				while(not handle.probe(label)) {};
+				extract("Labels",label.returns,rl_tran.first);
 
-			label.clearInputs(); label.clearOutputs();
-			insert("State",label.inputData,initial);
-			handle.assign(label);
-			while(not handle.probe(label)) {};
-			extract("Labels",label.returns,rl_tran.first);
+				label.clearInputs(); label.clearOutputs();
+				insert("State",label.inputData,final);
+				handle.assign(label);
+				while(not handle.probe(label)) {};
+				extract("Labels",label.returns,rl_tran.second);
 
-			label.clearInputs(); label.clearOutputs();
-			insert("State",label.inputData,final);
-			handle.assign(label);
-			while(not handle.probe(label)) {};
-			extract("Labels",label.returns,rl_tran.second);
+				if(rl_tran!=tran) LOGGERA("LABEL MISMATCH"<<rl_tran.print_str());
 
-			handle.assign(write);
-			while(not handle.probe(write)) {};
+				NEBPathway pathway;
+				pathway.InitialLabels = rl_tran.first;
+				pathway.FinalLabels = rl_tran.second;
+				pathway.pairmap=false;
 
+				LOGGERA("SUBMITTING PATHWAY FOR NEB "<<pathway.submit_info_str())
+
+
+				neb.clearInputs(); neb.clearOutputs();
+				insert("Initial",neb.inputData,initial);
+				insert("Final",neb.inputData,final);
+				insert("NEBPathway",neb.arguments,pathway);
+
+				handle.assign(neb);
+				while(not handle.probe(neb)) {};
+				extract("NEBPathway",neb.returns,pathway);
+
+				mmbuilder.add_pathway(pathway);
+			}
+			mmbuilder.save();
 		}
 
 		label.type=mapper.type("TASK_DIE");
