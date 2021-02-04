@@ -485,7 +485,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  	bool writeFiles=safe_extractor<bool>(parameters,"WriteFiles",false);
 	bool self_check=safe_extractor<bool>(parameters,"SelfCheck",true);
 	bool thresh_check=safe_extractor<bool>(parameters,"ThreshCheck",false);
-	int clust_thresh=safe_extractor<int>(parameters,"NEBClusterThresh",1);
+	int clust_thresh=safe_extractor<int>(parameters,"NEBClusterThresh",-1);
 	bool CalculatePrefactor=safe_extractor<bool>(parameters,"CalculatePrefactor",false);
 	double ThresholdBarrier=safe_extractor<double>(parameters,"ThresholdBarrier",1.0);
 
@@ -629,22 +629,21 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  	}
 
  	pathway.valid=true; // innocent until proven guilty...
-	LOGGERA("InitialClusters: "<<InitialClusters<<" FinalClusters: "<<FinalClusters)
-	if(InitialClusters>clust_thresh or FinalClusters>clust_thresh) {
- 		pathway.saddleE = pathway.initialE + MAX_BARRIER;
+	LOGGER("InitialClusters: "<<InitialClusters<<" FinalClusters: "<<FinalClusters)
+	if(clust_thresh>0 and std::max(InitialClusters,FinalClusters)>clust_thresh) {
+		pathway.valid=false; // innocent until proven guilty...
+		pathway.saddleE = pathway.initialE + MAX_BARRIER;
  		insert("NEBPathway",task.returns,pathway);
+		LOGGERA("TOO MANY CLUSTERS; EXITING")
 		return;
 	}
 
  	LOGGER("CANONICAL TRANSITION: "<<InitialLabels.first<<" -> "<<FinalLabels.first)
 
-
-
-
  	// add initial and final states to spacemap
  	spacemap.clearInputs();
 
- 	// THIS MAKES vf2_graph_iso VERY SLOW! DO NOT KNOW WHY!!
+ 	// THIS MAKES vf2_graph_iso VERY SLOW
  	/*
  	std::map<int,int> c_map;
  	BaseMDEngine::labeler->canonicalMap(initial,c_map,InitialLabels.second);

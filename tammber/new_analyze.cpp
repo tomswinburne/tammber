@@ -60,7 +60,7 @@ int main(int argc, char * argv[]) {
 	boost::property_tree::ptree config;
 	// Parse the XML into the property tree.
 	boost::property_tree::read_xml("./input/ps-config.xml", config, boost::property_tree::xml_parser::no_comments );
-	
+
 	std::map< std::pair<int,int>, std::map<std::string,std::string> > parameters;
 	BOOST_FOREACH(boost::property_tree::ptree::value_type &v, config.get_child("Configuration.TaskParameters")) {
 		boost::optional<std::string> otype= v.second.get_optional<std::string>("Task");
@@ -81,7 +81,31 @@ int main(int argc, char * argv[]) {
 
 		DriverHandleType handle(workerComm);
 
-		GenericTask label,write;
+		std::set<int> children;
+		int nrankWork;
+		MPI_Comm_size(workerComm, &nrankWork);
+		for(int i=1; i<nrankWork; i++) {
+			std::cout<<"CHILDREN: "<<i<<std::endl;
+			children.insert(i);
+		}
+
+    HDDS3<STLLocalDataStore> minimaStore(dbComm,1,dbRoot+"./db0/","min",maxDataSize,maxCacheSize,dbKeys,dbAttributesMin,true);
+    std::cout<<"minimaStore is established"<<std::endl;
+    TammberModelBuilder mmbuilder(workComm,&minimaStore,children,tree);
+    std::cout<<"TammberModelBuilder is established"<<std::endl;
+    std::cout<<"SERVER() CALLED BY.. "<<myType<<std::endl<<std::flush;
+    mmbuilder.full_print(modelStr);
+
+
+
+
+
+
+
+
+
+
+		GenericTask label,neb;
 
 		label.type=mapper.type("TASK_LABEL");
 		label.flavor=1;

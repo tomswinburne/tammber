@@ -98,12 +98,12 @@ int main(int argc, char * argv[]) {
 	boost::property_tree::ptree tree;
 
 	// Parse the XML into the property tree.
-	boost::property_tree::read_xml("./input/ps-config.xml", tree,boost::property_tree::xml_parser::no_comments | boost::property_tree::xml_parser::trim_whitespace);
-
+	boost::property_tree::read_xml("./input/ps-config.xml", tree, boost::property_tree::xml_parser::no_comments | boost::property_tree::xml_parser::trim_whitespace);
 
 	std::string dbRoot=tree.get<std::string>("Configuration.DB.RootDirectory","./");
+
 	bool modelStr=tree.get<bool>("Configuration.MarkovModel.ModelStr",true);
-	
+
 
 	#ifdef USE_BOOST_LOG
 	initLog(rank,1);

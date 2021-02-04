@@ -66,7 +66,7 @@
 #include "PullWorkManager.hpp"
 #include "RankPlacement.hpp"
 
-#include "Log.hpp"
+
 
 
 #include <boost/random/mersenne_twister.hpp>
@@ -78,45 +78,59 @@
 
 #include <boost/program_options.hpp>
 
-bool opt_parser(int argc, char * argv[]);
 
 int main(int argc, char * argv[]) {
-	pid_t pid=getpid();
-
-	// Check for special flags
-	if(opt_parser(argc, argv)) return 0;
-
-
-	MPI_Init(&argc, &argv);
-
-	int rank;
-	int parent;
-	int nranks;
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-	MPI_Comm_size(MPI_COMM_WORLD, &nranks);
-
-	std::cout << "TAMMBER-main\n";
-
 	// Create empty property tree object
 	boost::property_tree::ptree tree;
 
 	// Parse the XML into the property tree.
-	boost::property_tree::read_xml("./input/ps-config.xml", tree,boost::property_tree::xml_parser::no_comments | boost::property_tree::xml_parser::trim_whitespace);
-	//boost::property_tree::read_info("./input/ps-config.info", tree);
+	boost::property_tree::read_xml("./input/ps-config.xml", tree, boost::property_tree::xml_parser::no_comments | boost::property_tree::xml_parser::trim_whitespace);
+	bool modelStr=tree.get<bool>("Configuration.MarkovModel.ModelStr",true);
+
+	// need to have a wrapper for PullMMBuilder to allow serial loading.
+
+	TammberModel markovModel;
+	bool rs=false;
+	if(boost::filesystem::exists("./TammberModel.chk")) {
+		rs=true;
+		std::ifstream ifs("TammberModel.chk");
+		boost::archive::text_iarchive ia(ifs);
+		// read class state from archive
+		ia >> *this;
+	}
+	markovModel.initialize(config,rs);
+
+	LOGGER("TAMMBER-analyze loaded TammberModel.chk")
+	// Save XML file
+	if(deleteVertex!=0) {
+		LOGGERA("TAMMBER-analyze DELETING "<<deleteVertex)
+		markovModel.deleteVertex(deleteVertex);
+		{
+			std::ofstream ofs("./TammberModelNew.chk");
+			{
+				boost::archive::text_oarchive oa(ofs);
+				oa << *this;
+			}
+		}
+	}
+	// Print analysis to screen
+	std::cout<<markovModel.info_str(true)<<std::endl;
+	if(model) markovModel.write_model("MarkovModel.xml");
+	std::list<TADjob> jobs;
+	markovModel.generateTADs(jobs,100);
 
 
-	std::string dbRoot=tree.get<std::string>("Configuration.DB.RootDirectory","./");
 
 	#ifdef USE_BOOST_LOG
 	initLog(rank,1);
 	#endif
 
-	int nNodes=boost::lexical_cast<int>(argv[1]);
-	int nSlotsPerNode=boost::lexical_cast<int>(argv[2]);
-	int nSlotsPerWorker=boost::lexical_cast<int>(argv[3]);
-	int nWorkManagers=boost::lexical_cast<int>(argv[4]);
-	bool padNodes=boost::lexical_cast<bool>(argv[5]);
-	int mseed=boost::lexical_cast<int>(argv[6]);
+	int nNodes= nranks;
+	int nSlotsPerNode=1;
+	int nSlotsPerWorker=1;
+	int nWorkManagers=1;
+	bool padNodes=0;
+	int mseed=1234;
 
 	RankPlacer placer(nNodes,nSlotsPerNode,nSlotsPerWorker,nWorkManagers,padNodes,mseed);
 
@@ -158,6 +172,8 @@ int main(int argc, char * argv[]) {
 	char hostname[_POSIX_HOST_NAME_MAX];
 	gethostname(hostname, _POSIX_HOST_NAME_MAX);
 
+
+
 	std::cout<<"LAYOUT: "<<pid<<" "<<myGroup<<" "<<myParent<<" "<<myType<<" "<<hostname<<std::endl;
 	std::set<int> dbKeys;
 	dbKeys.insert(0);
@@ -175,8 +191,10 @@ int main(int argc, char * argv[]) {
 	//form local groups
 	MPI_Comm_split(MPI_COMM_WORLD, myGroup, 1, &localComm);
 
+
+
 	std::chrono::high_resolution_clock::time_point start=std::chrono::high_resolution_clock::now();
-	std::chrono::minutes runTime=std::chrono::minutes( tree.get<unsigned>("Configuration.RunTime",1000000) );
+	std::chrono::minutes runTime=std::chrono::minutes(0);// tree.get<unsigned>("Configuration.RunTime",1000000) );
 
 
 
@@ -202,21 +220,6 @@ int main(int argc, char * argv[]) {
 		//work comm
 		MPI_Comm_split(MPI_COMM_WORLD,1,0,&workComm);
 
-
-
-
-		//form intercommunicator with child
-
-		/*
-		        MPI_Comm worker;
-		   assert(myChildren.size()==1);
-		   for(auto it=myChildren.begin(); it!=myChildren.end(); it++) {
-		   std::cout<<it->second<<" "<<it->first<<std::endl;
-		   MPI_Intercomm_create( localComm, 0, MPI_COMM_WORLD, it->second, it->first, &worker);
-		   }
-		 */
-
-
 		std::set<int> children;
 		int nrankWork;
 		MPI_Comm_size(workComm, &nrankWork);
@@ -225,13 +228,15 @@ int main(int argc, char * argv[]) {
 			children.insert(i);
 		}
 		HDDS3<STLLocalDataStore> minimaStore(dbComm,1,dbRoot+"./db0/","min",maxDataSize,maxCacheSize,dbKeys,dbAttributesMin,true);
+		std::cout<<"minimaStore is established"<<std::endl;
 		//ParSpliceSplicer splicer(workComm,&minimaStore,children,wgroups.size(),tree);
 		TammberModelBuilder mmbuilder(workComm,&minimaStore,children,tree);
 		std::cout<<"TammberModelBuilder is established"<<std::endl;
 		std::cout<<"SERVER() CALLED BY.. "<<myType<<std::endl<<std::flush;
-		mmbuilder.server();
+		//mmbuilder.dumpfiles();
+		//mmbuilder.server();
+		mmbuilder.full_print(modelStr);
 	}
-
 
 	if(myType=="WorkManager") {
 
@@ -259,7 +264,6 @@ int main(int argc, char * argv[]) {
 		std::cout<<"WorkManager is done"<<std::endl;
 	}
 
-
 	if(myType=="PersistentDB") {
 
 		//db-comm
@@ -285,9 +289,8 @@ int main(int argc, char * argv[]) {
 			//minimaStore.printStatus();
 
 			if(std::chrono::high_resolution_clock::now() - lastSync > syncDelay  ) {
-				LOGGER("DB SYNC")
+				std::cout<<"DB SYNC"<<std::endl;
 				minimaStore.printStatus();
-
 				minimaStore.sync();
 				lastSync=std::chrono::high_resolution_clock::now();
 			}
@@ -302,7 +305,6 @@ int main(int argc, char * argv[]) {
 		}
 		std::cout<<"PersistentDB is done"<<std::endl;
 	}
-
 
 	if(myType=="InMemoryDB") {
 		//db-comm
@@ -319,13 +321,13 @@ int main(int argc, char * argv[]) {
 		while(true) {
 			minimaStore.singleServe();
 			if(std::chrono::high_resolution_clock::now() - lastSync > syncDelay  ) {
-				LOGGER("DB SYNC")
+				std::cout<<"DB SYNC"<<std::endl;
 				minimaStore.printStatus();
 				//minimaStore.sync();
 				lastSync=std::chrono::high_resolution_clock::now();
 			}
 			if(std::chrono::high_resolution_clock::now() - start > runTime  ) {
-				LOGGERA("DB is going down")
+				std::cout<<"DB is going down"<<std::endl;
 				minimaStore.sync();
 				minimaStore.cancelCommunications();
 				break;

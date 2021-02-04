@@ -7,6 +7,7 @@
 #include "LAMMPSSystem.hpp"
 #include "LAMMPSEngine.hpp"
 #include "Task.hpp"
+#include "Log.hpp"
 #include "Graph.hpp"
 #include "TaskManager.hpp"
 #include "Worker.hpp"
@@ -54,13 +55,12 @@ int main(int argc, char * argv[]) {
 
 	TaskMapperType mapper;
 
-	std::cout << "TAMMBER-dbextract\n";
+	std::cout << "TAMMBER-neb\n";
 
 	// Create empty property tree object
 	boost::property_tree::ptree config;
 	// Parse the XML into the property tree.
 	boost::property_tree::read_xml("./input/ps-config.xml", config, boost::property_tree::xml_parser::no_comments );
-	
 	std::map< std::pair<int,int>, std::map<std::string,std::string> > parameters;
 	BOOST_FOREACH(boost::property_tree::ptree::value_type &v, config.get_child("Configuration.TaskParameters")) {
 		boost::optional<std::string> otype= v.second.get_optional<std::string>("Task");
@@ -78,53 +78,74 @@ int main(int argc, char * argv[]) {
 
 		MPI_Intercomm_create( localComm, 0, MPI_COMM_WORLD, 1, 1, &workerComm);
 
-
 		DriverHandleType handle(workerComm);
 
-		GenericTask label,write;
+
+		TammberModel markovModel;
+		bool rs=false;
+		if(boost::filesystem::exists("./TammberModel.chk")) {
+			rs=true;
+			std::ifstream ifs("TammberModel.chk");
+			boost::archive::text_iarchive ia(ifs);
+			// read class state from archive
+			ia >> *this;
+		}
+		markovModel.initialize(config,rs);
+
+		std::cout<<"LOADED MARKOV MODEL"<<std::endl;
+
+		GenericTask label,neb;
 
 		label.type=mapper.type("TASK_LABEL");
 		label.flavor=1;
 
-		write.type=mapper.type("TASK_WRITE_TO_FILE");
-		write.flavor=1;
+		neb.type=mapper.type("TASK_NEB");
+		neb.flavor=1;
 
 		PersistentLocalStore minimaStore;
 		minimaStore.initialize("./db0/", "min");
 		minimaStore.createDatabase(0, false, false);
 
-		bool readfromlist= boost::filesystem::exists("./Candidates.list");
-		uint64_t flab,slab;
+		bool found_redo= boost::filesystem::exists("./RedoNEBS.list");
+		Transition t;
+		std::set<Transition> trans;
 
-		std::set<uint64_t> keys = minimaStore.availableKeys(LOCATION_SYSTEM_MIN);
-
-		if(!readfromlist) {
-			std::cout<<"Candidates.list not found, extracting everything.."<<std::endl;
-		} else {
-			std::ifstream infile("./Candidates.list");
-			keys.clear();
-			while(infile>>flab>>slab) keys.insert(slab);
+		if(found_redo) {
+			std::ifstream infile("./RedoNEBS.list");
+			trans.clear();
+			while(infile>>t.first.first>>t.first.second>>t.second.first>>t.second.second);
+				trans.insert(tran);
 		}
 
-		for(auto key : keys) {
+		for(auto tran : trans) {
 			RawDataVector data;
-			minimaStore.get(LOCATION_SYSTEM_MIN,key,data);
-			std::cout<<key<<" "<<data.size()<<std::endl;
- 			if(data.size()==0) continue;
-			SystemType s;
-			unpack(data,s,data.size());
+			SystemType initial,final;
+			Transition rl_tran;
 
-			label.clearInputs(); label.clearOutputs();
+			minimaStore.get(LOCATION_SYSTEM_MIN,tran.first.second,data);
+			if(data.size()==0) continue;
+			unpack(data,intial,data.size());
+
+			minimaStore.get(LOCATION_SYSTEM_MIN,tran.second.second,data);
+ 			if(data.size()==0) continue;
+			unpack(data,final,data.size());
+
+			std::cout<<tran.print_str()<<" "<<data.size()<<std::endl;
+
 			write.clearInputs(); write.clearOutputs();
 
-			insert("State",label.inputData,s);
-			LabelPair labels;
+			label.clearInputs(); label.clearOutputs();
+			insert("State",label.inputData,initial);
 			handle.assign(label);
 			while(not handle.probe(label)) {};
-			extract("Labels",label.returns,labels);
-			std::string filename="states/state-"+std::to_string(labels.first)+"-"+std::to_string(labels.second)+".dat";
-			insert("Filename",write.arguments,filename);
-			insert("State",write.inputData,s);
+			extract("Labels",label.returns,rl_tran.first);
+
+			label.clearInputs(); label.clearOutputs();
+			insert("State",label.inputData,final);
+			handle.assign(label);
+			while(not handle.probe(label)) {};
+			extract("Labels",label.returns,rl_tran.second);
+
 			handle.assign(write);
 			while(not handle.probe(write)) {};
 

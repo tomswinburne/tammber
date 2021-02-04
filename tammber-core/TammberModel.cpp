@@ -123,6 +123,8 @@ void Connection::add_path(NEBPathway &path) {
 	}
 };
 
+
+
 void Connection::add_jump(double temperature, double _fpt, bool forwards) {
 	LOGGER("Connection::add_jump")
 	if(forwards) {
@@ -710,7 +712,7 @@ bool TammberModel::add_duplicate(NEBPathway &path) {
 // from NEB
 void TammberModel::add_pathway(NEBPathway &path) {
 	LOGGER("TammberModel::add_pathway")
-	if(!path.valid && path.FoundTransitions.size()==0) {
+	if(!path.valid or path.FoundTransitions.size()==0) {
 
 		std::string err_msg = "";
 		if(path.mismatch)
@@ -756,14 +758,18 @@ void TammberModel::add_pathway(NEBPathway &path) {
 	if(path.valid && !multijump) { // we have a normal result
 		transitionMap[trans] = trans; // i.e. identity. This is only if multijump==false
 		transitionMap[trans.rev()] = trans.rev();
+
 		// If NEB found equivalent transitions- incorporate
 		bool duplicate = add_duplicate(path);
-		// Otherwise, we add a new connection
+
 		if (!duplicate) {
-			Connection conn(path);
-			ep->connections.insert(std::make_pair(tl,conn));
-			PointShiftSymmetry op; op.valid=true;
-			ep->self_edge_map[tl] = std::make_pair(tl,op); // i.e. identity operator
+			// overwrite by default
+			if(ep->connections.find(tl)!=ep->connections.end())
+				ep->connections.erase(tl);
+				Connection conn(path);
+				ep->connections.insert(std::make_pair(tl,conn));
+				PointShiftSymmetry op; op.valid=true;
+				ep->self_edge_map[tl] = std::make_pair(tl,op); // i.e. identity operator
 		}
 	}
 
