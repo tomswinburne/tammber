@@ -108,16 +108,26 @@ int main(int argc, char * argv[]) {
 			trans.clear();
 			while(infile>>t.first.first>>t.first.second>>t.second.first>>t.second.second);
 				trans.insert(t);
-		} else {
-			std::cout<<"RedoNEBS.list not found!"<<std::endl;
-		}
-		for(auto tran: trans) {
+
+			for(auto tran: trans) {
+
+				RawDataVector data;
+				SystemType initial,final;
+				Transition rl_tran;
+
+				minimaStore.get(LOCATION_SYSTEM_MIN,tran.first.second,data);
+				if(data.size()==0) continue;
+				unpack(data,initial,data.size());
 
 				label.clearInputs(); label.clearOutputs();
 				insert("State",label.inputData,initial);
 				handle.assign(label);
 				while(not handle.probe(label)) {};
 				extract("Labels",label.returns,rl_tran.first);
+
+				minimaStore.get(LOCATION_SYSTEM_MIN,tran.first.second,data);
+				if(data.size()==0) continue;
+				unpack(data,final,data.size());
 
 				label.clearInputs(); label.clearOutputs();
 				insert("State",label.inputData,final);
@@ -147,6 +157,8 @@ int main(int argc, char * argv[]) {
 				mmbuilder.add_pathway(pathway);
 			}
 			mmbuilder.save();
+		} else {
+			std::cout<<"RedoNEBS.list not found!"<<std::endl;
 		}
 
 		label.type=mapper.type("TASK_DIE");
