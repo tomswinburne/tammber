@@ -18,16 +18,6 @@
 #include <streambuf>
 #include <sstream>
 
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
-#include <boost/iostreams/device/file.hpp>
-#include <boost/iostreams/stream.hpp>
-#include <boost/iostreams/device/array.hpp>
-#include <boost/iostreams/device/back_inserter.hpp>
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/xml_parser.hpp>
-#include <boost/property_tree/info_parser.hpp>
-#include <boost/filesystem.hpp>
 
 #include <chrono>
 #include <thread>
@@ -36,17 +26,10 @@
 #include "LocalStore.hpp"
 #include "DDS.hpp"
 #include "AbstractSystem.hpp"
-#include "DummyMMbuilder.hpp"
+#include "ModelWrapper.hpp"
 
 
-#include <boost/random/mersenne_twister.hpp>
-#include <boost/random/discrete_distribution.hpp>
-#include <boost/random/uniform_int_distribution.hpp>
-#include <boost/random/uniform_01.hpp>
-#include <boost/format.hpp>
-#include <boost/algorithm/string.hpp>
-
-
+#include <boost/filesystem.hpp>
 
 int main(int argc, char * argv[]) {
 	MPI_Init(&argc, &argv);
@@ -59,18 +42,6 @@ int main(int argc, char * argv[]) {
 
 	std::cout << "TAMMBER-neb\n";
 
-	// Create empty property tree object
-	boost::property_tree::ptree config;
-	// Parse the XML into the property tree.
-	boost::property_tree::read_xml("./input/ps-config.xml", config, boost::property_tree::xml_parser::no_comments );
-	std::map< std::pair<int,int>, std::map<std::string,std::string> > parameters;
-	BOOST_FOREACH(boost::property_tree::ptree::value_type &v, config.get_child("Configuration.TaskParameters")) {
-		boost::optional<std::string> otype= v.second.get_optional<std::string>("Task");
-		if(otype) {
-			std::string stype=*otype;
-			boost::trim(stype);
-		}
-	}
 
 	MPI_Comm localComm, workerComm;
 
@@ -82,7 +53,7 @@ int main(int argc, char * argv[]) {
 
 		DriverHandleType handle(workerComm);
 
-		DummyModelBuilder mmbuilder(config);
+		ModelWrapper mmbuilder(config);
 		std::cout<<"TammberModel loaded"<<std::endl;
 
 		GenericTask label,neb;

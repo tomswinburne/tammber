@@ -352,6 +352,8 @@ public:
 
 	void calculate_rates(SymmLabelPair el, Rate &kf, Rate &kb);// canonical labels
 
+	bool cancel_allocation(Label lab);
+
 	void unknown_rate(Label lab, UnknownRate &ku); // canonical label
 
 	void bayes_ku_kuvar(std::vector<std::pair<double,double>> &k_fp, double &ku, double &kuvar, double &min_k, double &tot_k, double _time); // Bayes/Poisson evaluation

@@ -384,7 +384,12 @@ void TammberModel::initialize(boost::property_tree::ptree &config,bool restart){
 	NEBCost = config.get<double>("Configuration.MarkovModel.NEBCost",1000.0);
 	RhoInitFlavor = config.get<int>("Configuration.MarkovModel.RhoInitFlavor",0);
 	AllocScheme = config.get<int>("Configuration.MarkovModel.AllocScheme",0);
+
 	ClusterThresh = config.get<int>("Configuration.MarkovModel.ClusterThresh",0);
+
+	// Need at least a 20% chance of dephasing otherwise we suppress
+	DephaseThresh = config.get<int>("Configuration.MarkovModel.DephaseThresh",0.2);
+
 	safe_opt = config.get<bool>("Configuration.MarkovModel.SafeOpt",true);
 	PredictionSize = config.get<int>("Configuration.MarkovModel.PredictionSize",10);
 	prefactorCountThresh = config.get<double>("Configuration.MarkovModel.PrefactorCountThresh",2.0);
@@ -490,7 +495,7 @@ void TammberModel::add_edge(Transition tt) {
 };
 
 // could add some more here
-bool TammberModel::fault_check(TADSegment &seg){
+bool TammberModel::fault_check(TADSegment &seg) {
 	LOGGER("TammberModel::fault_check")
 	bool res = false;
 	//if(seg.InitialLabels.first==0||seg.InitialLabels.second==0) res=true;
@@ -1248,13 +1253,40 @@ std::list<std::pair<SymmLabelPair,std::pair< std::array<double,6>,PointShiftSymm
 	return res;
 };
 
+bool TammberModel::cancel_allocation(Label lab) {
+	auto v = &(StateVertices.find(lab)->second);
+	double dephase_ratio = 1.0 * (v->duration) / (1.0*v->overhead+v->duration);
+	bool cancel_dephase = bool((DephaseThresh>0.0) and (dephase_ratio < DephaseThresh));
+	bool cancel_cluster = bool((ClusterThresh>0.0) and  (v->clusters>ClusterThresh));
+	if(cancel_dephase or cancel_cluster) {
+		LOGGERA("SUPPRESSING ALLOCATION TO "<<lab<<" : ClusterThresh:"<<cancel_cluster<<" DephaseThresh:"<<cancel_dephase)
+		return true;
+	}
+	return false;
+};
+
 void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 	LOGGER("TammberModel::unknown_rate")
+
 	double emin, htt, htmr, ht_kuvar,_kc,opt_rate, tar_rate, max_benefit=-10.,Tr;
 	std::vector< std::pair<double,double> > ht_ku_tot_k,k_fp;
 
 
 	auto v = &(StateVertices.find(lab)->second);
+
+	double dephase_ratio = v->duration / (v->overhead+v->duration);
+
+	if(dephase_ratio < DephaseThresh) {
+		LOGGER("TammberModel::unknown_rate "<<lab<<"DEPHASE LIMIT")
+		ku.observed_rate = 10.0;
+		ku.unknown_rate = TINY;
+		ku.unknown_variance = 2.0*TINY;
+		ku.optimal_temperature = tadT[0];
+		ku.optimal_temperature_index = 0;
+		ku.optimal_rate = TINY;
+		ku.min_rate = TINY;
+		return;
+	}
 
 	v->target_state_time = v->state_time(targetT);
 
@@ -1650,17 +1682,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 			st_norm = 0.0;
 			for(int si=0; si<ms; si++) {
 				allocation[si] = iQI[si] * PiQ[si] * UnknownRates.at(IndexLabel[si]).optimal_gradient;
-
-				if(allocation[si]<0.) {
-					LOGGERA("NEGATIVE ALLOC FOR STATE "<<IndexLabel[si]<<": "<<allocation[si]<<" -> 0")
-					allocation[si]=0.; // hard condition
-				}
-
-				if(ClusterThresh>0 and StateVertices.at(IndexLabel[si]).clusters>std::max(ClusterThresh,min_clust)) {
-					LOGGERA("STATE "<<IndexLabel[si]<<" HAS "<<StateVertices.at(IndexLabel[si]).clusters<<" > "<<std::max(ClusterThresh,min_clust)<<" Clusters; SET TO ABSORBING (TBI) -> 0")
-					allocation[si]=0.; // hard condition
-				}
-
+				if(allocation[si]<0.0 or cancel_allocation(IndexLabel[si])) allocation[si]=0.0; // hard condition
 				st_norm += allocation[si];
 			}
 			max_allo=0.;
@@ -1686,10 +1708,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 				valid_time += -PiQ[si];
 				pabs[si] = -PiQ[si] * ku[si];
 				if(ku[si]<=0.0) pabs[si] = 0.; // hard condition
-				if(ClusterThresh>0 and StateVertices.at(IndexLabel[si]).clusters>std::max(ClusterThresh,min_clust)) {
-					LOGGERA("STATE "<<IndexLabel[si]<<" HAS "<<StateVertices.at(IndexLabel[si]).clusters<<" > "<<std::max(ClusterThresh,min_clust)<<" Clusters; SET TO ABSORBING (TBI) -> 0")
-					pabs[si] = 0.; // hard condition
-				}
+				if(pabs[si]<0.0 or cancel_allocation(IndexLabel[si])) pabs[si]=0.0; // hard condition
 				st_norm += pabs[si];
 			}
 			for(int si=0; si<ms; si++) pabs[si] /= st_norm;
@@ -1756,9 +1775,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 
 	for(auto &v: StateVertices) {
 		t = std::max(1.0,v.second.target_state_time);
-		if(v.second.clusters>ClusterThresh) {
-			LOGGERA("STATE "<<v.first<<" HAS "<<v.second.clusters<<" > "<<ClusterThresh<<" Clusters; NO ALLOCATION (TBI) -> 0")
-		} else tw += 1.0/t;
+		if(not cancel_allocation(v.first)) tw += 1.0/t;
 		mt = std::max(mt,t);
 	}
 
@@ -1773,7 +1790,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 		lab = v.first;
 		t = std::max(1.0,v.second.target_state_time);
 		sw = 1.0/tw/t;
-		if(ClusterThresh>0 and v.second.clusters>ClusterThresh) sw = 0.0;
+		if(cancel_allocation(lab)) sw = 0.0;
 		weights.insert(std::make_pair(lab,std::make_pair(sw,temp)));
 	}
 

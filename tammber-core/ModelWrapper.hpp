@@ -13,8 +13,8 @@
  */
 
 
-#ifndef __Tammber__Builder__
-#define __Tammber__Builder__
+#ifndef __Tammber__Wrapper__
+#define __Tammber__Wrapper__
 
 #include <new>
 #include <stdio.h>
@@ -58,6 +58,9 @@
 #include <boost/serialization/unordered_set.hpp>
 #include <boost/serialization/list.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/xml_parser.hpp>
+#include <boost/property_tree/info_parser.hpp>
 #include <boost/optional.hpp>
 #include <thread>
 
@@ -69,10 +72,24 @@
 #include "Log.hpp"
 
 
-class DummyModelBuilder {
+class ModelWrapper {
 public:
-DummyModelBuilder(boost::property_tree::ptree &config) {
-	LOGGER("TammberModelBuilder : public AbstractPullWorkProducer")
+ModelWrapper(boost::property_tree::ptree &config) {
+	LOGGER("TammberModelWrapper")
+
+	// Create empty property tree object
+	boost::property_tree::ptree config;
+	// Parse the XML into the property tree.
+	boost::property_tree::read_xml("./input/ps-config.xml", config, boost::property_tree::xml_parser::no_comments );
+	BOOST_FOREACH(boost::property_tree::ptree::value_type &v, config.get_child("Configuration.TaskParameters")) {
+		boost::optional<std::string> otype= v.second.get_optional<std::string>("Task");
+		if(otype) {
+			std::string stype=*otype;
+			boost::trim(stype);
+		}
+	}
+
+
 	start=std::chrono::high_resolution_clock::now();
 	carryOverTime=0;
 	jobcount = 0;
@@ -83,7 +100,7 @@ DummyModelBuilder(boost::property_tree::ptree &config) {
 		boost::archive::text_iarchive ia(ifs);
 		// read class state from archive
 		ia >> *this;
-	}
+	} else
 	// initialize the model
 	deleteVertex = config.get<uint64_t>("Configuration.MarkovModel.DeleteVertex",0);
 	markovModel.initialize(config,rs);

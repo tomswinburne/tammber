@@ -17,6 +17,7 @@
 #define constants_h
 
 #define NDIM 3
+#define TINY 1.0e-16
 #define BOLTZ 8.6173303e-5
 #define LOG_NU_MIN log(.5/log(1./0.05))
 #define PRIOR_NU 2.0 // PRIOR NU IN THZ
