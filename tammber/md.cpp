@@ -105,7 +105,9 @@ int main(int argc, char * argv[]) {
 		TADSegment segment;
 		segment.InitialLabels = labels;
 		segment.temperature = temperature;
+		bool ProductionRun = false; // for testing
 		insert("TADSegment",task.arguments,segment);
+		insert("ProductionRun",task.arguments,ProductionRun);
 		insert("Minimium",task.inputData,system);
 
 		LOGGERA("TAMMBER-md: SUBMITTING SEGMENT "<<segment.submit_info_str())

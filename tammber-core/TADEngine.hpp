@@ -126,6 +126,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 	// in input and output data here
 	TADSegment segment;
 	extract("TADSegment",task.arguments,segment);
+	bool ProductionRun=true;
+	extract("ProductionRun",task.arguments,ProductionRun);
 
 	//extract the systems we were provided
 	System minimum, reference, qsd, initial, current, currentMin, annealingMin;
@@ -246,10 +248,15 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 			insert("State",label.inputData,currentMin);
 			BaseEngine::process(label);
 			extract("Labels",label.returns,CurrentLabels);
-
-			LOGGER("Dephase: REFERENCE CURRENTMIN MSD_2: "<<reference.msd(currentMin,false))
-			LOGGER("Dephase: REFERENCE CURRENTMIN MSD_INF: "<<reference.msd(currentMin,true))
-			LOGGER("Dephase: CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
+			if(ProductionRun) {
+				LOGGER("Dephase: REFERENCE CURRENTMIN MSD_2: "<<reference.msd(currentMin,false))
+				LOGGER("Dephase: REFERENCE CURRENTMIN MSD_INF: "<<reference.msd(currentMin,true))
+				LOGGER("Dephase: CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
+			} else {
+				LOGGERA("Dephase: REFERENCE CURRENTMIN MSD_2: "<<reference.msd(currentMin,false))
+				LOGGERA("Dephase: REFERENCE CURRENTMIN MSD_INF: "<<reference.msd(currentMin,true))
+				LOGGERA("Dephase: CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
+			}
 
 
 			// Current "Basin" implementation: anything below MSD thresh from reference
@@ -269,8 +276,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 			// currently we just log the basin transitions, we do not use them
 			// segment.dephased = !Transition or BasinTransition or NewBasinTransition;
 			segment.dephased = !Transition;
-
-			LOGGER("Dephased: "<<segment.dephased<<" "<<Transition<<" "<<BasinTransition<<" "<<NewBasinTransition)
+			if(ProductionRun) LOGGER("Dephased: "<<segment.dephased<<" "<<Transition<<" "<<BasinTransition<<" "<<NewBasinTransition);
+			else LOGGERA("Dephased: "<<segment.dephased<<" "<<Transition<<" "<<BasinTransition<<" "<<NewBasinTransition);
 
 			if(Transition) { // i.e. a transition. We
 				carve.clearInputs(); carve.clearOutputs();
@@ -303,8 +310,10 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 	if(segment.dephased) for(auto &nbl: newBasinLabels) segment.BasinLabels.insert(nbl);
 
 	if(segment.dephased) {
+		if(!ProductionRun) LOGGERA("DEPHASED WITH "<<newBasinLabels.size()<<" NEW BASIN STATES (NOT CURRENTLY USED)")
 		LOGGER("DEPHASED WITH "<<newBasinLabels.size()<<" NEW BASIN STATES (NOT CURRENTLY USED)")
 	} else {
+		if(!ProductionRun) LOGGERA("NOT DEPHASED; TRIED "<<newBasinLabels.size()<<" NEW FAKE BASIN STATES; EXITING")
 		LOGGER("NOT DEPHASED; TRIED "<<newBasinLabels.size()<<" NEW FAKE BASIN STATES; EXITING")
 	}
 
@@ -357,7 +366,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 		insert("State",min.inputData,current);
 		BaseEngine::process(min);
 		extract("State",min.outputData,currentMin);
-		LOGGER("REFERENCE CURRENTMIN MSD_INF (1st MIN): "<<reference.msd(currentMin,true))
+		if(!ProductionRun) LOGGERA("REFERENCE CURRENTMIN MSD_INF (1st MIN): "<<reference.msd(currentMin,true));
+		LOGGER("REFERENCE CURRENTMIN MSD_INF (1st MIN): "<<reference.msd(currentMin,true));
 
 		// just to avoid future issues..... count this?
 		min.clearInputs(); min.clearOutputs();
@@ -373,6 +383,10 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
 		// logs
 		msd_thresh = reference.msd(currentMin,true);
+		if(!ProductionRun) {
+			LOGGERA("REFERENCE CURRENTMIN MSD_INF (2nd MIN): "<<msd_thresh)
+			LOGGERA("CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
+		}
 		LOGGER("REFERENCE CURRENTMIN MSD_INF (2nd MIN): "<<msd_thresh)
 		LOGGER("CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
 
@@ -395,9 +409,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
 
 			if(Annealed and Transition) { // no transition after annealing == exit
-
-				LOGGER("ANNEALED! VALID TRANSITION MADE!")
-
+				if(!ProductionRun) LOGGERA("ANNEALED! VALID TRANSITION MADE!");
+				LOGGER("ANNEALED! VALID TRANSITION MADE!");
 				insert("FinalMinimum",CurrentLabels.first,CurrentLabels.second,LOCATION_SYSTEM_MIN,true,task.outputData,currentMin);
 
 				// carve
@@ -414,10 +427,14 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
 				segment.transition.first = InitialLabels;
 				segment.transition.second = CurrentLabels;
+				if(!ProductionRun)
+					LOGGERA("INSERTING "<<CurrentLabels.first<<","<<CurrentLabels.second<<" , E="<<currentMin.getEnergy()<<", NClust = "<<clusters<<", Position: "<<position[0]<<" "<<position[1]<<" "<<position[2])
 				LOGGER("INSERTING "<<CurrentLabels.first<<","<<CurrentLabels.second<<" , E="<<currentMin.getEnergy()<<", NClust = "<<clusters<<", Position: "<<position[0]<<" "<<position[1]<<" "<<position[2])
+
 				annealing = false; // not annealing any more
 				break;
 			} else { // annealing + !transition == continue
+				if(!ProductionRun) LOGGERA("NO VALID TRANSITION AFTER ANNEALING! CONTINUING")
 				LOGGER("NO VALID TRANSITION AFTER ANNEALING! CONTINUING")
 				annealing = false;
 			}
@@ -434,6 +451,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
 			//if(Transition and (not BasinTransition) ) { // no basin labels yet
 			if(Transition) { // not annealing + not no transition == transition has been made
+				if(!ProductionRun) LOGGERA("TRANSITION DETECTED! ANNEALING FOR AnnealingTime BLOCKS AT AnnealingTemperature")
 				LOGGER("TRANSITION DETECTED! ANNEALING FOR AnnealingTime BLOCKS AT AnnealingTemperature")
 				segment.transition.first = InitialLabels;
 				annealing=true;
@@ -443,6 +461,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
 				// reset labels as the only change was due to small fluctuations
 				if(!Transition and (CurrentLabels!=InitialLabels)) {
+					if(!ProductionRun) LOGGERA("NO TRANSITION FROM MSD CHECK");
 					LOGGER("NO TRANSITION FROM MSD CHECK");
 					CurrentLabels=InitialLabels; //
 				}
@@ -452,8 +471,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 			}
 		}
 		if(segment.duration>=maximumSegmentLength and !annealing) {
+			if(!ProductionRun) LOGGERA("SEGMENT EXCEEDED MaximumSegmentLength BLOCKS. EXITING.")
 			LOGGER("SEGMENT EXCEEDED MaximumSegmentLength BLOCKS. EXITING.")
-
 			segment.initialE = reference.getEnergy();
 			segment.finalE = currentMin.getEnergy();
 			segment.OutOfBasin = false;
@@ -462,7 +481,6 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
 			break;
 		}
-
 	}
 	//if(LabelError) CurrentLabels = InitialLabels;
 	//segment.transition.second = CurrentLabels;

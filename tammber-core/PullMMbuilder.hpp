@@ -373,6 +373,8 @@ virtual TaskDescriptorBundle generateTasks(int consumerID, int nTasks){
 		for(auto bl: tad->BasinLabels) segment.BasinLabels.insert(bl);
 
 		LOGGER("PullMMbuilder::generateTasks : SUBMITTING SEGMENT "<<segment.submit_info_str())
+		bool ProductionRun=true; // not debug run
+		insert("ProductionRun",task.arguments,ProductionRun);
 
 		insert("TADSegment",task.arguments,segment);
 		insert("Minimum",tad->InitialLabels.second,LOCATION_SYSTEM_MIN,true,NECESSITY::REQUIRED,task.inputData);
