@@ -55,7 +55,7 @@
 
   <!-- Temperature range for TAD sampling -->
   <MinTemperature>300.0</MinTemperature>
-  <MaxTemperature>600.0</MaxTemperature>
+  <MaxTemperature>900.0</MaxTemperature>
   <!-- Inclusive Steps -->
   <TemperatureSteps>9</TemperatureSteps>
 
