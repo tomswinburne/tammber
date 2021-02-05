@@ -352,7 +352,7 @@ public:
 
 	void calculate_rates(SymmLabelPair el, Rate &kf, Rate &kb);// canonical labels
 
-	bool cancel_allocation(Label lab);
+	bool allow_allocation(Label lab);
 
 	void unknown_rate(Label lab, UnknownRate &ku); // canonical label
 

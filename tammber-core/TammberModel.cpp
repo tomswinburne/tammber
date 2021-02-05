@@ -1253,16 +1253,26 @@ std::list<std::pair<SymmLabelPair,std::pair< std::array<double,6>,PointShiftSymm
 	return res;
 };
 
-bool TammberModel::cancel_allocation(Label lab) {
+bool TammberModel::allow_allocation(Label lab) {
+
+	if(StateVertices.find(lab)==StateVertices.end()) return false;
+
 	auto v = &(StateVertices.find(lab)->second);
-	double dephase_ratio = 1.0 * (v->duration) / (1.0*v->overhead+v->duration);
-	bool cancel_dephase = bool((DephaseThresh>0.0) and (dephase_ratio < DephaseThresh));
-	bool cancel_cluster = bool((ClusterThresh>0.0) and  (v->clusters>ClusterThresh));
+
+	bool cancel_dephase = false;
+	if(DephaseThresh>0.0) {
+		double dephase_ratio = 1.0 * (v->duration) / (v->overhead+v->duration);
+		if(dephase_ratio < DephaseThresh and v->overhead>10) cancel_dephase = true;
+	}
+
+	bool cancel_cluster = false;
+	if(ClusterThresh>0.0 and v->clusters>ClusterThresh) cancel_cluster = true;
+
 	if(cancel_dephase or cancel_cluster) {
 		LOGGERA("SUPPRESSING ALLOCATION TO "<<lab<<" : ClusterThresh:"<<cancel_cluster<<" DephaseThresh:"<<cancel_dephase)
-		return true;
+		return false;
 	}
-	return false;
+	return true;
 };
 
 void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
@@ -1500,31 +1510,37 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 	// (re)calculate all rates TODO make this more efficient....
 	Rates.clear();
 	SelfRates.clear();
+
 	unsigned bar_count=0;
 
 	for(auto &el: StateEdges) {
 		Rate kf,kb;
-		calculate_rates(el.first,kf,kb);
 
+		calculate_rates(el.first,kf,kb);
 
 		LOGGER(el.first.first<<" "<<el.first.second<<" : "<<kf.target_k_fp.first<<" "<<kb.target_k_fp.first)
 
 		if(kf.target_k_fp.first<1.0e-30 || kb.target_k_fp.first<1.0e-30) continue;
 
 		if(el.first.first==el.first.second) { // SelfRates
+
 			if(SelfRates.find(el.first.first)==SelfRates.end())
 				SelfRates.insert( std::make_pair(el.first.first, *(new std::map<Label,Rate>) ) );
+
 			SelfRates.at(el.first.first).insert(std::make_pair(el.first.second,kf));
-			//SelfRates.at(el.first.second).insert(std::make_pair(el.first.first,kb));
+
 		} else {
 
 			if(Rates.find(el.first.first)==Rates.end())
 				Rates.insert( std::make_pair(el.first.first, *(new std::map<Label,Rate>) ) );
+
 			Rates.at(el.first.first).insert(std::make_pair(el.first.second,kf));
 
 			if(Rates.find(el.first.second)==Rates.end())
 				Rates.insert( std::make_pair(el.first.second, *(new std::map<Label,Rate>) ) );
+
 			Rates.at(el.first.second).insert(std::make_pair(el.first.first,kb));
+
 			bar_count++;
 		}
 	}
@@ -1539,8 +1555,8 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 		UnknownRate ku;
 		unknown_rate(v.first,ku);
 		UnknownRates.insert(std::make_pair(v.first,ku));
-		// being very careful basically- only when there are rates and unknown_rates do we do anything...
-		if(Rates.find(v.first)!=Rates.end() && ku.unknown_rate>0.0) {
+		// being very careful- only when there are rates, unknown_rates and do we do anything...
+		if(Rates.find(v.first)!=Rates.end() && ku.unknown_rate>0.0 && allow_allocation(v.first)) {
 			IndexLabel.push_back(v.first);
 			LabelIndex.insert(std::make_pair(v.first,IndexLabel.size()-1));
 			ms++;
@@ -1549,11 +1565,12 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 
 	bool solved_one = false;
 	bool solved_two = false;
+
 	std::vector<double> allocation(ms,0.0), pabs(ms,0.0), ku(ms,0.0), kuvar(ms,0.0), times(ms,0.0);
 
 
 
-	LOGGERA("bar_count , ms: "<<bar_count<<" , "<<ms)
+	LOGGERA("bar_count , state_count: "<<bar_count<<" , "<<ms)
 
 	if(bar_count>0 && ms>0) {
 		// make matricies
@@ -1594,6 +1611,8 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 		std::vector<Eigen::Triplet<double>> LowTR_trip, LowTRT_trip;
 		LowTR_trip.reserve(bar_count);
 		LowTRT_trip.reserve(bar_count);
+
+		// go through all states
 		for(auto &l_i: LabelIndex) {
 			i = l_i.second;
 
@@ -1602,16 +1621,22 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 					selfk[i] += jr.second.target_k_fp.first;
 
 			auto ku = UnknownRates.find(l_i.first)->second;
+
 			ku.observed_rate = 0.0;
+
 			for(auto &jr: Rates.find(l_i.first)->second) { // std::map<Label,Rate>
-				j = LabelIndex[jr.first];
 				k = jr.second.target_k_fp.first;
+				if(LabelIndex.find(jr.first)==LabelIndex.end()) {
+					ku.observed_rate += k;
+					continue;
+				}
+				j = LabelIndex[jr.first];
 				if(i!=j) {
 					LowTR_trip.push_back(Eigen::Triplet<double>(i,j,k));
 					LowTRT_trip.push_back(Eigen::Triplet<double>(j,i,k));
 					ku.observed_rate += k;
 				} else {
-					LOGGER("i==i in Rates()! : "<<l_i.first<<" "<<jr.first<<" "<<i)
+					LOGGER("i<->i in Rates()! : "<<l_i.first<<" "<<jr.first<<" "<<i)
 					selfk[i] += k;
 				}
 			}
@@ -1681,8 +1706,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 		if (solved_one) {
 			st_norm = 0.0;
 			for(int si=0; si<ms; si++) {
-				allocation[si] = iQI[si] * PiQ[si] * UnknownRates.at(IndexLabel[si]).optimal_gradient;
-				if(allocation[si]<0.0 or cancel_allocation(IndexLabel[si])) allocation[si]=0.0; // hard condition
+				allocation[si] = std::max(0.0,iQI[si] * PiQ[si] * UnknownRates.at(IndexLabel[si]).optimal_gradient);
 				st_norm += allocation[si];
 			}
 			max_allo=0.;
@@ -1706,9 +1730,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 			st_norm = 0.0;
 			for(int si=0; si<ms; si++) {
 				valid_time += -PiQ[si];
-				pabs[si] = -PiQ[si] * ku[si];
-				if(ku[si]<=0.0) pabs[si] = 0.; // hard condition
-				if(pabs[si]<0.0 or cancel_allocation(IndexLabel[si])) pabs[si]=0.0; // hard condition
+				pabs[si] = std::max(-PiQ[si] * ku[si],0.0);
 				st_norm += pabs[si];
 			}
 			for(int si=0; si<ms; si++) pabs[si] /= st_norm;
@@ -1775,8 +1797,10 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 
 	for(auto &v: StateVertices) {
 		t = std::max(1.0,v.second.target_state_time);
-		if(not cancel_allocation(v.first)) tw += 1.0/t;
-		mt = std::max(mt,t);
+		if(allow_allocation(v.first)) {
+			tw += 1.0/t;
+			mt = std::max(mt,t);
+		}
 	}
 
 	for(auto &v: StateVertices) {
@@ -1789,8 +1813,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 		temp = std::min(*std::prev(tadT.end()),temp);
 		lab = v.first;
 		t = std::max(1.0,v.second.target_state_time);
-		sw = 1.0/tw/t;
-		if(cancel_allocation(lab)) sw = 0.0;
+		sw = allow_allocation(lab) ? 1.0/tw/t : 0.0;
 		weights.insert(std::make_pair(lab,std::make_pair(sw,temp)));
 	}
 
