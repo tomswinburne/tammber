@@ -106,6 +106,8 @@ int main(int argc, char * argv[]) {
 		minimaStore.initialize("./db0/", "min");
 		minimaStore.createDatabase(0, false, false);
 
+		std::set<uint64_t> keys = minimaStore.availableKeys(LOCATION_SYSTEM_MIN);
+
 		bool found_redo= boost::filesystem::exists("./RedoNEBS.list");
 		Transition t;
 		std::set<Transition> trans;
@@ -115,6 +117,8 @@ int main(int argc, char * argv[]) {
 			trans.clear();
 			while(infile>>t.first.first>>t.first.second>>t.second.first>>t.second.second);
 				trans.insert(tran);
+		} else {
+			std::cout<<"RedoNEBS.list not found!"<<std::endl;
 		}
 
 		for(auto tran : trans) {
@@ -132,7 +136,7 @@ int main(int argc, char * argv[]) {
 
 			std::cout<<tran.print_str()<<" "<<data.size()<<std::endl;
 
-			write.clearInputs(); write.clearOutputs();
+			neb.clearInputs(); neb.clearOutputs();
 
 			label.clearInputs(); label.clearOutputs();
 			insert("State",label.inputData,initial);
@@ -146,8 +150,8 @@ int main(int argc, char * argv[]) {
 			while(not handle.probe(label)) {};
 			extract("Labels",label.returns,rl_tran.second);
 
-			handle.assign(write);
-			while(not handle.probe(write)) {};
+			handle.assign(neb);
+			while(not handle.probe(neb)) {};
 
 		}
 
