@@ -396,7 +396,7 @@ protected:
   // Bayes parameters
   double min_barrier, prefactorCountThresh, max_ku, min_ku, max_k, HashCost, NEBCost;
   // TAD parameters
-  double  targetT, targetB, valid_time, valid_time_sd,pNEB_Prior;
+  double  targetT, targetB, valid_time, valid_time_sd,pNEB_Prior,DephaseThresh;
 	int max_id, RhoInitFlavor, PredictionSize, AllocScheme;
 	int ClusterThresh;
   std::vector<double> tadT;

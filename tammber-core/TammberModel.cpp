@@ -388,7 +388,7 @@ void TammberModel::initialize(boost::property_tree::ptree &config,bool restart){
 	ClusterThresh = config.get<int>("Configuration.MarkovModel.ClusterThresh",0);
 
 	// Need at least a 20% chance of dephasing otherwise we suppress
-	DephaseThresh = config.get<int>("Configuration.MarkovModel.DephaseThresh",0.2);
+	DephaseThresh = config.get<double>("Configuration.MarkovModel.DephaseThresh",0.2);
 
 	safe_opt = config.get<bool>("Configuration.MarkovModel.SafeOpt",true);
 	PredictionSize = config.get<int>("Configuration.MarkovModel.PredictionSize",10);
