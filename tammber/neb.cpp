@@ -100,14 +100,21 @@ int main(int argc, char * argv[]) {
 		std::set<uint64_t> keys = minimaStore.availableKeys(LOCATION_SYSTEM_MIN);
 
 		bool found_redo= boost::filesystem::exists("./RedoNEBS.list");
-		Transition t;
+		uint64_t c1,l1,c2,l2;
 		std::set<Transition> trans;
 
 		if(found_redo) {
 			std::ifstream infile("./RedoNEBS.list");
 			trans.clear();
-			while(infile>>t.first.first>>t.first.second>>t.second.first>>t.second.second);
+			while(infile>>c1>>l1>>c2>>l2) {
+				t.first.first=c1;
+				t.first.second=l1;
+				t.second.first=c2;
+				t.second.second=l2;
 				trans.insert(t);
+			}
+
+			LOGGERA("Found"<<trans.size()<<" requests");
 
 			for(auto tran: trans) {
 
