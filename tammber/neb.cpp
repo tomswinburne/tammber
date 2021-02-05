@@ -103,15 +103,22 @@ int main(int argc, char * argv[]) {
 		Transition t;
 		std::set<Transition> trans;
 		trans.clear();
+		//
+		std::set<Transition> rw_trans;
+		rw_trans.clear();
 
 		/*
 		bool found_rewrite= boost::filesystem::exists("./RewriteNEBS.xml");
-		std::set<Transition> rw_trans;
-		rw_trans.clear();
 		if(found_rewrite) {
-			NEBPathway p;
-		  parse_xml_path(p); //TODO
-			mmbuilder.add_pathway(p);
+			std::list<NEBPathway> paths;
+		  parse_xml_path(paths); // TODO
+			for(auto p : paths) {
+				mmbuilder.add_pathway(p);
+				t.first = p.InitialLabels;
+				t.second = p.FinalLabels;
+				rw_trans.insert(t);
+			}
+			LOGGERA("Implemented "<<rw_trans.size()<<" rewrite requests");
 		}*/
 
 		if(found_redo) {
