@@ -55,21 +55,7 @@ int main(int argc, char * argv[]) {
 	TaskMapperType mapper;
 
 	std::cout << "TAMMBER-dbextract\n";
-
-	// Create empty property tree object
-	boost::property_tree::ptree config;
-	// Parse the XML into the property tree.
-	boost::property_tree::read_xml("./input/ps-config.xml", config, boost::property_tree::xml_parser::no_comments );
 	
-	std::map< std::pair<int,int>, std::map<std::string,std::string> > parameters;
-	BOOST_FOREACH(boost::property_tree::ptree::value_type &v, config.get_child("Configuration.TaskParameters")) {
-		boost::optional<std::string> otype= v.second.get_optional<std::string>("Task");
-		if(otype) {
-			std::string stype=*otype;
-			boost::trim(stype);
-		}
-	}
-
 	MPI_Comm localComm, workerComm;
 
 	if(rank==0) {

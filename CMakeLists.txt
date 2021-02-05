@@ -80,12 +80,13 @@ file(GLOB TAMMBER_CORE_FILES "tammber-core/*")
 set(EXTRA_FLAGS -DLAMMPS_EXCEPTIONS -DLAMMPS_LIB_MPI -DISOMORPHIC -DBOOST_BIND_GLOBAL_PLACEHOLDERS)
 set(EXTRA_LINK_FLAGS pthread lammps_mpi)
 
-set(TAMMBER_TARGETS tammber tammber-dbextract tammber-analyze tammber-neb)
+set(TAMMBER_TARGETS tammber tammber-dbextract tammber-analyze tammber-neb tammber-md)
 
 add_executable(tammber ${CORE_FILES} ${TAMMBER_CORE_FILES} tammber/main.cpp)
 add_executable(tammber-dbextract ${CORE_FILES} ${TAMMBER_CORE_FILES} tammber/dbextract.cpp)
 add_executable(tammber-analyze ${CORE_FILES} ${TAMMBER_CORE_FILES} tammber/analyze.cpp)
 add_executable(tammber-neb ${CORE_FILES} ${TAMMBER_CORE_FILES} tammber/neb.cpp)
+add_executable(tammber-md ${CORE_FILES} ${TAMMBER_CORE_FILES} tammber/md.cpp)
 
 if(EXTRA_FLAGS)
    message(STATUS "Compiling with these extra flags: ${EXTRA_FLAGS}")

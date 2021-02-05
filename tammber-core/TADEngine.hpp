@@ -1073,7 +1073,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  * arguments: Filename
  *
  * This returns
- * returns: Labels
+ * returns: Labels, Clusters, Position, SelfSymmetries
  * outputData State
  */
 std::function<void(GenericTask&)> init_min_impl = [this](GenericTask &task) {
@@ -1148,6 +1148,7 @@ std::function<void(GenericTask&)> init_min_impl = [this](GenericTask &task) {
 		insert("SelfSymmetries",task.returns,self_symmetries[labels.first]);
 	}
 	#endif
+
 	insert("State",labels.first, labels.second, LOCATION_SYSTEM_MIN, true, task.outputData, s);
 
 };

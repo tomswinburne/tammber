@@ -53,7 +53,7 @@ int main(int argc, char * argv[]) {
 
 		DriverHandleType handle(workerComm);
 
-		ModelWrapper mmbuilder(config);
+		ModelWrapper mmbuilder();
 		std::cout<<"TammberModel loaded"<<std::endl;
 
 		GenericTask label,neb;
