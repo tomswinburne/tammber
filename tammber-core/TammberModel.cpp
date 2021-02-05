@@ -443,7 +443,7 @@ void TammberModel::add_vertex(LabelPair labels, double energy, int clusters,std:
 	svp->second.update(labels.second,energy,clusters,pos,force);
 };
 
-void TammberModel::add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos, std::set<PointShiftSymmetry> ss,bool force=false) {
+void TammberModel::add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos, std::set<PointShiftSymmetry> ss,bool force) {
 	LOGGER("TammberModel::add_vertex")
 	if(StateVertices.size()==0) InitialLabels = labels;
 	auto svp = StateVertices.find(labels.first);
