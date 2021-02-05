@@ -100,24 +100,54 @@ int main(int argc, char * argv[]) {
 		std::set<uint64_t> keys = minimaStore.availableKeys(LOCATION_SYSTEM_MIN);
 
 		bool found_redo= boost::filesystem::exists("./RedoNEBS.list");
+		bool found_rewrite= boost::filesystem::exists("./RewriteNEBS.list");
+
 		uint64_t c1,l1,c2,l2;
 		Transition t;
-		std::set<Transition> trans;
+		std::set<Transition> trans,rw_trans;
+		trans.clear(); rw_trans.clear();
+
+		if(found_rewrite) {
+			double initialE,saddleE,finalE;
+			std::ifstream infile("./RewriteNEBS.list");
+			while(infile>>c1>>l1>>c2>>l2>>initialE>>saddleE>>finalE) {
+				LOGGERA(c1<<" "<<c2<<" "<<saddleE-initialE<<" <-> "<<saddleE-finalE)
+				t.first.first=c1;
+				t.first.second=l1;
+				t.second.first=c2;
+				t.second.second=l2;
+				rw_trans.insert(t);
+				NEBPathway p;
+				p.InitialLabels = t.first;
+				p.FinalLabels = t.second;
+				p.pairmap=false;
+				p.valid=true;
+				p.Ftol = 0.0
+				p.dX = 1.0;
+				p.initialE = initialE;
+				p.saddleE = saddleE;
+				p.finalE = finalE;
+				mmbuilder.add_pathway(p);
+			}
+			LOGGERA("Implemented "<<rw_trans.size()<<" rewrite requests");
+		}
+
 
 		if(found_redo) {
 			std::ifstream infile("./RedoNEBS.list");
-			trans.clear();
 			while(infile>>c1>>l1>>c2>>l2) {
 				LOGGERA(c1<<" "<<c2)
 				t.first.first=c1;
 				t.first.second=l1;
 				t.second.first=c2;
 				t.second.second=l2;
-				trans.insert(t);
+				if(rw_trans.find(t)==rw_trans.end()) trans.insert(t);
 			}
+			LOGGERA("Found "<<trans.size()<<" redo requests which are not being rewritten");
+		}
 
-			LOGGERA("Found "<<trans.size()<<" requests");
 
+		if(found_redo) {
 			for(auto tran: trans) {
 
 				RawDataVector data;

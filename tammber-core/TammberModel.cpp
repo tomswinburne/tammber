@@ -708,8 +708,7 @@ bool TammberModel::add_duplicate(NEBPathway &path) {
 // from NEB
 void TammberModel::add_pathway(NEBPathway &path) {
 	LOGGER("TammberModel::add_pathway")
-	if(!path.valid and path.FoundTransitions.size()==0) {
-
+	if(!path.valid) {
 		std::string err_msg = "";
 		if(path.mismatch)
 			err_msg = "MISMATCHED / ERRONEOUS LABELS IN PATH! \n"
@@ -722,17 +721,19 @@ void TammberModel::add_pathway(NEBPathway &path) {
 		auto fep = StateEdges.find(CanonTrans(ftrans)); // corresponding edge
 
 		if(fep!=StateEdges.end()) {
-			// In any case, remove from requested NEBS
+			// In any case, remove from requestedNEBS
 			if(fep->second.requestedNEBS.find(NonCanonTrans(ftrans))!=fep->second.requestedNEBS.end())
 				fep->second.requestedNEBS.erase(fep->second.requestedNEBS.find(NonCanonTrans(ftrans)));
 
 			// In any case, remove from pending NEBS
 			if(fep->second.pendingNEBS.find(NonCanonTrans(ftrans))!=fep->second.pendingNEBS.end())
-				fep->second.requestedNEBS.erase(fep->second.requestedNEBS.find(NonCanonTrans(ftrans)));
+				fep->second.pendingNEBS.erase(fep->second.pendingNEBS.find(NonCanonTrans(ftrans)));
 
 			// Add to failed NEBS TO BE RENAMED!
 			fep->second.requestedPMS.insert(NonCanonTrans(ftrans));
 		}
+		// add these anyway?
+		//add_transitionMaps(path);
 		return;
 	}
 
