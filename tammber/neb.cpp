@@ -107,10 +107,11 @@ int main(int argc, char * argv[]) {
 			std::ifstream infile("./RedoNEBS.list");
 			trans.clear();
 			while(infile>>t.first.first>>t.first.second>>t.second.first>>t.second.second);
-				trans.insert(tran);
+				trans.insert(t);
 		} else {
 			std::cout<<"RedoNEBS.list not found!"<<std::endl;
 		}
+		for(auto tran: trans) {
 
 				label.clearInputs(); label.clearOutputs();
 				insert("State",label.inputData,initial);
