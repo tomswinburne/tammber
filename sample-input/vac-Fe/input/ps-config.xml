@@ -228,8 +228,8 @@
 <!-- dephasing blocks for segment - should be equal 1ps for energy minima -->
 <PreCorrelationTime> 1 </PreCorrelationTime>
 <!-- If a transition is detected, we "anneal" for AnnealingTime (sub-)blocks at
-a low AnnealingTemperature to check newly found state is somewhat stable -->
-<AnnealingTime>0.25</AnnealingTime>
+a low AnnealingTemperature to check newly found state is stable enough for sampling-->
+<AnnealingTime>0.5</AnnealingTime>
 <AnnealingTemperature>300.0</AnnealingTemperature>
 
 <MinimumSegmentLength> 1 </MinimumSegmentLength>

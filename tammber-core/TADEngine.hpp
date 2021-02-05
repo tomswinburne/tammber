@@ -128,7 +128,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 	extract("TADSegment",task.arguments,segment);
 
 	//extract the systems we were provided
-	System minimum, reference, qsd, initial, current, currentMin;
+	System minimum, reference, qsd, initial, current, currentMin, annealingMin;
 
 	bool gotMin = extract("Minimum",task.inputData,minimum);
 
@@ -376,21 +376,28 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 		LOGGER("REFERENCE CURRENTMIN MSD_INF (2nd MIN): "<<msd_thresh)
 		LOGGER("CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
 
-		// transition check
-		BasinTransition = bool(segment.BasinLabels.find(CurrentLabels)!=segment.BasinLabels.end());
-		filter.clearInputs(); filter.clearOutputs();
-		insert("ReferenceState",filter.inputData,reference);
-		insert("State",filter.inputData,currentMin);
-		BaseEngine::process(filter);
-		extract("Valid",filter.returns,Transition);
-
 		if(annealing) {
-			//if(Transition and BasinTransition) { // annealing + transition == exit
-			if(Transition) { // annealing + transition == exit
+			// transition check
+			// BasinTransition = bool(segment.BasinLabels.find(CurrentLabels)!=segment.BasinLabels.end());
+			filter.clearInputs(); filter.clearOutputs();
+			insert("ReferenceState",filter.inputData,annealingMin);
+			insert("State",filter.inputData,currentMin);
+			BaseEngine::process(filter);
+			extract("Valid",filter.returns,Transition);
+			bool Annealed = !Transition;
 
-				LOGGER("ANNEALED! TRANSITION MADE!")
+			filter.clearInputs(); filter.clearOutputs();
+			insert("ReferenceState",filter.inputData,reference);
+			insert("State",filter.inputData,currentMin);
+			BaseEngine::process(filter);
+			extract("Valid",filter.returns,Transition);
 
-				//LOGGER("INSERTING "<<CurrentLabels.first<<","<<CurrentLabels.second<<" , E="<<currentMin.getEnergy())
+
+
+			if(Annealed and Transition) { // no transition after annealing == exit
+
+				LOGGER("ANNEALED! VALID TRANSITION MADE!")
+
 				insert("FinalMinimum",CurrentLabels.first,CurrentLabels.second,LOCATION_SYSTEM_MIN,true,task.outputData,currentMin);
 
 				// carve
@@ -411,10 +418,18 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 				annealing = false; // not annealing any more
 				break;
 			} else { // annealing + !transition == continue
-				LOGGER("NO TRANSITION AFTER ANNEALING! CONTINUING")
+				LOGGER("NO VALID TRANSITION AFTER ANNEALING! CONTINUING")
 				annealing = false;
 			}
 		} else {
+
+			// transition check
+			//BasinTransition = bool(segment.BasinLabels.find(CurrentLabels)!=segment.BasinLabels.end());
+			filter.clearInputs(); filter.clearOutputs();
+			insert("ReferenceState",filter.inputData,reference);
+			insert("State",filter.inputData,currentMin);
+			BaseEngine::process(filter);
+			extract("Valid",filter.returns,Transition);
 
 
 			//if(Transition and (not BasinTransition) ) { // no basin labels yet
@@ -422,6 +437,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 				LOGGER("TRANSITION DETECTED! ANNEALING FOR AnnealingTime BLOCKS AT AnnealingTemperature")
 				segment.transition.first = InitialLabels;
 				annealing=true;
+				annealingMin = currentMin;
 
 			} else { // no transition, continue MD
 
