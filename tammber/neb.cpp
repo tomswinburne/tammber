@@ -108,6 +108,7 @@ int main(int argc, char * argv[]) {
 			std::ifstream infile("./RedoNEBS.list");
 			trans.clear();
 			while(infile>>c1>>l1>>c2>>l2) {
+				LOGGERA(c1<<" "<<c2)
 				t.first.first=c1;
 				t.first.second=l1;
 				t.second.first=c2;
