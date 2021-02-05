@@ -276,8 +276,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 			// currently we just log the basin transitions, we do not use them
 			// segment.dephased = !Transition or BasinTransition or NewBasinTransition;
 			segment.dephased = !Transition;
-			if(ProductionRun) LOGGER("Dephased: "<<segment.dephased<<" "<<Transition<<" "<<BasinTransition<<" "<<NewBasinTransition);
-			else LOGGERA("Dephased: "<<segment.dephased<<" "<<Transition<<" "<<BasinTransition<<" "<<NewBasinTransition);
+			if(!ProductionRun) LOGGERA("Dephased: "<<segment.dephased<<" "<<Transition<<" "<<BasinTransition<<" "<<NewBasinTransition);
+			LOGGER("Dephased: "<<segment.dephased<<" "<<Transition<<" "<<BasinTransition<<" "<<NewBasinTransition);
 
 			if(Transition) { // i.e. a transition. We
 				carve.clearInputs(); carve.clearOutputs();
