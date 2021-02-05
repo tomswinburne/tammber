@@ -708,7 +708,7 @@ bool TammberModel::add_duplicate(NEBPathway &path) {
 // from NEB
 void TammberModel::add_pathway(NEBPathway &path) {
 	LOGGER("TammberModel::add_pathway")
-	if(!path.valid or path.FoundTransitions.size()==0) {
+	if(!path.valid and path.FoundTransitions.size()==0) {
 
 		std::string err_msg = "";
 		if(path.mismatch)
