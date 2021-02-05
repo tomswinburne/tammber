@@ -107,7 +107,7 @@ int main(int argc, char * argv[]) {
 		std::set<Transition> trans,rw_trans;
 		trans.clear(); rw_trans.clear();
 
-		if(found_rewrite) {
+		/*if(found_rewrite) {
 			double initialE,saddleE,finalE;
 			std::ifstream infile("./RewriteNEBS.list");
 			while(infile>>c1>>l1>>c2>>l2>>initialE>>saddleE>>finalE) {
@@ -122,7 +122,7 @@ int main(int argc, char * argv[]) {
 				p.FinalLabels = t.second;
 				p.pairmap=false;
 				p.valid=true;
-				p.Ftol = 0.0
+				p.Ftol = 0.0;
 				p.dX = 1.0;
 				p.initialE = initialE;
 				p.saddleE = saddleE;
@@ -130,7 +130,7 @@ int main(int argc, char * argv[]) {
 				mmbuilder.add_pathway(p);
 			}
 			LOGGERA("Implemented "<<rw_trans.size()<<" rewrite requests");
-		}
+		}*/
 
 
 		if(found_redo) {
