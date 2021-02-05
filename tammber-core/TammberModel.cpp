@@ -304,13 +304,13 @@ std::string StateVertex::info_str(double targetT,double eshift=0.0,double ku=0.0
 	return res;
 };
 
-void StateVertex::update(Label lab, double energy_,bool force=false) {
+void StateVertex::update(Label lab, double energy_,bool force) {
 	LOGGER("StateVertex::update")
 	if(energy>energy_ or force) energy=energy_;
 	//reference_label.second = lab;
 };
 
-void StateVertex::update(Label lab, double energy_,int clust, std::array<double,3> pos,bool force=false) {
+void StateVertex::update(Label lab, double energy_,int clust, std::array<double,3> pos,bool force) {
 	LOGGER("StateVertex::update : UPDATING STATE")
 	update(lab,energy_,force);
 	if((reference_label.second==lab && clust>0) or force) {
@@ -320,7 +320,7 @@ void StateVertex::update(Label lab, double energy_,int clust, std::array<double,
 };
 
 
-void StateVertex::update(Label lab, double energy_,int clust, std::array<double,3> pos, std::set<PointShiftSymmetry> ss, bool force=false) {
+void StateVertex::update(Label lab, double energy_,int clust, std::array<double,3> pos, std::set<PointShiftSymmetry> ss, bool force) {
 	LOGGER("StateVertex::update : UPDATING STATE")
 	update(lab,energy_,clust,pos,force);
 	for(auto s:ss) self_symmetries.insert(s);
@@ -419,7 +419,7 @@ int TammberModel::newIndex() {
 };
 
 // to be overloaded
-void TammberModel::add_vertex(LabelPair labels, double energy,bool force=false) {
+void TammberModel::add_vertex(LabelPair labels, double energy,bool force) {
 	LOGGER("TammberModel::add_vertex")
 	if(StateVertices.size()==0) InitialLabels = labels;
 	auto svp = StateVertices.find(labels.first);
@@ -430,7 +430,7 @@ void TammberModel::add_vertex(LabelPair labels, double energy,bool force=false) 
 	} else svp->second.update(labels.second,energy,force);
 };
 
-void TammberModel::add_vertex(LabelPair labels, double energy, int clusters,std::array<double,3> pos,bool force=false) {
+void TammberModel::add_vertex(LabelPair labels, double energy, int clusters,std::array<double,3> pos, bool force) {
 	LOGGER("TammberModel::add_vertex")
 	if(StateVertices.size()==0) InitialLabels = labels;
 	auto svp = StateVertices.find(labels.first);

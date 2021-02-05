@@ -315,9 +315,9 @@ public:
 
 	int newIndex();
   // to be overloaded
-  void add_vertex(LabelPair labels, double energy,bool force);
-	void add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos,bool force);
-	void add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos, std::set<PointShiftSymmetry> ss,bool force);
+  void add_vertex(LabelPair labels, double energy,bool force=false);
+	void add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos,bool force=false);
+	void add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos, std::set<PointShiftSymmetry> ss,bool force=false);
 
   void add_edge(SymmLabelPair el);
   void add_edge(SymmLabelPair el,SymmLabelPair tl);
