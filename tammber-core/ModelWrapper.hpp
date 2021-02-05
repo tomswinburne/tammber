@@ -74,9 +74,8 @@
 
 class ModelWrapper {
 public:
-ModelWrapper(boost::property_tree::ptree &config) {
+ModelWrapper() {
 	LOGGER("TammberModelWrapper")
-
 	// Create empty property tree object
 	boost::property_tree::ptree config;
 	// Parse the XML into the property tree.
@@ -93,6 +92,7 @@ ModelWrapper(boost::property_tree::ptree &config) {
 	start=std::chrono::high_resolution_clock::now();
 	carryOverTime=0;
 	jobcount = 0;
+
 	bool rs=false;
 	if(boost::filesystem::exists("./TammberModel.chk")) {
 		rs=true;
@@ -100,9 +100,12 @@ ModelWrapper(boost::property_tree::ptree &config) {
 		boost::archive::text_iarchive ia(ifs);
 		// read class state from archive
 		ia >> *this;
-	} else
-	// initialize the model
+	}
+
 	deleteVertex = config.get<uint64_t>("Configuration.MarkovModel.DeleteVertex",0);
+	modelStr = config.get<bool>("Configuration.MarkovModel.ModelStr",true);
+
+	// initialize the model
 	markovModel.initialize(config,rs);
 
 };
@@ -126,7 +129,7 @@ void load(Archive & ar, const unsigned int version){
 BOOST_SERIALIZATION_SPLIT_MEMBER()
 
 
-virtual void full_print(bool model) {
+virtual void full_print() {
 	LOGGERA("PullMMbuilder::full_print()")
 	// Save XML file
 	if(deleteVertex!=0) {
@@ -142,7 +145,7 @@ virtual void full_print(bool model) {
 	}
 	// Print analysis to screen
 	std::cout<<markovModel.info_str(true)<<std::endl;
-	if(model) markovModel.write_model("MarkovModel.xml");
+	if(modelStr) markovModel.write_model("MarkovModel.xml");
 	std::list<TADjob> jobs;
 	markovModel.generateTADs(jobs,100);
 };
@@ -168,6 +171,7 @@ TammberModel markovModel;
 unsigned long carryOverTime;
 unsigned long jobcount;
 Label deleteVertex;
+bool modelStr;
 std::chrono::high_resolution_clock::time_point start;
 };
 

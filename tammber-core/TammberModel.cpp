@@ -933,6 +933,7 @@ void TammberModel::write_model(std::string mmfile) {
 		unknown_rate(v.first,ku);
 		v.second.target_state_time = v.second.state_time(targetT);
 		double emin = (log(v.second.target_state_time)+LOG_NU_MIN)*BOLTZ*targetT;
+		double dephase_ratio = 1.0 * v.second.overhead/(v.second.duration+v.second.overhead);
 		res<<"  <Vertex>\n";
 		res<<"    <CanonLabel>"<<v.second.reference_label.first<<"</CanonLabel>\n";
 		res<<"    <ReferenceLabel>"<<v.second.reference_label.second<<"</ReferenceLabel>\n";
@@ -942,6 +943,8 @@ void TammberModel::write_model(std::string mmfile) {
 		res<<"    <Temperature>"<<targetT<<"</Temperature>\n";
 		res<<"    <TADBarrier>"<<emin<<"</TADBarrier>\n";
 		res<<"    <NClusters>"<<v.second.clusters<<"</NClusters>\n";
+		res<<"    <DephaseRatio>"<<dephase_ratio<<"</DephaseRatio>\n"
+		res<<"    <Allocated>"<<int(allow_allocation(v.first))<<"</Allocated>\n";
 		res<<"    <Position>"<<v.second.position[0]<<" "<<v.second.position[1]<<" "<<v.second.position[2]<<"</Position>\n";
 		if(v.second.self_symmetries.size()>0){
 			res<<"    <SelfSymmetries>\n";

@@ -15,21 +15,18 @@
 
 #include <iostream>
 #include <boost/property_tree/xml_parser.hpp>
+
 #include "ModelWrapper.hpp"
 
 int main(int argc, char * argv[]) {
-	// Create empty property tree object
-	boost::property_tree::ptree tree;
 
-	// Parse the XML into the property tree.
-	boost::property_tree::read_xml("./input/ps-config.xml", tree, boost::property_tree::xml_parser::no_comments | boost::property_tree::xml_parser::trim_whitespace);
-
-	ModelWrapper mmbuilder(tree);
+	// initialize- will look for input/ps-config.xml and TammberModel.chk
+	ModelWrapper tammberModel();
 
 	std::cout<<"TammberModelBuilder is established"<<std::endl;
-	bool modelStr=tree.get<bool>("Configuration.MarkovModel.ModelStr",true);
 
-	mmbuilder.full_print(modelStr);
+	// write to MarkovModel.xml
+	tammberModel.full_print();
 
 	/* python interface- write wrappers for ModelWrapper */
 }
