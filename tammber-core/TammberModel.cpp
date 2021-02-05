@@ -1208,8 +1208,8 @@ std::list<std::pair<SymmLabelPair,std::pair< std::array<double,6>,PointShiftSymm
 		}
 		sres[int(!forwards)]=dE.first;
 		sres[int(forwards)] =dE.second;
-		sres[2+int(!forwards)]=conn.second.nu.first;
-		sres[2+int(forwards)] =conn.second.nu.second;
+		sres[2+int(!forwards)] = conn.second.nu.first < 1.0e-4 ? PRIOR_NU : conn.second.nu.first;
+		sres[2+int(forwards)] = conn.second.nu.second < 1.0e-4 ? PRIOR_NU : conn.second.nu.second;
 		sres[4] = conn.second.dX;
 		sres[5] = conn.second.Ftol;
 		slab.first = (forwards ? conn.first.first : conn.first.second);
