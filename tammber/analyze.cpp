@@ -21,12 +21,12 @@
 int main(int argc, char * argv[]) {
 
 	// initialize- will look for input/ps-config.xml and TammberModel.chk
-	ModelWrapper tammberModel();
+	ModelWrapper mmbuilder();
 
 	std::cout<<"TammberModelBuilder is established"<<std::endl;
 
 	// write to MarkovModel.xml
-	tammberModel.full_print();
+	mmbuilder.full_print();
 
 	/* python interface- write wrappers for ModelWrapper */
 }
