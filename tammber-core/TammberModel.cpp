@@ -304,29 +304,25 @@ std::string StateVertex::info_str(double targetT,double eshift=0.0,double ku=0.0
 	return res;
 };
 
-void StateVertex::update(Label lab, double energy_) {
+void StateVertex::update(Label lab, double energy_,bool force=false) {
 	LOGGER("StateVertex::update")
-	if(energy>energy_) energy=energy_;
+	if(energy>energy_ or force) energy=energy_;
 	//reference_label.second = lab;
 };
 
-void StateVertex::update(Label lab, double energy_,int clust, std::array<double,3> pos) {
+void StateVertex::update(Label lab, double energy_,int clust, std::array<double,3> pos,bool force=false) {
 	LOGGER("StateVertex::update : UPDATING STATE")
-	if(energy>energy_) energy=energy_;
-	if(reference_label.second==lab && clust>0) {
+	update(lab,energy_,force);
+	if((reference_label.second==lab && clust>0) or force) {
 			clusters = clust;
 			position = pos;
 	}
 };
 
 
-void StateVertex::update(Label lab, double energy_,int clust, std::array<double,3> pos, std::set<PointShiftSymmetry> ss) {
+void StateVertex::update(Label lab, double energy_,int clust, std::array<double,3> pos, std::set<PointShiftSymmetry> ss, bool force=false) {
 	LOGGER("StateVertex::update : UPDATING STATE")
-	if(energy>energy_) energy=energy_;
-	if(reference_label.second==lab && clust>0) {
-			clusters = clust;
-			position = pos;
-	}
+	update(lab,energy_,clust,pos,force);
 	for(auto s:ss) self_symmetries.insert(s);
 };
 
@@ -423,7 +419,7 @@ int TammberModel::newIndex() {
 };
 
 // to be overloaded
-void TammberModel::add_vertex(LabelPair labels, double energy) {
+void TammberModel::add_vertex(LabelPair labels, double energy,bool force=false) {
 	LOGGER("TammberModel::add_vertex")
 	if(StateVertices.size()==0) InitialLabels = labels;
 	auto svp = StateVertices.find(labels.first);
@@ -431,10 +427,10 @@ void TammberModel::add_vertex(LabelPair labels, double energy) {
 		int id = newIndex(); // 0 index, should be unique even if states are deleted
 		LOGGER("ADDING VERTEX: "<<labels.first<<","<<labels.second<<" E:"<<energy<<"eV")
 		StateVertices.insert(std::make_pair(labels.first,StateVertex(labels,energy,id)));
-	} else svp->second.update(labels.second,energy);
+	} else svp->second.update(labels.second,energy,force);
 };
 
-void TammberModel::add_vertex(LabelPair labels, double energy, int clusters,std::array<double,3> pos) {
+void TammberModel::add_vertex(LabelPair labels, double energy, int clusters,std::array<double,3> pos,bool force=false) {
 	LOGGER("TammberModel::add_vertex")
 	if(StateVertices.size()==0) InitialLabels = labels;
 	auto svp = StateVertices.find(labels.first);
@@ -444,10 +440,10 @@ void TammberModel::add_vertex(LabelPair labels, double energy, int clusters,std:
 		StateVertices.insert(std::make_pair(labels.first,StateVertex(labels,energy,id)));
 	}
 	svp = StateVertices.find(labels.first);
-	svp->second.update(labels.second,energy,clusters,pos);
+	svp->second.update(labels.second,energy,clusters,pos,force);
 };
 
-void TammberModel::add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos, std::set<PointShiftSymmetry> ss) {
+void TammberModel::add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos, std::set<PointShiftSymmetry> ss,bool force=false) {
 	LOGGER("TammberModel::add_vertex")
 	if(StateVertices.size()==0) InitialLabels = labels;
 	auto svp = StateVertices.find(labels.first);
@@ -457,7 +453,7 @@ void TammberModel::add_vertex(LabelPair labels, double energy,int clusters,std::
 		StateVertices.insert(std::make_pair(labels.first,StateVertex(labels,energy,id)));
 	}
 	svp = StateVertices.find(labels.first);
-	svp->second.update(labels.second,energy,clusters,pos,ss);
+	svp->second.update(labels.second,energy,clusters,pos,ss,force);
 };
 
 // bare minimum edge
@@ -592,8 +588,8 @@ void TammberModel::add_segment(TADSegment &seg) {
 void TammberModel::add_spacemaps(NEBPathway &path) {
 	LOGGER("TammberModel::add_spacemaps")
 	// first off, incorporate the spacemap results
-	add_vertex(path.InitialLabels,path.initialE);
-	add_vertex(path.FinalLabels,path.finalE);
+	add_vertex(path.InitialLabels,path.initialE,true);
+	add_vertex(path.FinalLabels,path.finalE,true);
 
 	// find verticies
 	auto initial_vertex = &(StateVertices.find(path.InitialLabels.first)->second);

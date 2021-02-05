@@ -239,9 +239,9 @@ struct StateVertex {
   StateVertex(LabelPair ref,double energy_,int id_);
 	std::string info_str(double targetT, double eshift, double ku);
   // TEST THIS
-  void update(Label lab, double energy_);
-	void update(Label lab, double energy_,int clust, std::array<double,3> pos);
-	void update(Label lab, double energy_,int clust, std::array<double,3> pos, std::set<PointShiftSymmetry> ss);
+  void update(Label lab, double energy_,bool force);
+	void update(Label lab, double energy_,int clust, std::array<double,3> pos,bool force);
+	void update(Label lab, double energy_,int clust, std::array<double,3> pos, std::set<PointShiftSymmetry> ss,bool force);
 	void add_segment(TADSegment &seg);
 
   template<class Archive>
@@ -315,9 +315,9 @@ public:
 
 	int newIndex();
   // to be overloaded
-  void add_vertex(LabelPair labels, double energy);
-	void add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos);
-	void add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos, std::set<PointShiftSymmetry> ss);
+  void add_vertex(LabelPair labels, double energy,bool force);
+	void add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos,bool force);
+	void add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos, std::set<PointShiftSymmetry> ss,bool force);
 
   void add_edge(SymmLabelPair el);
   void add_edge(SymmLabelPair el,SymmLabelPair tl);
