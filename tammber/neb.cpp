@@ -116,7 +116,7 @@ int main(int argc, char * argv[]) {
 				trans.insert(t);
 			}
 
-			LOGGERA("Found"<<trans.size()<<" requests");
+			LOGGERA("Found "<<trans.size()<<" requests");
 
 			for(auto tran: trans) {
 
