@@ -108,6 +108,9 @@
   <!-- Only sample in states with ClusterThresh clusters or less. Disabled if ClusterThresh<=0 -->
   <ClusterThresh>1</ClusterThresh>
 
+  <!-- Only sample in states which have Prob(dephase) > DephaseThresh Disabled if DephaseThresh<=0 -->
+  <DephaseThresh>0.2</DephaseThresh>
+
 </MarkovModel>
 
 
