@@ -101,6 +101,7 @@ int main(int argc, char * argv[]) {
 
 		bool found_redo= boost::filesystem::exists("./RedoNEBS.list");
 		uint64_t c1,l1,c2,l2;
+		Transition t;
 		std::set<Transition> trans;
 
 		if(found_redo) {
