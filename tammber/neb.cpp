@@ -134,7 +134,7 @@ int main(int argc, char * argv[]) {
 				while(not handle.probe(label)) {};
 				extract("Labels",label.returns,rl_tran.first);
 
-				minimaStore.get(LOCATION_SYSTEM_MIN,tran.first.second,data);
+				minimaStore.get(LOCATION_SYSTEM_MIN,tran.second.second,data);
 				if(data.size()==0) continue;
 				unpack(data,final,data.size());
 
