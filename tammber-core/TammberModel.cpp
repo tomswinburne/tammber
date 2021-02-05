@@ -1563,7 +1563,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 			IndexLabel.push_back(v.first);
 			LabelIndex.insert(std::make_pair(v.first,IndexLabel.size()-1));
 			ms++;
-		}
+		} else LOGGER("STATE "<<v.first<<" NOT ALLOCATED");
 	}
 
 	bool solved_one = false;
