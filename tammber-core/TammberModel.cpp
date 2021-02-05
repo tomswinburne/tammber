@@ -1540,7 +1540,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 		}
 
 		// Boltzmann
-		int min_clust=10;
+		int min_clust=100000;
 		double rho_minE = 10.,rho_norm=0.0;
 		for(int si=0; si<ms; si++) {
 			if(StateVertices.at(IndexLabel[si]).energy<rho_minE) rho_minE = StateVertices.at(IndexLabel[si]).energy;
@@ -1656,7 +1656,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 					allocation[si]=0.; // hard condition
 				}
 
-				if(StateVertices.at(IndexLabel[si]).clusters>std::max(ClusterThresh,min_clust)) {
+				if(ClusterThresh>0 and StateVertices.at(IndexLabel[si]).clusters>std::max(ClusterThresh,min_clust)) {
 					LOGGERA("STATE "<<IndexLabel[si]<<" HAS "<<StateVertices.at(IndexLabel[si]).clusters<<" > "<<std::max(ClusterThresh,min_clust)<<" Clusters; SET TO ABSORBING (TBI) -> 0")
 					allocation[si]=0.; // hard condition
 				}
@@ -1686,7 +1686,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 				valid_time += -PiQ[si];
 				pabs[si] = -PiQ[si] * ku[si];
 				if(ku[si]<=0.0) pabs[si] = 0.; // hard condition
-				if(StateVertices.at(IndexLabel[si]).clusters>std::max(ClusterThresh,min_clust)) {
+				if(ClusterThresh>0 and StateVertices.at(IndexLabel[si]).clusters>std::max(ClusterThresh,min_clust)) {
 					LOGGERA("STATE "<<IndexLabel[si]<<" HAS "<<StateVertices.at(IndexLabel[si]).clusters<<" > "<<std::max(ClusterThresh,min_clust)<<" Clusters; SET TO ABSORBING (TBI) -> 0")
 					pabs[si] = 0.; // hard condition
 				}
@@ -1773,7 +1773,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 		lab = v.first;
 		t = std::max(1.0,v.second.target_state_time);
 		sw = 1.0/tw/t;
-		if(v.second.clusters>ClusterThresh) sw = 0.0;
+		if(ClusterThresh>0 and v.second.clusters>ClusterThresh) sw = 0.0;
 		weights.insert(std::make_pair(lab,std::make_pair(sw,temp)));
 	}
 
