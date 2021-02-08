@@ -62,7 +62,7 @@ int main(int argc, char * argv[]) {
 
 		GenericTask task;
 		SystemType system;
-		PointShiftSymmetry self_symmetries;
+		std::set<PointShiftSymmetry> self_symmetries;
 		LabelPair labels;
 		double energy;
 		int clusters;
