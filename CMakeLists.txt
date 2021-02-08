@@ -6,7 +6,7 @@ set(CMAKE_C_COMPILER mpicc) # example value
 
 # Setting VERBOSE=1 will generate a lot of output for debugging purposes
 # To toggle LAMMPS output use the LogLammps option in input/ps-config.xml
-#set(VERBOSE 0)
+set(VERBOSE 1)
 
 # BOOST_LOG is often raises linking errors- disabled by default, log to stdout
 set(USE_BOOST_LOG 0)

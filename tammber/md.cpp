@@ -32,6 +32,8 @@
 #include <boost/property_tree/xml_parser.hpp>
 #include <boost/property_tree/info_parser.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/join.hpp>
 
 int main(int argc, char * argv[]) {
 	MPI_Init(&argc, &argv);
@@ -49,6 +51,11 @@ int main(int argc, char * argv[]) {
 	// Parse the XML into the property tree.
 	boost::property_tree::read_xml("./input/ps-config.xml", config, boost::property_tree::xml_parser::no_comments );
 
+	std::string ic_string = config.get<std::string>("Configuration.InitialConfigurations");
+	std::vector<std::string> initialConfigurations;
+	boost::split(initialConfigurations,ic_string,boost::is_any_of(" "));
+
+
 
 	MPI_Comm localComm, workerComm;
 
@@ -61,61 +68,71 @@ int main(int argc, char * argv[]) {
 		DriverHandleType handle(workerComm);
 
 		GenericTask task;
-		SystemType system;
-		std::set<PointShiftSymmetry> self_symmetries;
-		LabelPair labels;
-		double energy;
-		int clusters;
-		std::array<double,3> position;
-		/*
-		This returns
-	  * returns: Labels, Clusters, Position, SelfSymmetries
-	  * outputData State
-		*/
-		task.type=mapper.type("TASK_INIT_MIN");
-		task.flavor=1;
 
-		task.clearInputs(); task.clearOutputs();
-		handle.assign(task);
-		while(not handle.probe(task)) {};
+		LOGGERA("TAMMBER-md::initializeSystems()")
+
+		for(auto initialConfiguration : initialConfigurations) {
+			boost::trim(initialConfiguration);
+			if(initialConfiguration.length()==0) continue;
+
+			SystemType system;
+			std::string file_name;
+			std::set<PointShiftSymmetry> self_symmetries;
+			LabelPair labels;
+			double energy;
+			int clusters;
+			std::array<double,3> position;
+			/*
+			This returns
+		  * returns: Labels, Clusters, Position, SelfSymmetries
+		  * outputData State
+			*/
+			task.clearInputs(); task.clearOutputs();
+			task.type=mapper.type("TASK_INIT_MIN");
+			task.flavor=1;
+			insert("Filename",task.arguments,initialConfiguration);
+			LOGGERA("REQUESTING "<<file_name)
+			handle.assign(task);
+			while(not handle.probe(task)) {};
 
 
-		extract("Labels",task.returns,labels);
-		extract("Energy",task.returns,energy);
-		extract("Clusters",task.returns,clusters);
-		extract("Position",task.returns,position);
-		LOGGERA("LABELS: "<<labels.first<<" "<<labels.second<<" E:"<<energy
-			<<"eV, Clusters:"<<clusters
-			<<" Position:"<<position[0]<<" "<<position[1]<<" "<<position[2])
+			extract("Labels",task.returns,labels);
+			extract("Energy",task.returns,energy);
+			extract("Clusters",task.returns,clusters);
+			extract("Position",task.returns,position);
+			LOGGERA("LABELS: "<<labels.first<<" "<<labels.second<<" E:"<<energy
+				<<"eV, Clusters:"<<clusters
+				<<" Position:"<<position[0]<<" "<<position[1]<<" "<<position[2])
 
-		#ifdef ISOMORPHIC
-		extract("SelfSymmetries",task.returns,self_symmetries);
-		LOGGERA("SelfSymmetries:")
-		for(auto ss:self_symmetries) LOGGERA(ss.info_str());
-		#endif
+			#ifdef ISOMORPHIC
+			extract("SelfSymmetries",task.returns,self_symmetries);
+			LOGGERA("SelfSymmetries:")
+			for(auto ss:self_symmetries) LOGGERA(ss.info_str());
+			#endif
 
-		extract("State",task.outputData,system);
-		double temperature = config.get<double>("Configuration.MarkovModel.MinTemperature",100.0);
-		LOGGERA("STARTING TASK_SEGMENT AT MarkovModel.MinTemperature = "<<temperature<<"K");
-		task.clear();
+			extract("State",task.outputData,system);
+			double temperature = config.get<double>("Configuration.MarkovModel.MinTemperature",100.0);
+			LOGGERA("STARTING TASK_SEGMENT AT MarkovModel.MinTemperature = "<<temperature<<"K");
+			task.clear();
 
-		task.type=mapper.type("TASK_SEGMENT");
-		task.flavor=1;
+			task.type=mapper.type("TASK_SEGMENT");
+			task.flavor=1;
 
-		TADSegment segment;
-		segment.InitialLabels = labels;
-		segment.temperature = temperature;
-		bool ProductionRun = false; // for testing
-		insert("TADSegment",task.arguments,segment);
-		insert("ProductionRun",task.arguments,ProductionRun);
-		insert("Minimium",task.inputData,system);
+			TADSegment segment;
+			segment.InitialLabels = labels;
+			segment.temperature = temperature;
+			bool ProductionRun = false; // for testing
+			insert("TADSegment",task.arguments,segment);
+			insert("ProductionRun",task.arguments,ProductionRun);
+			insert("Minimium",task.inputData,system);
 
-		LOGGERA("TAMMBER-md: SUBMITTING SEGMENT "<<segment.submit_info_str())
-		handle.assign(task);
-		while(not handle.probe(task)) {};
+			LOGGERA("TAMMBER-md: SUBMITTING SEGMENT "<<segment.submit_info_str())
+			handle.assign(task);
+			while(not handle.probe(task)) {};
 
-		extract("TADSegment",task.returns,segment);
-		LOGGERA("TAMMBER-md: OUTPUT SEGMENT "<<segment.info_str())
+			extract("TADSegment",task.returns,segment);
+			LOGGERA("TAMMBER-md: OUTPUT SEGMENT "<<segment.info_str())
+		}
 
 		task.clear();
 		task.type=mapper.type("TASK_DIE");

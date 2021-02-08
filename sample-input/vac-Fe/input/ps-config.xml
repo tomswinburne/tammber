@@ -276,7 +276,7 @@ a low AnnealingTemperature to check newly found state is stable enough for sampl
   <Task> TASK_CARVE </Task>
   <Flavor> 0 </Flavor>
   <CentroNeighbors> 8 </CentroNeighbors>
-  <Threshold>4.0</Threshold>
+  <Threshold>0.1</Threshold>
   <!-- Relative Cutoff for connectivity after removing bulk atoms. Here, we set to second neighbor, i.e. a scaling of |[100]|/|[111]/2| = 2/sqrt(3) ~ 1.5 -->
   <RelativeCutoff>1.5</RelativeCutoff>
 </TaskParameter>
