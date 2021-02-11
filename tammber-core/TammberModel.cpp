@@ -1347,20 +1347,26 @@ void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 			// in optimization, we only have ratio of times: htt/ltt : exp(emin(1-targetT/T))
 			// htt/ltt * lt_kuv + lt_minr * ht_ku OR (htt/ltt - ht_ku/lt_ku) * lt_kuv + lt_minr * ht_ku
 			_kc = exp( emin * (1.0-targetT/tadT[ii]) ) * ku.unknown_variance + ku.min_rate * ht_ku_tot_k[ii].first;
-			if(!safe_opt) _kc -= ht_ku_tot_k[ii].first / ku.unknown_rate * ku.unknown_variance;
+			// will prefer lower temperatures
+			if(!safe_opt) {
+				_kc -= ht_ku_tot_k[ii].first / ku.unknown_rate * ku.unknown_variance;
+				_kc += exp( emin * (1.0-targetT/tadT[ii]) ) * ku.unknown_variance;
+			}
 			_kc /= 1. + HashCost * ht_ku_tot_k[ii].second + (HashCost+NEBCost) * ht_ku_tot_k[ii].first;
 
 			if(boost::math::isnan(_kc)) {
 				_kc = 1.0/v->target_state_time/v->target_state_time;
 				LOGGER("Cost return is NaN! state,time,T = "<<lab<<", "<<v->target_state_time<<", "<<tadT[ii]<<" new kc:"<<_kc)
 			}
-			if(_kc > max_benefit) {
-				max_benefit = _kc;
-				ku.optimal_temperature = tadT[ii];
-				ku.optimal_temperature_index = ii;
-				ku.optimal_rate = ht_ku_tot_k[ii].first;
-				ku.optimal_gradient = _kc;
-			}
+			benefit.push_back(_kc);
+			if(_kc > max_benefit) max_benefit = _kc;
+		}
+		
+		for(int ii=0;ii<tadT.size();ii++) if(benefit[ii]>=0.95*max_benefit) {
+			ku.optimal_temperature = tadT[ii];
+			ku.optimal_temperature_index = ii;
+			ku.optimal_rate = ht_ku_tot_k[ii].first;
+			ku.optimal_gradient = benefit[ii];
 		}
 
 		// Now refill without SelfRates....
