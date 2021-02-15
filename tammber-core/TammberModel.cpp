@@ -1281,7 +1281,8 @@ bool TammberModel::allow_allocation(Label lab) {
 void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 	LOGGER("TammberModel::unknown_rate")
 
-	double emin, htt, htmr, ht_kuvar,_kc,opt_rate, tar_rate, max_benefit=-10.,Tr;
+	double emin, htt, htmr, ht_kuvar,_kc;
+	double var_correction,opt_rate, tar_rate, max_benefit=-10.,Tr;
 	std::vector< std::pair<double,double> > ht_ku_tot_k,k_fp;
 
 
@@ -1344,15 +1345,18 @@ void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 
 		// now find best temperature
 		for(int ii=0;ii<tadT.size();ii++) {
-			// in optimization, we only have ratio of times: htt/ltt : exp(emin(1-targetT/T))
-			// htt/ltt * lt_kuv + lt_minr * ht_ku OR (htt/ltt - ht_ku/lt_ku) * lt_kuv + lt_minr * ht_ku
-			_kc = exp( emin * (1.0-targetT/tadT[ii]) ) * ku.unknown_variance + ku.min_rate * ht_ku_tot_k[ii].first;
-			// will prefer lower temperatures
-			if(!safe_opt) {
-				_kc -= ht_ku_tot_k[ii].first / ku.unknown_rate * ku.unknown_variance;
-				_kc += exp( emin * (1.0-targetT/tadT[ii]) ) * ku.unknown_variance;
-			}
+
+			// dku/dc = P(dephase) * dku/dt / (dc/dt)
+
+			// dku/dt = min_k_lt * ku_ht + (tau_lt/tau_ht * T_h/T_l - ku_ht/ku_lt)*ku_var_lt
+			_kc = ku.min_rate * ht_ku_tot_k[ii].first;
+			var_correction = (tadT[ii]/targetT) * exp( emin * (1.0-targetT/tadT[ii]) ) * ku.unknown_variance;
+			var_correction += ht_ku_tot_k[ii].first / ku.unknown_rate * ku.unknown_variance;
+			if(var_correction>0.0 && !safe_opt) _kc += var_correction;
+			// 1 / (dc/dt)
 			_kc /= 1. + HashCost * ht_ku_tot_k[ii].second + (HashCost+NEBCost) * ht_ku_tot_k[ii].first;
+			// * P(dephase in 1 ps)
+			_kc *= exp(- (ht_ku_tot_k[ii].first + ht_ku_tot_k[ii].second) );
 
 			if(boost::math::isnan(_kc)) {
 				_kc = 1.0/v->target_state_time/v->target_state_time;
@@ -1361,8 +1365,8 @@ void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 			benefit.push_back(_kc);
 			if(_kc > max_benefit) max_benefit = _kc;
 		}
-		
-		for(int ii=0;ii<tadT.size();ii++) if(benefit[ii]>=0.95*max_benefit) {
+
+		for(int ii=0;ii<tadT.size();ii++) if(benefit[ii]>=0.99*max_benefit) {
 			ku.optimal_temperature = tadT[ii];
 			ku.optimal_temperature_index = ii;
 			ku.optimal_rate = ht_ku_tot_k[ii].first;
@@ -1376,9 +1380,15 @@ void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 			htt = v->target_state_time * exp( emin * (targetT/tadT[ku.optimal_temperature_index]-1.0) );
 			htmr=0.0; ht_kuvar=0.0; // not used...
 			bayes_ku_kuvar(k_fp, ht_ku_tot_k[ku.optimal_temperature_index].first, ht_kuvar, htmr, ht_ku_tot_k[ku.optimal_temperature_index].second, htt);
-			_kc = exp( emin * (1.0-targetT/tadT[ku.optimal_temperature_index]) ) * ku.unknown_variance + ku.min_rate * ht_ku_tot_k[ku.optimal_temperature_index].first;
-			if(!safe_opt) _kc -= ht_ku_tot_k[ku.optimal_temperature_index].first / ku.unknown_rate * ku.unknown_variance;
+
+			//---
+			_kc = ku.min_rate * ht_ku_tot_k[ku.optimal_temperature_index].first;
+			var_correction = tadT[ku.optimal_temperature_index]/targetT * exp( emin * (1.0-targetT/tadT[ku.optimal_temperature_index]) ) * ku.unknown_variance;
+			var_correction -= ht_ku_tot_k[ku.optimal_temperature_index].first / ku.unknown_rate * ku.unknown_variance;
+			if(var_correction > 0. && !safe_opt) _kc += var_correction;
 			_kc /= 1. + HashCost * ht_ku_tot_k[ku.optimal_temperature_index].second + (HashCost+NEBCost) * ht_ku_tot_k[ku.optimal_temperature_index].first;
+			_kc *= exp(-(ht_ku_tot_k[ku.optimal_temperature_index].first + ht_ku_tot_k[ku.optimal_temperature_index].second));
+			//----
 			ku.optimal_rate = ht_ku_tot_k[ku.optimal_temperature_index].first;
 			ku.optimal_gradient = _kc;
 		} else {
