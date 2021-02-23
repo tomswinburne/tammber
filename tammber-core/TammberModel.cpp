@@ -1284,7 +1284,7 @@ void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 	double emin, htt, htmr, ht_kuvar,_kc;
 	double var_correction,opt_rate, tar_rate, max_benefit=-10.,Tr;
 	std::vector< std::pair<double,double> > ht_ku_tot_k,k_fp;
-
+        std::vector<double> benefit;
 
 	auto v = &(StateVertices.find(lab)->second);
 
@@ -1342,7 +1342,7 @@ void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 			htmr=0.0; ht_kuvar=0.0; // not used...
 			bayes_ku_kuvar(k_fp, ht_ku_tot_k[ii].first, ht_kuvar, htmr, ht_ku_tot_k[ii].second, htt);
 		}
-
+		benefit.clear();
 		// now find best temperature
 		for(int ii=0;ii<tadT.size();ii++) {
 
