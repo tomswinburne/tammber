@@ -251,7 +251,7 @@ bool processSend(){
 
 				//DataItem d;
 				timer.start("Generate");
-				TaskDescriptorBundle tasks=generateTasks(it->first,it->second);
+				TaskDescriptorBundle tasks = generateTasks(it->first,it->second);
 
 				timer.stop("Generate");
 

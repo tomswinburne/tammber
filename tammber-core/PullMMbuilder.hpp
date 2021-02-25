@@ -297,7 +297,7 @@ virtual TaskDescriptorBundle generateTasks(int consumerID, int nTasks){
 	//get the "global" tasks first
 	taskQueue.transferTo(tasks,nTasks);
 	int batchSize=tasks.count();
-
+	LOGGER("PullMMbuilder::generateTasks : batchSize="<<batchSize<<", nTasks="<<nTasks)
 	if (batchSize>=nTasks || not initialized) return tasks;
 
 	LOGGER("PullMMbuilder::generateTasks : initialized && batchSize<=nTasks")
