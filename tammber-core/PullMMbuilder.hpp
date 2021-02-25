@@ -176,7 +176,7 @@ void initializeSystems() {
 			init=bool(tasks.size()>0);
 		}
 	} else while(counts<initialConfigurations.size()) {
-		LOGGER("PullMMbuilder::initializeSystems() : "<<init)
+		LOGGER("PullMMbuilder::initializeSystems() : "<<counts<<","<<initialConfigurations.size())
 		processSend();
 		processRecv();
 		pcount = tasks.size();
