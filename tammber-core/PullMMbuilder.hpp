@@ -166,6 +166,7 @@ void initializeSystems() {
 	std::list<GenericTask> tasks;
 	//std::set<LabelPair> initialStateSet;
 	int counts=0,pcount;
+	unsigned int sleepms=100;
 	if(initialConfigurations.size()==1) {
 		bool init=false;
 		while(not init) {
@@ -174,6 +175,8 @@ void initializeSystems() {
 			processRecv();
 			ready.extract(mapper.type("TASK_INIT_MIN"),tasks);
 			init=bool(tasks.size()>0);
+			LOGGER("PullMMbuilder::initializeSystems() : Sleeping for "<<sleepms<<"ms")
+			std::this_thread::sleep_for(std::chrono::milliseconds(sleepms));
 		}
 	} else while(counts<initialConfigurations.size()) {
 		LOGGER("PullMMbuilder::initializeSystems() : "<<counts<<","<<initialConfigurations.size())
@@ -186,6 +189,8 @@ void initializeSystems() {
 		if (tasks.size()!=pcount) {
 			LOGGERA("Counts:"<<counts<<" "<<tasks.size()<<" "<<initialConfigurations.size())
 		}
+		LOGGER("PullMMbuilder::initializeSystems() : Sleeping for "<<sleepms<<"ms")
+		std::this_thread::sleep_for(std::chrono::milliseconds(sleepms));
 	}
 
 	LOGGER("PullMMbuilder::initializeSystems() : received "<<tasks.size()<<" tasks")
