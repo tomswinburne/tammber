@@ -933,7 +933,7 @@ void TammberModel::write_model(std::string mmfile) {
 		unknown_rate(v.first,ku);
 		v.second.target_state_time = v.second.state_time(targetT);
 		double emin = (log(v.second.target_state_time)+LOG_NU_MIN)*BOLTZ*targetT;
-		double dephase_ratio = 1.0 * v.second.overhead/std::max(1.0,v.second.duration+v.second.overhead);
+		double dephase_ratio = (double)(v.second.duration)/std::max(1.0,(double)(v.second.duration+v.second.overhead));
 		res<<"  <Vertex>\n";
 		res<<"    <CanonLabel>"<<v.second.reference_label.first<<"</CanonLabel>\n";
 		res<<"    <ReferenceLabel>"<<v.second.reference_label.second<<"</ReferenceLabel>\n";
@@ -1264,7 +1264,7 @@ bool TammberModel::allow_allocation(Label lab) {
 
 	bool cancel_dephase = false;
 	if(DephaseThresh>0.0) {
-		double dephase_ratio = 1.0 * (v->duration) / (v->overhead+v->duration);
+		double dephase_ratio = (double)(v->duration)/std::max(1.0,(double)(v->duration+v->overhead));
 		if(dephase_ratio < DephaseThresh and v->overhead>10) cancel_dephase = true;
 	}
 
@@ -1288,7 +1288,8 @@ void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 
 	auto v = &(StateVertices.find(lab)->second);
 
-	double dephase_ratio = v->duration / (v->overhead+v->duration);
+	double dephase_ratio = (double)(v->duration)/std::max(1.0,(double)(v->duration+v->overhead));
+
 
 	if(dephase_ratio < DephaseThresh) {
 		LOGGER("TammberModel::unknown_rate "<<lab<<"DEPHASE LIMIT")
