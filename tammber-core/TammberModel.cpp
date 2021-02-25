@@ -933,7 +933,7 @@ void TammberModel::write_model(std::string mmfile) {
 		unknown_rate(v.first,ku);
 		v.second.target_state_time = v.second.state_time(targetT);
 		double emin = (log(v.second.target_state_time)+LOG_NU_MIN)*BOLTZ*targetT;
-		double dephase_ratio = 1.0 * v.second.overhead/(v.second.duration+v.second.overhead);
+		double dephase_ratio = 1.0 * v.second.overhead/std::max(1.0,v.second.duration+v.second.overhead);
 		res<<"  <Vertex>\n";
 		res<<"    <CanonLabel>"<<v.second.reference_label.first<<"</CanonLabel>\n";
 		res<<"    <ReferenceLabel>"<<v.second.reference_label.second<<"</ReferenceLabel>\n";
