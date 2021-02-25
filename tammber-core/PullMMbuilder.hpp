@@ -146,6 +146,7 @@ void initializeSystems() {
 	std::string testfn;
 	for(auto initialConfiguration : initialConfigurations) {
 		boost::trim(initialConfiguration);
+		LOGGER("PullMMbuilder::initializeSystems() : loading "<<initialConfiguration)
 		if(initialConfiguration.length()==0) continue;
 		TaskDescriptor task;
 		task.type=mapper.type("TASK_INIT_MIN");
@@ -168,12 +169,14 @@ void initializeSystems() {
 	if(initialConfigurations.size()==1) {
 		bool init=false;
 		while(not init) {
+			LOGGER("PullMMbuilder::initializeSystems() : "<<init)
 			processSend();
 			processRecv();
 			ready.extract(mapper.type("TASK_INIT_MIN"),tasks);
 			init=bool(tasks.size()>0);
 		}
 	} else while(counts<initialConfigurations.size()) {
+		LOGGER("PullMMbuilder::initializeSystems() : "<<init)
 		processSend();
 		processRecv();
 		pcount = tasks.size();
@@ -184,6 +187,8 @@ void initializeSystems() {
 			LOGGERA("Counts:"<<counts<<" "<<tasks.size()<<" "<<initialConfigurations.size())
 		}
 	}
+
+	LOGGER("PullMMbuilder::initializeSystems() : received "<<tasks.size()<<" tasks")
 
 	for(auto &tt: tasks) {
 		LabelPair labels;
