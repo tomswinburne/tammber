@@ -1289,10 +1289,8 @@ void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 	auto v = &(StateVertices.find(lab)->second);
 
 	double dephase_ratio = (double)(v->duration)/std::max(1.0,(double)(v->duration+v->overhead));
-
-
-	if(dephase_ratio < DephaseThresh) {
-		LOGGER("TammberModel::unknown_rate "<<lab<<"DEPHASE LIMIT")
+	if(dephase_ratio < DephaseThresh and v->overhead>10) {
+		LOGGER("TammberModel::unknown_rate "<<lab<<" DEPHASE LIMIT")
 		ku.observed_rate = 10.0;
 		ku.unknown_rate = TINY;
 		ku.unknown_variance = 2.0*TINY;
@@ -1575,8 +1573,8 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 		UnknownRate ku;
 		unknown_rate(v.first,ku);
 		UnknownRates.insert(std::make_pair(v.first,ku));
-		// being very careful- only when there are rates, unknown_rates and do we do anything...
-		if(Rates.find(v.first)!=Rates.end() && ku.unknown_rate>0.0 && allow_allocation(v.first)) {
+		// being very careful- only when unknown_rate exists do we do anything...
+		if(ku.unknown_rate>0.0 && allow_allocation(v.first)) {
 			IndexLabel.push_back(v.first);
 			LabelIndex.insert(std::make_pair(v.first,IndexLabel.size()-1));
 			ms++;
