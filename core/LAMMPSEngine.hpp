@@ -439,6 +439,7 @@ void transferSystemFromLammps(System &s){
 	LAMMPSSystem *sys = &s;
 	int triclinic = *((int *) lammps_extract_global(lmp,(char *) "triclinic"));
 	int qflag = *((int *) lammps_extract_global(lmp,(char *) "q_flag"));
+	LOGGER("LAMMPSEngine::transferSystemFromLammps : q_flag="<<qflag)
 	sys->setNTimestep(0);
 	sys->qflag = qflag;
 	int natoms = (int) *((int64_t *)
@@ -492,6 +493,7 @@ void transferSystemToLammps(System &sys, std::unordered_map<std::string, std::st
 
 	lammps_create_atoms(lmp,natoms,&sys.id[0],&sys.species[0],&sys.x[0],&sys.v[0],NULL,1);
 	//if(sys.qflag) lammps_scatter_subset(lmp,(char *) "q",LAMMPS_DOUBLE,1,sys.id.size(),&sys.id[0],&sys.q[0]);
+	LOGGER("LAMMPSEngine::transferSystemToLammps : q_flag="<<sys.qflag)
 	if(sys.qflag) lammps_scatter(lmp,(char *) "q",LAMMPS_DOUBLE,1,&sys.q[0]);
 
 	//parse the command string

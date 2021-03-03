@@ -510,7 +510,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
  	//read parameters from the task
  	double dt=safe_extractor<double>(parameters,"NEBTimestep",0.001);
-	double WellDepth=safe_extractor<double>(parameters,"WellDepth",0.1);
+	double WellDepth=safe_extractor<double>(parameters,"WellDepth",0.5);
 	int nImages=safe_extractor<int>(parameters,"Images",11);
 	int maxiter=safe_extractor<int>(parameters,"MaxIterations",1000);
  	double spring=safe_extractor<double>(parameters,"Spring",1.0);
@@ -1221,73 +1221,79 @@ std::function<void(GenericTask&)> carve_impl = [this](GenericTask &task) {
 	extract("State",task.inputData,sysl);
 	task.clearInputs();
 
-	LOGGER("CARVE: FOUND "<<sysl.size()<<" STATES")
+	LOGGER("TADEngine::carve_impl : FOUND "<<sysl.size()<<" STATES")
 	for(auto &s : sysl) {
 		Cell bc = s.getCell();
-
+		System thr_s;
+		int clusters=1,thr_N=0;
+		std::array<double,3> position={0.,0.,0.},fatom={0.,0.,0.},temp={0.,0.,0.};
 		double wcom=0.0;
 		std::vector<double> csl;
-		centro.clearInputs(); centro.clearOutputs();
-		insert("State",centro.inputData,s);
-		insert("CentroNeighbors",centro.arguments,nn);
-		BaseEngine::process(centro);
-		extract("CentroSymmetry",centro.outputData,csl);
 
-		System thr_s;
-		thr_s.setCell(s.getCell());
-		int thr_N=0;
-		for(int i=0; i<csl.size();i++) if(csl[i]>thresh) thr_N++;
-		thr_s.setNAtoms(thr_N);
-		int clusters=1;
-		std::array<double,3> position={0.,0.,0.},fatom={0.,0.,0.},temp={0.,0.,0.};
+		if(nn==0) {
+			LOGGER("TADEngine::carve_impl : CentroNeighbors==0; assigning center of mass position")
+			insert("Clusters",task.returns,clusters);
+			insert("Position",task.returns,position);
+			thr_N = s.getNAtoms();
+			for(int i=0; i<thr_N;i++) for(int j=0;j<3;j++)
+				position[j] += s.getPosition(i,j)/double(thr_N);
+			thr_N = 0;
+		} else {
+			centro.clearInputs(); centro.clearOutputs();
+			insert("State",centro.inputData,s);
+			insert("CentroNeighbors",centro.arguments,nn);
+			BaseEngine::process(centro);
+			extract("CentroSymmetry",centro.outputData,csl);
+			thr_s.setCell(s.getCell());
+			for(int i=0; i<csl.size();i++) if(csl[i]>thresh) thr_N++;
+			thr_s.setNAtoms(thr_N);
+			if(thr_N==0) LOGGERA("TADEngine::carve_impl : No atoms above threshold!")
+		}
+
 
 		if(thr_N==0) {
-			LOGGERA("No atoms above threshold!")
-			insert("Clusters",task.returns,clusters);
-			LOGGER("NClusters : "<<clusters);
-			insert("Position",task.returns,position);
-			continue;
+			insert("ThreshState",task.outputData,s);
+		} else {
+			thr_N=0;
+			LOGGER("TADEngine::carve_impl : Thresholding:")
+			// Build new system from above-threshold atoms, scaled by RelativeCutoff
+			for(int i=0; i<csl.size();i++) if(csl[i]>thresh) {
+				LOGGER(s.getUniqueID(i)<<" "<<s.getPosition(i,0)<<" "<<s.getPosition(i,1)<<" "<<s.getPosition(i,2)<<" "<<csl[i]<<" "<<thresh)
+				thr_s.setUniqueID(thr_N,s.getUniqueID(i));
+				if(thr_N==0) for(int j=0;j<3;j++) fatom[j] = s.getPosition(i,j);
+				for(int j=0;j<3;j++) temp[j] = s.getPosition(i,j)-fatom[j];
+				bc.wrapc(temp);
+				for(int j=0;j<3;j++) thr_s.setPosition(thr_N,j,(fatom[j]+temp[j])/scale);
+				thr_s.setSpecies(thr_N,s.getSpecies(i));
+				thr_N++;
+			}
+			// Find clusters
+			std::vector<int> cluster_occ;
+			clusters = BaseMDEngine::labeler->connectedComponents(thr_s,cluster_occ);
+			insert("ThreshState",task.outputData,thr_s);
+
+			// find size and center of mass of each cluster
+			std::vector<int> rocc(clusters,0); // size
+			std::vector<std::array<double,3>> rocp(clusters,{0.,0.,0.}); // position
+			for(int i=0;i<cluster_occ.size();i++) {
+				for(int j=0;j<3;j++) rocp[cluster_occ[i]][j] += thr_s.getPosition(i,j)*scale;
+				rocc[cluster_occ[i]]++;
+			}
+
+			// Return position of largest cluster
+			int max_cl=0;
+			for(int i=0;i<clusters;i++) {
+				if(rocc[i]>0) for(int j=0;j<3;j++) rocp[i][j] /= float(rocc[i]);
+				LOGGER("Cluster "<<i+1<<" : "<<rocc[i]<<" atoms, position :"<<rocp[i][0]<<" "<<rocp[i][1]<<" "<<rocp[i][2])
+				if(rocc[i]>rocc[max_cl]) max_cl = i;
+			}
+			for(int j=0;j<3;j++) position[j] = rocp[max_cl][j];
+
 		}
-
-		thr_N=0;
-		LOGGER("Thresholding:")
-		for(int i=0; i<csl.size();i++) if(csl[i]>thresh) {
-			LOGGER(s.getUniqueID(i)<<" "<<s.getPosition(i,0)<<" "<<s.getPosition(i,1)<<" "<<s.getPosition(i,2)<<" "<<csl[i]<<" "<<thresh)
-			thr_s.setUniqueID(thr_N,s.getUniqueID(i));
-			if(thr_N==0) for(int j=0;j<3;j++) fatom[j] = s.getPosition(i,j);
-			for(int j=0;j<3;j++) temp[j] = s.getPosition(i,j)-fatom[j];
-			bc.wrapc(temp);
-			for(int j=0;j<3;j++) thr_s.setPosition(thr_N,j,(fatom[j]+temp[j])/scale);
-			thr_s.setSpecies(thr_N,s.getSpecies(i));
-			thr_N++;
-		}
-
-		std::vector<int> cluster_occ;
-		clusters = BaseMDEngine::labeler->connectedComponents(thr_s,cluster_occ);
-		insert("Clusters",task.returns,clusters);
-		insert("ThreshState",task.outputData,thr_s);
-		LOGGER("NClusters : "<<clusters);
-
-		std::vector<int> rocc(clusters,0);
-		std::vector<double> rocw(clusters,0.0);
-		std::vector<std::array<double,3>> rocp(clusters,{0.,0.,0.});
-
-		for(int i=0;i<cluster_occ.size();i++) {
-			for(int j=0;j<3;j++) rocp[cluster_occ[i]][j] += thr_s.getPosition(i,j)*scale;
-			rocc[cluster_occ[i]]++;
-		}
-
-		/* Return position of largest cluster */
-		int max_cl=0;
-		for(int i=0;i<clusters;i++) {
-			if(rocc[i]>0) for(int j=0;j<3;j++) rocp[i][j] /= float(rocc[i]);
-			LOGGER("Cluster "<<i+1<<" : "<<rocc[i]<<" atoms, position :"<<rocp[i][0]<<" "<<rocp[i][1]<<" "<<rocp[i][2])
-			if(rocc[i]>rocc[max_cl]) max_cl = i;
-		}
-		for(int j=0;j<3;j++) position[j] = rocp[max_cl][j];
+		LOGGER("TADEngine::carve_impl : NClusters = "<<clusters);
+		LOGGER("TADEngine::carve_impl : Position = ["<<position[0]<<" "<<position[1]<<" "<<position[2]<<"]")
 		insert("Position",task.returns,position);
-		LOGGER("Position: "<<position[0]<<" "<<position[1]<<" "<<position[2])
-
+		insert("Clusters",task.returns,clusters);
 	}
 };
 
