@@ -1291,52 +1291,6 @@ std::function<void(GenericTask&)> carve_impl = [this](GenericTask &task) {
 	}
 };
 
-
-
-/*
-	InputData:
-	Targets: even number (pairs) of systems
-	Candidates: even number (pairs) of systems to compare
-*/
-/*
-std::function<void(GenericTask&)> automap_impl = [this](GenericTask &task) {
-
-	std::list<PointShiftSymmetry> symsl;
-	std::set<PointShiftSymmetry> symss;
-	std::list<System> sysl;
-	std::map<int,int> c_map;
-	std::pair<Label,PointShiftSymmetry> trans;
-	std::array<double,NDIM> temp;
-
-	extract("State",task.inputData,sysl);
-	Label lab;
-	if(sysl.size()>0) {
-		bool cover = SelfSymmetries(*(sysl.begin()),symss);
-
-		Cell bc = sysl.begin()->getCell();
-
-		for(auto &sys: sysl) {
-			LOGGER("Checking for self transform...")
-			BaseMDEngine::labeler->isomorphicMap(*(sysl.begin()),sys,c_map); // 2 -> C -> 1
-			auto ops = find_transforms(*(sysl.begin()),sys,c_map);
-			for(auto op:ops) {
-				lab = BaseMDEngine::labeler->hash(sys,false);
-				for(auto symm: symss) {
-					PointShiftSymmetry cop = symm.compound(op);
-					// wrap?
-					for(int j=0;j<NDIM;j++) temp[j] = cop.shift[j];
-					bc.wrap(temp);
-					for(int j=0;j<NDIM;j++) cop.shift[j] = temp[j];
-					trans = std::make_pair(lab,cop);
-					insert("SelfIsomorphisms",task.returns,trans);
-				}
-			}
-		}
-	}
-	return ;
-};
-*/
-
 std::function<void(GenericTask&)> spacemap_impl = [this](GenericTask &task) {
 	/*
 		clabels match by definition

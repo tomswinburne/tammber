@@ -103,7 +103,7 @@ int main(int argc, char * argv[]) {
 			LOGGERA("LABELS: "<<labels.first<<" "<<labels.second<<" E:"<<energy
 				<<"eV, Clusters:"<<clusters
 				<<" Position:"<<position[0]<<" "<<position[1]<<" "<<position[2])
-
+			
 			#ifdef ISOMORPHIC
 			extract("SelfSymmetries",task.returns,self_symmetries);
 			LOGGERA("SelfSymmetries:")
