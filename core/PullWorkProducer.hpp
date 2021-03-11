@@ -273,7 +273,7 @@ bool processSend(){
 					//taskRequests.erase(it);
 					deleteRequest=true;
 					timer.stop("Send-Mesg");
-					break;
+					//break;
 				}
 				if(deleteRequest){
 					it=taskRequests.erase(it);
