@@ -1740,7 +1740,7 @@ std::set<PointShiftSymmetry> find_transforms(System &one, System two, std::map<i
 };
 
 bool SelfSymmetries(System &one, std::set<PointShiftSymmetry> &syms,bool return_maps=false) {
-	LOGGER("TADEngine::SelfSymmetries")
+	LOGGER("TADEngine::SelfSymmetries");
 	std::list<std::map<int,int>> amaps;
 	syms.clear();
 	BaseMDEngine::labeler->isomorphicSelfMaps(one,amaps);

@@ -295,7 +295,10 @@ void report(){
 	if(std::chrono::high_resolution_clock::now() - lastReport> reportDelay  ) {
 		Timer t;
 		timer.report();
-		LOGGERA("PENDING TASK REQUESTS: "<<taskRequests.size())
+
+		LOGGERA("PENDING TASK REQUESTS: ")
+		for(auto tr : taskRequests) LOGGERA(tr.first<<" : "<<tr.second)
+
 		report_impl();
 		lastReport=std::chrono::high_resolution_clock::now();
 	}
