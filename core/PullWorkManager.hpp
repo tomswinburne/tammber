@@ -421,7 +421,7 @@ void promoteTasks(){
 				break;
 			}
 		}
-		if(ready and workQueue.count()<=nWorkers) {
+		if(ready) {
 			workQueue.push(*it);
 			it=prefetch.tasks.erase(it);
 		} else {
