@@ -1497,7 +1497,7 @@ void TammberModel::generateTADs(std::list<TADjob> &jobs, int nMax) {
 		if(tot_count++ >= PredictionSize) break;
 	}
 
-	LOGGERA("=============PREDICTION===============")
+	LOGGER("=============PREDICTION===============")
 
 	tot_count=0;
 	for(auto &k: keysort) { // sorted in descending counts
@@ -1517,10 +1517,10 @@ void TammberModel::generateTADs(std::list<TADjob> &jobs, int nMax) {
 			jobs.push_back(job);
 			line += " ALLOC.";
 		}
-		LOGGERA(line)
+		LOGGER(line)
 		tot_count += count;
 	}
-	LOGGERA("======================================")
+	LOGGER("======================================")
 };
 
 void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
