@@ -258,6 +258,7 @@ virtual void report_impl(){
 		std::list<TADjob> jobs;
 		markovModel.generateTADs(jobs,100,true);
 		completedTasks.report();
+		LOGGERA("In TaskQueue: "<<taskQueue.count())
 	}
 };
 
