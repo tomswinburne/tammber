@@ -1479,7 +1479,7 @@ void TammberModel::bayes_ku_kuvar(std::vector<std::pair<double,double>> &k_fp,do
 	min_k = std::min(ku,min_k);
 };
 
-void TammberModel::generateTADs(std::list<TADjob> &jobs, int nMax) {
+void TammberModel::generateTADs(std::list<TADjob> &jobs, int nMax, bool screen) {
 	LOGGER("TammberModel::generateTADs")
 	std::map<Label,std::pair<double,double>> weights; // Label : (weight, temperature)
 	predict(weights);
@@ -1497,7 +1497,8 @@ void TammberModel::generateTADs(std::list<TADjob> &jobs, int nMax) {
 		if(tot_count++ >= PredictionSize) break;
 	}
 
-	LOGGER("=============PREDICTION===============")
+	if(screen) LOGGERA("=============PREDICTION===============")
+
 
 	tot_count=0;
 	for(auto &k: keysort) { // sorted in descending counts
@@ -1517,10 +1518,10 @@ void TammberModel::generateTADs(std::list<TADjob> &jobs, int nMax) {
 			jobs.push_back(job);
 			line += " ALLOC.";
 		}
-		LOGGER(line)
+		if(screen) LOGGERA(line)
 		tot_count += count;
 	}
-	LOGGER("======================================")
+	if(screen) LOGGERA("======================================")
 };
 
 void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
@@ -1578,7 +1579,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 			IndexLabel.push_back(v.first);
 			LabelIndex.insert(std::make_pair(v.first,IndexLabel.size()-1));
 			ms++;
-		} else LOGGER("STATE "<<v.first<<" NOT ALLOCATED");
+		} else if(screen) LOGGERA("STATE "<<v.first<<" NOT ALLOCATED");
 	}
 
 	bool solved_one = false;
@@ -1588,7 +1589,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 
 
 
-	LOGGERA("bar_count , state_count: "<<bar_count<<" , "<<ms)
+	if(screen) LOGGERA("bar_count , state_count: "<<bar_count<<" , "<<ms)
 
 	if(bar_count>0 && ms>0) {
 		// make matricies
@@ -1613,8 +1614,8 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 			if(StateVertices.at(IndexLabel[si]).energy<rho_minE) rho_minE = StateVertices.at(IndexLabel[si]).energy;
 			if(StateVertices.at(IndexLabel[si]).clusters<min_clust) min_clust = StateVertices.at(IndexLabel[si]).clusters;
 		}
-		LOGGERA("Minimum Energy: "<<rho_minE<<"eV")
-		LOGGERA("Minimum Cluster Count: "<<min_clust)
+		if(screen) LOGGERA("Minimum Energy: "<<rho_minE<<"eV")
+		if(screen) LOGGERA("Minimum Cluster Count: "<<min_clust)
 
 		for(int si=0; si<ms; si++) {
 			rhoboltz[si] = exp(-targetB*(StateVertices.at(IndexLabel[si]).energy - rho_minE));
@@ -1623,7 +1624,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 		for(int si=0; si<ms; si++) rhoboltz[si] /= rho_norm;
 		rho_norm=0.0;
 		for(int si=0; si<ms; si++) rho_norm += rhoboltz[si];
-		LOGGERA("Boltzmann Norm: "<<rho_norm)
+		if(screen) LOGGERA("Boltzmann Norm: "<<rho_norm)
 		int i,j;
 		double k;
 		std::vector<Eigen::Triplet<double>> LowTR_trip, LowTRT_trip;
@@ -1684,7 +1685,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 		// overwrite rho_init if Boltzmann chosen or initialstate not available
 		if (!found_init) {
 			for(int si=0; si<ms; si++) rhoinit[si] = rhoboltz[si];
-			LOGGERA("INITIAL STATE NOT FOUND; USING BOLTZ INITIAL DIST")
+			if(screen) LOGGERA("INITIAL STATE NOT FOUND; USING BOLTZ INITIAL DIST")
 		}
 
 		//LOGGER("Q:\n"<<LowTR<<"\nQ.T:\n"<<LowTRT<<"\nSelfQ.diagonal:\n"<<selfk)
@@ -1697,26 +1698,26 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 
 		// Solve for PiQ
 		solved_one = true;
-		LOGGERA("STARTING SPARSE LINEAR SOLVE FOR P.iQ = iQT.P")
+		if(screen) LOGGERA("STARTING SPARSE LINEAR SOLVE FOR P.iQ = iQT.P")
 		solver.compute(LowTRT);
 		if(solver.info()==Eigen::Success) {
-			LOGGERA("FACTORIZATION DONE")
+			if(screen) LOGGERA("FACTORIZATION DONE")
 			if(RhoInitFlavor==1) PiQ = solver.solve(rhoboltz);
 			else if (RhoInitFlavor==2) PiQ = solver.solve(flat);
 			else PiQ = solver.solve(rhoinit);
 			if(solver.info()!=Eigen::Success) solved_one=false;
-			else LOGGERA("SOLVED FOR P.iQ")
+			else if(screen) LOGGERA("SOLVED FOR P.iQ")
 		} else solved_one=false;
 
 		// Solve for iQ.1
 		solved_two = true;
-		LOGGERA("STARTING SPARSE LINEAR SOLVE FOR iQ.1")
+		if(screen) LOGGERA("STARTING SPARSE LINEAR SOLVE FOR iQ.1")
 		solver.compute(LowTR);
 		if(solver.info()==Eigen::Success) {
-			LOGGERA("FACTORIZATION DONE")
+			if(screen) LOGGERA("FACTORIZATION DONE")
 			iQI = solver.solve(ones);
 			if(solver.info()!=Eigen::Success) solved_two=false;
-			else LOGGERA("SOLVED FOR iQl")
+			else if(screen) LOGGERA("SOLVED FOR iQl")
 		} else solved_two=false;
 
 
@@ -1734,10 +1735,10 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 				if(max_allo<allocation[si]) max_allo = allocation[si];
 				if(min_allo>allocation[si]) min_allo = allocation[si];
 			}
-			LOGGERA("SOLVED; MAX/MIN ALLOCATION WEIGHT: "<<max_allo<<"/"<<min_allo)
+			if(screen) LOGGERA("SOLVED; MAX/MIN ALLOCATION WEIGHT: "<<max_allo<<"/"<<min_allo)
 
 			if(min_allo < 0. || max_allo <= 0.) {
-				LOGGERA("NEGATIVE/NONPOSITIVE ALLOCATION WEIGHTS!")
+				if(screen) LOGGERA("NEGATIVE/NONPOSITIVE ALLOCATION WEIGHTS!")
 				solved_one = false;
 				solved_two = false;
 			}
@@ -1762,13 +1763,15 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 			}
 			if(valid_time>0.0) valid_time_sd = PiQ.dot(iQI)*2./valid_time/valid_time-1.;
 			else valid_time_sd=0.0;
-			LOGGERA("SOLVED; VALIDITY TIME MEAN (RIF="<<RhoInitFlavor<<"): "<<valid_time<<"ps, "<<"VARIANCE/MEAN^2: "<<valid_time_sd)
-			LOGGERA("VALIDITY TIME (BOLTZ): "<<-rhoboltz.dot(iQI)<<"ps")
-			LOGGERA("VALIDITY TIME (DELTA) : "<<-rhoinit.dot(iQI)<<"ps")
-			LOGGERA("VALIDITY TIME (ONES) : "<<-flat.dot(iQI)<<"ps")
+			if(screen) {
+			  LOGGERA("SOLVED; VALIDITY TIME MEAN (RIF="<<RhoInitFlavor<<"): "<<valid_time<<"ps, "<<"VARIANCE/MEAN^2: "<<valid_time_sd)
+			  LOGGERA("VALIDITY TIME (BOLTZ): "<<-rhoboltz.dot(iQI)<<"ps")
+			  LOGGERA("VALIDITY TIME (DELTA) : "<<-rhoinit.dot(iQI)<<"ps")
+			  LOGGERA("VALIDITY TIME (ONES) : "<<-flat.dot(iQI)<<"ps")
+			}
 		} else {
 			for(int si=0; si<ms; si++) valid_time += 1.0 / ku[si];
-			LOGGERA("COULD NOT SOLVE; SUM OF INVERSE UNKNOWN RATES: "<<valid_time<<"ps")
+			if(screen) LOGGERA("COULD NOT SOLVE; SUM OF INVERSE UNKNOWN RATES: "<<valid_time<<"ps")
 		}
 
 		LOGGER("ku, ku*t, kuvar*t, pabs, alloc.:")
@@ -1781,12 +1784,12 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 
 		if(solved_one && solved_two) {
 			if (AllocScheme==1) {
-				LOGGERA("USING Pabs ALLOCATION")
+				if(screen) LOGGERA("USING Pabs ALLOCATION")
 				for(int si=0;si<ms;si++) {
 					weights.insert(std::make_pair(IndexLabel[si],std::make_pair(pabs[si],UnknownRates.at(IndexLabel[si]).optimal_temperature)));
 				}
 			} else { // default to 0
-				LOGGERA("USING GRADIENT ALLOCATION")
+				if(screen) LOGGERA("USING GRADIENT ALLOCATION")
 				for(int si=0;si<ms;si++) {
 					weights.insert(std::make_pair(IndexLabel[si],std::make_pair(allocation[si],UnknownRates.at(IndexLabel[si]).optimal_temperature)));
 				}
@@ -1796,19 +1799,19 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 		}
 
 		if(solved_two) {
-			LOGGERA("COULD NOT SOLVE GRADIENT: USING Pabs ALLOCATION")
+			if(screen) LOGGERA("COULD NOT SOLVE GRADIENT: USING Pabs ALLOCATION")
 			for(int si=0;si<ms;si++)
 				weights.insert(std::make_pair(IndexLabel[si],std::make_pair(pabs[si],tadT[0])));
 			return;
 		}
 	}
-	LOGGERA("COULD NOT SOLVE OR NETWORK TOO SMALL; USING 1/time ALLOCATION WEIGHTS")
+	if(screen) LOGGERA("COULD NOT SOLVE OR NETWORK TOO SMALL; USING 1/time ALLOCATION WEIGHTS")
 	double vt=0.0,Zsum=0.0,minE=10.0,rho_norm=0.0;
 	for(auto &v: StateVertices) minE = std::min(minE,v.second.energy);
 	for(auto &v: StateVertices) rho_norm += exp(-targetB*(v.second.energy-minE));
 	for(auto &v: StateVertices)
 		vt += exp(-targetB*(v.second.energy-minE))/rho_norm/std::max(1.0,v.second.target_state_time);
-	LOGGERA("APPROXIMATE VALIDITY TIME: "<<1.0/vt<<"ps")
+	if(screen) LOGGERA("APPROXIMATE VALIDITY TIME: "<<1.0/vt<<"ps")
 
 	Label lab;
 	double tw=0.0,mt=0.0,t,temp,emin,sw=0.0;

@@ -135,7 +135,7 @@ virtual void full_print() {
 	std::cout<<markovModel.info_str(true)<<std::endl;
 	if(modelStr) markovModel.write_model("MarkovModel.xml");
 	std::list<TADjob> jobs;
-	markovModel.generateTADs(jobs,100);
+	markovModel.generateTADs(jobs,100,true);
 };
 
 virtual void add_pathway(NEBPathway path) {

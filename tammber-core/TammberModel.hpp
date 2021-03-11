@@ -346,7 +346,7 @@ public:
 
 	void generateNEBs(std::list<NEBjob> &jobs, int nMax);
 
-	void generateTADs(std::list<TADjob> &jobs, int nMax);
+	void generateTADs(std::list<TADjob> &jobs, int nMax,bool screen);
 
 	void predict(std::map<Label,std::pair<double,double>> &weights);
 

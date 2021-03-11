@@ -254,6 +254,9 @@ virtual void report_impl(){
 		Timer t;
 		LOGGER(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now()-start).count()+carryOverTime)
 		LOGGERA(markovModel.info_str())
+		LOGGERA("PREDICTION WITH 100 WORKERS :")
+		std::list<TADjob> jobs;
+		markovModel.generateTADs(jobs,100,true);
 		completedTasks.report();
 	}
 };
@@ -273,10 +276,11 @@ virtual void full_print(bool model) {
 		}
 	}
 	// Print analysis to screen
-	std::cout<<markovModel.info_str(true)<<std::endl;
+	LOGGERA(markovModel.info_str(true))
 	if(model) markovModel.write_model("MarkovModel.xml");
 	std::list<TADjob> jobs;
-	markovModel.generateTADs(jobs,100);
+	LOGGERA("PREDICTION WITH 100 WORKERS :")
+	markovModel.generateTADs(jobs,100,true);
 
 };
 
@@ -364,8 +368,11 @@ virtual TaskDescriptorBundle generateTasks(int consumerID, int nTasks){
 	//batchSize=tasks.count();
 
 	std::list<TADjob> tads;
-	markovModel.generateTADs(tads,nTasks-batchSize);
-
+	#ifdef VERBOSE
+	markovModel.generateTADs(tads,nTasks-batchSize,true);
+	#else
+	markovModel.generateTADs(tads,nTasks-batchSize,false);
+	#endif
 	task.type=mapper.type("TASK_SEGMENT");
 	task.imposeOrdering=true;
 	task.optional=true;
