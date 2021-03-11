@@ -1482,7 +1482,7 @@ void TammberModel::bayes_ku_kuvar(std::vector<std::pair<double,double>> &k_fp,do
 void TammberModel::generateTADs(std::list<TADjob> &jobs, int nMax, bool screen) {
 	LOGGER("TammberModel::generateTADs")
 	std::map<Label,std::pair<double,double>> weights; // Label : (weight, temperature)
-	predict(weights);
+	predict(weights,screen);
 	jobs.clear();
 	int tot_count=0;
 	double sub_weight=0.0;
@@ -1524,7 +1524,7 @@ void TammberModel::generateTADs(std::list<TADjob> &jobs, int nMax, bool screen) 
 	if(screen) LOGGERA("======================================")
 };
 
-void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
+void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights,bool screen) {
 
 	// (re)calculate all rates TODO make this more efficient....
 	Rates.clear();

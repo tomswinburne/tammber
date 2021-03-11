@@ -348,7 +348,7 @@ public:
 
 	void generateTADs(std::list<TADjob> &jobs, int nMax,bool screen);
 
-	void predict(std::map<Label,std::pair<double,double>> &weights);
+	void predict(std::map<Label,std::pair<double,double>> &weights,bool screen);
 
 	void calculate_rates(SymmLabelPair el, Rate &kf, Rate &kb);// canonical labels
 
