@@ -6,7 +6,7 @@ set(CMAKE_C_COMPILER mpicc) # example value
 
 # Setting VERBOSE=1 will generate a lot of output for debugging purposes
 # To toggle LAMMPS output use the LogLammps option in input/ps-config.xml
-set(VERBOSE 1)
+set(VERBOSE 0)
 
 # BOOST_LOG is often raises linking errors- disabled by default, log to stdout
 set(USE_BOOST_LOG 0)
@@ -25,10 +25,6 @@ project (TAMMBER)
 
 enable_testing()
 
-if(VERBOSE)
-	message("VERBOSE OUTPUT ON")
-	add_definitions(-DVERBOSE -g)
-endif(VERBOSE)
 
 # Cmake modules/macros are in a subdirectory to keep this file cleaner
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules)
@@ -77,16 +73,32 @@ link_directories(${CMAKE_LIBRARY_PATH})
 file(GLOB CORE_FILES "core/*")
 file(GLOB TAMMBER_CORE_FILES "tammber-core/*")
 
-set(EXTRA_FLAGS -DLAMMPS_EXCEPTIONS -DLAMMPS_LIB_MPI -DISOMORPHIC -DBOOST_BIND_GLOBAL_PLACEHOLDERS)
+set(EXTRA_FLAGS -g -DLAMMPS_EXCEPTIONS -DLAMMPS_LIB_MPI -DISOMORPHIC -DBOOST_BIND_GLOBAL_PLACEHOLDERS)
 set(EXTRA_LINK_FLAGS pthread lammps_mpi)
 
 set(TAMMBER_TARGETS tammber tammber-dbextract tammber-analyze tammber-neb tammber-md)
+# must be subset of TAMMBER_TARGETS
+set(FORCED_VERBOSE_TARGETS tammber-md tammber-neb)
 
 add_executable(tammber ${CORE_FILES} ${TAMMBER_CORE_FILES} tammber/main.cpp)
 add_executable(tammber-dbextract ${CORE_FILES} ${TAMMBER_CORE_FILES} tammber/dbextract.cpp)
 add_executable(tammber-analyze ${CORE_FILES} ${TAMMBER_CORE_FILES} tammber/analyze.cpp)
 add_executable(tammber-neb ${CORE_FILES} ${TAMMBER_CORE_FILES} tammber/neb.cpp)
 add_executable(tammber-md ${CORE_FILES} ${TAMMBER_CORE_FILES} tammber/md.cpp)
+
+
+
+if(VERBOSE)
+	message("VERBOSE OUTPUT ON FOR ALL TARGETS")
+	add_definitions(-DVERBOSE -g)
+else()
+	if(FORCED_VERBOSE_TARGETS)
+		foreach(mytarget ${FORCED_VERBOSE_TARGETS})
+			message("FORCING VERBOSITY FOR ${mytarget}")
+			target_compile_definitions(${mytarget} PUBLIC VERBOSE)
+		endforeach(mytarget)
+	endif(FORCED_VERBOSE_TARGETS)
+endif(VERBOSE)
 
 if(EXTRA_FLAGS)
    message(STATUS "Compiling with these extra flags: ${EXTRA_FLAGS}")
