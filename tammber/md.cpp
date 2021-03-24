@@ -67,7 +67,11 @@ int main(int argc, char * argv[]) {
 
 		DriverHandleType handle(workerComm);
 
-		GenericTask task;
+		GenericTask task,task_seg;
+		task.type=mapper.type("TASK_INIT_MIN");
+		task.flavor=1;
+		task_seg.type=mapper.type("TASK_SEGMENT");
+		task_seg.flavor=1;
 
 		LOGGERA("TAMMBER-md::initializeSystems()")
 
@@ -82,14 +86,18 @@ int main(int argc, char * argv[]) {
 			double energy;
 			int clusters;
 			std::array<double,3> position;
+			TADSegment segment;
+			bool ProductionRun = false; // for testing
+			double temperature = config.get<double>("Configuration.MarkovModel.MinTemperature",100.0);
+			segment.InitialLabels = labels;
+			segment.temperature = temperature;
+
 			/*
 			This returns
 		  * returns: Labels, Clusters, Position, SelfSymmetries
 		  * outputData State
 			*/
 			task.clearInputs(); task.clearOutputs();
-			task.type=mapper.type("TASK_INIT_MIN");
-			task.flavor=1;
 			insert("Filename",task.arguments,initialConfiguration);
 			LOGGERA("REQUESTING "<<file_name)
 			handle.assign(task);
@@ -103,7 +111,7 @@ int main(int argc, char * argv[]) {
 			LOGGERA("LABELS: "<<labels.first<<" "<<labels.second<<" E:"<<energy
 				<<"eV, Clusters:"<<clusters
 				<<" Position:"<<position[0]<<" "<<position[1]<<" "<<position[2])
-			
+
 			#ifdef ISOMORPHIC
 			extract("SelfSymmetries",task.returns,self_symmetries);
 			LOGGERA("SelfSymmetries:")
@@ -111,24 +119,19 @@ int main(int argc, char * argv[]) {
 			#endif
 
 			extract("State",task.outputData,system);
-			double temperature = config.get<double>("Configuration.MarkovModel.MinTemperature",100.0);
+
+			LOGGERA("State has "<<system.getNAtoms()<<" atoms!");
+
+			task_seg.clearInputs(); task_seg.clearOutputs();
+
+			insert("TADSegment",task_seg.arguments,segment);
+			insert("ProductionRun",task_seg.arguments,ProductionRun);
+			insert("Minimum",task_seg.inputData,system);
+
 			LOGGERA("STARTING TASK_SEGMENT AT MarkovModel.MinTemperature = "<<temperature<<"K");
-			task.clear();
-
-			task.type=mapper.type("TASK_SEGMENT");
-			task.flavor=1;
-
-			TADSegment segment;
-			segment.InitialLabels = labels;
-			segment.temperature = temperature;
-			bool ProductionRun = false; // for testing
-			insert("TADSegment",task.arguments,segment);
-			insert("ProductionRun",task.arguments,ProductionRun);
-			insert("Minimium",task.inputData,system);
-
 			LOGGERA("TAMMBER-md: SUBMITTING SEGMENT "<<segment.submit_info_str())
-			handle.assign(task);
-			while(not handle.probe(task)) {};
+			handle.assign(task_seg);
+			while(not handle.probe(task_seg)) {};
 
 			extract("TADSegment",task.returns,segment);
 			LOGGERA("TAMMBER-md: OUTPUT SEGMENT "<<segment.info_str())
