@@ -106,7 +106,10 @@
   <OnlyNEBS> 0 </OnlyNEBS>
 
   <!-- Only sample in states with ClusterThresh clusters or less. Disabled if ClusterThresh<=0 -->
-  <ClusterThresh>1</ClusterThresh>
+  <ClusterThresh>0</ClusterThresh>
+
+  <!-- Only sample in states which have Prob(dephase) > DephaseThresh Disabled if DephaseThresh<=0 -->
+  <DephaseThresh>0.2</DephaseThresh>
 
 </MarkovModel>
 
@@ -117,9 +120,25 @@
 <Type> NullSystemModifier </Type>
 </SystemModifier>
 
-
 <StateLabeler>
 <Type> ConnectivityGraphStateLabeler </Type>
+<!-- Connectivity Graph Parameters.
+  TypeMaps connect MD atom types to TAMMBER atom types
+  Useful for alloy simulations in LAMMPS where a single species can have multiple
+  types- e.g. NiAl, Ni = 1 and Al = 2,3 in some models. In this case we
+  would have
+  <TypeMaps>
+    <TypeMap>1 1</TypeMap>
+    <TypeMap>2 2</TypeMap>
+    <TypeMap>3 2</TypeMap>
+  </TypeMaps>
+-->
+<TypeMaps>
+  <TypeMap>1 1</TypeMap>
+</TypeMaps>
+<!-- Cutoff radii for TAMMBER atom types
+In above NiAl example we would therefore specify (1,1), (2,2) and (1,2) cutoffs
+ -->
 <Bonds>
     <Bond>
         <Between> 1 1 </Between>
@@ -228,8 +247,8 @@
 <!-- dephasing blocks for segment - should be equal 1ps for energy minima -->
 <PreCorrelationTime> 1 </PreCorrelationTime>
 <!-- If a transition is detected, we "anneal" for AnnealingTime (sub-)blocks at
-a low AnnealingTemperature to check newly found state is somewhat stable -->
-<AnnealingTime>0.25</AnnealingTime>
+a low AnnealingTemperature to check newly found state is stable enough for sampling-->
+<AnnealingTime>0.5</AnnealingTime>
 <AnnealingTemperature>300.0</AnnealingTemperature>
 
 <MinimumSegmentLength> 1 </MinimumSegmentLength>
@@ -268,13 +287,20 @@ a low AnnealingTemperature to check newly found state is somewhat stable -->
 <Type> ConnectivityGraphStateLabeler </Type>
 </TaskParameter>
 
-<!-- CentroSymmetry parameters for cluster identification -->
+<!--
+CentroSymmetry parameters for cluster identification
+To disable, set CentroNeighbors = 0
+Routine will set entire system as cluster, with center of mass position
+-->
 <TaskParameter>
   <Task> TASK_CARVE </Task>
   <Flavor> 0 </Flavor>
   <CentroNeighbors> 8 </CentroNeighbors>
-  <Threshold>4.0</Threshold>
-  <!-- Relative Cutoff for connectivity after removing bulk atoms. Here, we set to second neighbor, i.e. a scaling of |[100]|/|[111]/2| = 2/sqrt(3) ~ 1.5 -->
+  <Threshold>0.1</Threshold>
+  <!--
+  Relative Cutoff for connectivity after removing bulk atoms.
+  Here, we set to second neighbor, i.e. a scaling of |[100]|/|[111]/2| = 2/sqrt(3) ~ 1.5
+  -->
   <RelativeCutoff>1.5</RelativeCutoff>
 </TaskParameter>
 

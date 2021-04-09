@@ -246,15 +246,16 @@ bool processSend(){
 
 	if(sendCompleted and not die) {
 		if(not taskRequests.empty()) {
-			//auto it=taskRequests.begin();
-			for(auto it=taskRequests.begin(); it!=taskRequests.end(); it++) {
 
-				//DataItem d;
+			// auto it=taskRequests.begin();
+			for(auto it=taskRequests.begin(); it!=taskRequests.end(); ) {
+
+				// DataItem d;
 				timer.start("Generate");
-				TaskDescriptorBundle tasks=generateTasks(it->first,it->second);
+				TaskDescriptorBundle tasks = generateTasks(it->first,it->second);
 
 				timer.stop("Generate");
-
+				bool deleteRequest=false;
 				if(tasks.count()>0) {
 					timer.start("Send-Mesg");
 					pack(sbuf,tasks);
@@ -269,9 +270,16 @@ bool processSend(){
 
 					MPI_Issend( &(sbuf[0]),sbuf.size(),MPI_BYTE,it->first,TASK_REQUEST_TAG, comm, &outgoingRequest);
 					sendCompleted=0;
-					taskRequests.erase(it);
+					//taskRequests.erase(it);
+					deleteRequest=true;
 					timer.stop("Send-Mesg");
-					break;
+					//break;
+				}
+				if(deleteRequest){
+					it=taskRequests.erase(it);
+				}
+				else{
+					it++;
 				}
 			}
 		}
@@ -287,7 +295,10 @@ void report(){
 	if(std::chrono::high_resolution_clock::now() - lastReport> reportDelay  ) {
 		Timer t;
 		timer.report();
-		LOGGERA("PENDING TASK REQUESTS: "<<taskRequests.size())
+
+		LOGGERA("PENDING TASK REQUESTS: ")
+		for(auto tr : taskRequests) LOGGERA(tr.first<<" : "<<tr.second)
+
 		report_impl();
 		lastReport=std::chrono::high_resolution_clock::now();
 	}

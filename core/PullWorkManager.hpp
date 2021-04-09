@@ -424,8 +424,7 @@ void promoteTasks(){
 		if(ready) {
 			workQueue.push(*it);
 			it=prefetch.tasks.erase(it);
-		}
-		else{
+		} else {
 			it++;
 		}
 	}

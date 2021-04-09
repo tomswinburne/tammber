@@ -123,6 +123,8 @@ void Connection::add_path(NEBPathway &path) {
 	}
 };
 
+
+
 void Connection::add_jump(double temperature, double _fpt, bool forwards) {
 	LOGGER("Connection::add_jump")
 	if(forwards) {
@@ -302,29 +304,25 @@ std::string StateVertex::info_str(double targetT,double eshift=0.0,double ku=0.0
 	return res;
 };
 
-void StateVertex::update(Label lab, double energy_) {
+void StateVertex::update(Label lab, double energy_,bool force) {
 	LOGGER("StateVertex::update")
-	if(energy>energy_) energy=energy_;
+	if(energy>energy_ or force) energy=energy_;
 	//reference_label.second = lab;
 };
 
-void StateVertex::update(Label lab, double energy_,int clust, std::array<double,3> pos) {
+void StateVertex::update(Label lab, double energy_,int clust, std::array<double,3> pos,bool force) {
 	LOGGER("StateVertex::update : UPDATING STATE")
-	if(energy>energy_) energy=energy_;
-	if(reference_label.second==lab && clust>0) {
+	update(lab,energy_,force);
+	if((reference_label.second==lab && clust>0) or force) {
 			clusters = clust;
 			position = pos;
 	}
 };
 
 
-void StateVertex::update(Label lab, double energy_,int clust, std::array<double,3> pos, std::set<PointShiftSymmetry> ss) {
+void StateVertex::update(Label lab, double energy_,int clust, std::array<double,3> pos, std::set<PointShiftSymmetry> ss, bool force) {
 	LOGGER("StateVertex::update : UPDATING STATE")
-	if(energy>energy_) energy=energy_;
-	if(reference_label.second==lab && clust>0) {
-			clusters = clust;
-			position = pos;
-	}
+	update(lab,energy_,clust,pos,force);
 	for(auto s:ss) self_symmetries.insert(s);
 };
 
@@ -386,7 +384,12 @@ void TammberModel::initialize(boost::property_tree::ptree &config,bool restart){
 	NEBCost = config.get<double>("Configuration.MarkovModel.NEBCost",1000.0);
 	RhoInitFlavor = config.get<int>("Configuration.MarkovModel.RhoInitFlavor",0);
 	AllocScheme = config.get<int>("Configuration.MarkovModel.AllocScheme",0);
+
 	ClusterThresh = config.get<int>("Configuration.MarkovModel.ClusterThresh",0);
+
+	// Need at least a 20% chance of dephasing otherwise we suppress
+	DephaseThresh = config.get<double>("Configuration.MarkovModel.DephaseThresh",0.2);
+
 	safe_opt = config.get<bool>("Configuration.MarkovModel.SafeOpt",true);
 	PredictionSize = config.get<int>("Configuration.MarkovModel.PredictionSize",10);
 	prefactorCountThresh = config.get<double>("Configuration.MarkovModel.PrefactorCountThresh",2.0);
@@ -421,7 +424,7 @@ int TammberModel::newIndex() {
 };
 
 // to be overloaded
-void TammberModel::add_vertex(LabelPair labels, double energy) {
+void TammberModel::add_vertex(LabelPair labels, double energy,bool force) {
 	LOGGER("TammberModel::add_vertex")
 	if(StateVertices.size()==0) InitialLabels = labels;
 	auto svp = StateVertices.find(labels.first);
@@ -429,10 +432,10 @@ void TammberModel::add_vertex(LabelPair labels, double energy) {
 		int id = newIndex(); // 0 index, should be unique even if states are deleted
 		LOGGER("ADDING VERTEX: "<<labels.first<<","<<labels.second<<" E:"<<energy<<"eV")
 		StateVertices.insert(std::make_pair(labels.first,StateVertex(labels,energy,id)));
-	} else svp->second.update(labels.second,energy);
+	} else svp->second.update(labels.second,energy,force);
 };
 
-void TammberModel::add_vertex(LabelPair labels, double energy, int clusters,std::array<double,3> pos) {
+void TammberModel::add_vertex(LabelPair labels, double energy, int clusters,std::array<double,3> pos, bool force) {
 	LOGGER("TammberModel::add_vertex")
 	if(StateVertices.size()==0) InitialLabels = labels;
 	auto svp = StateVertices.find(labels.first);
@@ -442,10 +445,10 @@ void TammberModel::add_vertex(LabelPair labels, double energy, int clusters,std:
 		StateVertices.insert(std::make_pair(labels.first,StateVertex(labels,energy,id)));
 	}
 	svp = StateVertices.find(labels.first);
-	svp->second.update(labels.second,energy,clusters,pos);
+	svp->second.update(labels.second,energy,clusters,pos,force);
 };
 
-void TammberModel::add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos, std::set<PointShiftSymmetry> ss) {
+void TammberModel::add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos, std::set<PointShiftSymmetry> ss,bool force) {
 	LOGGER("TammberModel::add_vertex")
 	if(StateVertices.size()==0) InitialLabels = labels;
 	auto svp = StateVertices.find(labels.first);
@@ -455,7 +458,7 @@ void TammberModel::add_vertex(LabelPair labels, double energy,int clusters,std::
 		StateVertices.insert(std::make_pair(labels.first,StateVertex(labels,energy,id)));
 	}
 	svp = StateVertices.find(labels.first);
-	svp->second.update(labels.second,energy,clusters,pos,ss);
+	svp->second.update(labels.second,energy,clusters,pos,ss,force);
 };
 
 // bare minimum edge
@@ -492,7 +495,7 @@ void TammberModel::add_edge(Transition tt) {
 };
 
 // could add some more here
-bool TammberModel::fault_check(TADSegment &seg){
+bool TammberModel::fault_check(TADSegment &seg) {
 	LOGGER("TammberModel::fault_check")
 	bool res = false;
 	//if(seg.InitialLabels.first==0||seg.InitialLabels.second==0) res=true;
@@ -590,8 +593,8 @@ void TammberModel::add_segment(TADSegment &seg) {
 void TammberModel::add_spacemaps(NEBPathway &path) {
 	LOGGER("TammberModel::add_spacemaps")
 	// first off, incorporate the spacemap results
-	add_vertex(path.InitialLabels,path.initialE);
-	add_vertex(path.FinalLabels,path.finalE);
+	add_vertex(path.InitialLabels,path.initialE,true);
+	add_vertex(path.FinalLabels,path.finalE,true);
 
 	// find verticies
 	auto initial_vertex = &(StateVertices.find(path.InitialLabels.first)->second);
@@ -710,8 +713,7 @@ bool TammberModel::add_duplicate(NEBPathway &path) {
 // from NEB
 void TammberModel::add_pathway(NEBPathway &path) {
 	LOGGER("TammberModel::add_pathway")
-	if(!path.valid && path.FoundTransitions.size()==0) {
-
+	if(!path.valid) {
 		std::string err_msg = "";
 		if(path.mismatch)
 			err_msg = "MISMATCHED / ERRONEOUS LABELS IN PATH! \n"
@@ -724,17 +726,19 @@ void TammberModel::add_pathway(NEBPathway &path) {
 		auto fep = StateEdges.find(CanonTrans(ftrans)); // corresponding edge
 
 		if(fep!=StateEdges.end()) {
-			// In any case, remove from requested NEBS
+			// In any case, remove from requestedNEBS
 			if(fep->second.requestedNEBS.find(NonCanonTrans(ftrans))!=fep->second.requestedNEBS.end())
 				fep->second.requestedNEBS.erase(fep->second.requestedNEBS.find(NonCanonTrans(ftrans)));
 
 			// In any case, remove from pending NEBS
 			if(fep->second.pendingNEBS.find(NonCanonTrans(ftrans))!=fep->second.pendingNEBS.end())
-				fep->second.requestedNEBS.erase(fep->second.requestedNEBS.find(NonCanonTrans(ftrans)));
+				fep->second.pendingNEBS.erase(fep->second.pendingNEBS.find(NonCanonTrans(ftrans)));
 
 			// Add to failed NEBS TO BE RENAMED!
 			fep->second.requestedPMS.insert(NonCanonTrans(ftrans));
 		}
+		// add these anyway?
+		//add_transitionMaps(path);
 		return;
 	}
 
@@ -756,14 +760,18 @@ void TammberModel::add_pathway(NEBPathway &path) {
 	if(path.valid && !multijump) { // we have a normal result
 		transitionMap[trans] = trans; // i.e. identity. This is only if multijump==false
 		transitionMap[trans.rev()] = trans.rev();
+
 		// If NEB found equivalent transitions- incorporate
 		bool duplicate = add_duplicate(path);
-		// Otherwise, we add a new connection
+
 		if (!duplicate) {
-			Connection conn(path);
-			ep->connections.insert(std::make_pair(tl,conn));
-			PointShiftSymmetry op; op.valid=true;
-			ep->self_edge_map[tl] = std::make_pair(tl,op); // i.e. identity operator
+			// overwrite by default
+			if(ep->connections.find(tl)!=ep->connections.end())
+				ep->connections.erase(tl);
+				Connection conn(path);
+				ep->connections.insert(std::make_pair(tl,conn));
+				PointShiftSymmetry op; op.valid=true;
+				ep->self_edge_map[tl] = std::make_pair(tl,op); // i.e. identity operator
 		}
 	}
 
@@ -925,6 +933,7 @@ void TammberModel::write_model(std::string mmfile) {
 		unknown_rate(v.first,ku);
 		v.second.target_state_time = v.second.state_time(targetT);
 		double emin = (log(v.second.target_state_time)+LOG_NU_MIN)*BOLTZ*targetT;
+		double dephase_ratio = (double)(v.second.duration)/std::max(1.0,(double)(v.second.duration+v.second.overhead));
 		res<<"  <Vertex>\n";
 		res<<"    <CanonLabel>"<<v.second.reference_label.first<<"</CanonLabel>\n";
 		res<<"    <ReferenceLabel>"<<v.second.reference_label.second<<"</ReferenceLabel>\n";
@@ -934,6 +943,8 @@ void TammberModel::write_model(std::string mmfile) {
 		res<<"    <Temperature>"<<targetT<<"</Temperature>\n";
 		res<<"    <TADBarrier>"<<emin<<"</TADBarrier>\n";
 		res<<"    <NClusters>"<<v.second.clusters<<"</NClusters>\n";
+		res<<"    <DephaseRatio>"<<dephase_ratio<<"</DephaseRatio>\n";
+		res<<"    <Allocated>"<<int(allow_allocation(v.first))<<"</Allocated>\n";
 		res<<"    <Position>"<<v.second.position[0]<<" "<<v.second.position[1]<<" "<<v.second.position[2]<<"</Position>\n";
 		if(v.second.self_symmetries.size()>0){
 			res<<"    <SelfSymmetries>\n";
@@ -1205,8 +1216,8 @@ std::list<std::pair<SymmLabelPair,std::pair< std::array<double,6>,PointShiftSymm
 		}
 		sres[int(!forwards)]=dE.first;
 		sres[int(forwards)] =dE.second;
-		sres[2+int(!forwards)]=conn.second.nu.first;
-		sres[2+int(forwards)] =conn.second.nu.second;
+		sres[2+int(!forwards)] = conn.second.nu.first < 1.0e-4 ? PRIOR_NU : conn.second.nu.first;
+		sres[2+int(forwards)] = conn.second.nu.second < 1.0e-4 ? PRIOR_NU : conn.second.nu.second;
 		sres[4] = conn.second.dX;
 		sres[5] = conn.second.Ftol;
 		slab.first = (forwards ? conn.first.first : conn.first.second);
@@ -1245,13 +1256,50 @@ std::list<std::pair<SymmLabelPair,std::pair< std::array<double,6>,PointShiftSymm
 	return res;
 };
 
-void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
-	LOGGER("TammberModel::unknown_rate")
-	double emin, htt, htmr, ht_kuvar,_kc,opt_rate, tar_rate, max_benefit=-10.,Tr;
-	std::vector< std::pair<double,double> > ht_ku_tot_k,k_fp;
+bool TammberModel::allow_allocation(Label lab) {
 
+	if(StateVertices.find(lab)==StateVertices.end()) return false;
 
 	auto v = &(StateVertices.find(lab)->second);
+
+	bool cancel_dephase = false;
+	if(DephaseThresh>0.0) {
+		double dephase_ratio = (double)(v->duration)/std::max(1.0,(double)(v->duration+v->overhead));
+		if(dephase_ratio < DephaseThresh and v->overhead>10) cancel_dephase = true;
+	}
+
+	bool cancel_cluster = false;
+	if(ClusterThresh>0.0 and v->clusters>ClusterThresh) cancel_cluster = true;
+
+	if(cancel_dephase or cancel_cluster) {
+		LOGGERA("SUPPRESSING ALLOCATION TO "<<lab<<" : ClusterThresh:"<<cancel_cluster<<" DephaseThresh:"<<cancel_dephase)
+		return false;
+	}
+	return true;
+};
+
+void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
+	LOGGER("TammberModel::unknown_rate")
+
+	double emin, htt, htmr, ht_kuvar,_kc;
+	double var_correction,opt_rate, tar_rate, max_benefit=-10.,Tr;
+	std::vector< std::pair<double,double> > ht_ku_tot_k,k_fp;
+        std::vector<double> benefit;
+
+	auto v = &(StateVertices.find(lab)->second);
+
+	double dephase_ratio = (double)(v->duration)/std::max(1.0,(double)(v->duration+v->overhead));
+	if(dephase_ratio < DephaseThresh and v->overhead>10) {
+		LOGGER("TammberModel::unknown_rate "<<lab<<" DEPHASE LIMIT")
+		ku.observed_rate = 10.0;
+		ku.unknown_rate = TINY;
+		ku.unknown_variance = 2.0*TINY;
+		ku.optimal_temperature = tadT[0];
+		ku.optimal_temperature_index = 0;
+		ku.optimal_rate = TINY;
+		ku.min_rate = TINY;
+		return;
+	}
 
 	v->target_state_time = v->state_time(targetT);
 
@@ -1293,26 +1341,35 @@ void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 			htmr=0.0; ht_kuvar=0.0; // not used...
 			bayes_ku_kuvar(k_fp, ht_ku_tot_k[ii].first, ht_kuvar, htmr, ht_ku_tot_k[ii].second, htt);
 		}
-
+		benefit.clear();
 		// now find best temperature
 		for(int ii=0;ii<tadT.size();ii++) {
-			// in optimization, we only have ratio of times: htt/ltt : exp(emin(1-targetT/T))
-			// htt/ltt * lt_kuv + lt_minr * ht_ku OR (htt/ltt - ht_ku/lt_ku) * lt_kuv + lt_minr * ht_ku
-			_kc = exp( emin * (1.0-targetT/tadT[ii]) ) * ku.unknown_variance + ku.min_rate * ht_ku_tot_k[ii].first;
-			if(!safe_opt) _kc -= ht_ku_tot_k[ii].first / ku.unknown_rate * ku.unknown_variance;
+
+			// dku/dc = P(dephase) * dku/dt / (dc/dt)
+
+			// dku/dt = min_k_lt * ku_ht + (tau_lt/tau_ht * T_h/T_l - ku_ht/ku_lt)*ku_var_lt
+			_kc = ku.min_rate * ht_ku_tot_k[ii].first;
+			var_correction = (tadT[ii]/targetT) * exp( emin * (1.0-targetT/tadT[ii]) ) * ku.unknown_variance;
+			var_correction += ht_ku_tot_k[ii].first / ku.unknown_rate * ku.unknown_variance;
+			if(var_correction>0.0 && !safe_opt) _kc += var_correction;
+			// 1 / (dc/dt)
 			_kc /= 1. + HashCost * ht_ku_tot_k[ii].second + (HashCost+NEBCost) * ht_ku_tot_k[ii].first;
+			// * P(dephase in 1 ps)
+			_kc *= exp(- (ht_ku_tot_k[ii].first + ht_ku_tot_k[ii].second) );
 
 			if(boost::math::isnan(_kc)) {
 				_kc = 1.0/v->target_state_time/v->target_state_time;
 				LOGGER("Cost return is NaN! state,time,T = "<<lab<<", "<<v->target_state_time<<", "<<tadT[ii]<<" new kc:"<<_kc)
 			}
-			if(_kc > max_benefit) {
-				max_benefit = _kc;
-				ku.optimal_temperature = tadT[ii];
-				ku.optimal_temperature_index = ii;
-				ku.optimal_rate = ht_ku_tot_k[ii].first;
-				ku.optimal_gradient = _kc;
-			}
+			benefit.push_back(_kc);
+			if(_kc > max_benefit) max_benefit = _kc;
+		}
+
+		for(int ii=0;ii<tadT.size();ii++) if(benefit[ii]>=0.99*max_benefit) {
+			ku.optimal_temperature = tadT[ii];
+			ku.optimal_temperature_index = ii;
+			ku.optimal_rate = ht_ku_tot_k[ii].first;
+			ku.optimal_gradient = benefit[ii];
 		}
 
 		// Now refill without SelfRates....
@@ -1322,9 +1379,15 @@ void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 			htt = v->target_state_time * exp( emin * (targetT/tadT[ku.optimal_temperature_index]-1.0) );
 			htmr=0.0; ht_kuvar=0.0; // not used...
 			bayes_ku_kuvar(k_fp, ht_ku_tot_k[ku.optimal_temperature_index].first, ht_kuvar, htmr, ht_ku_tot_k[ku.optimal_temperature_index].second, htt);
-			_kc = exp( emin * (1.0-targetT/tadT[ku.optimal_temperature_index]) ) * ku.unknown_variance + ku.min_rate * ht_ku_tot_k[ku.optimal_temperature_index].first;
-			if(!safe_opt) _kc -= ht_ku_tot_k[ku.optimal_temperature_index].first / ku.unknown_rate * ku.unknown_variance;
+
+			//---
+			_kc = ku.min_rate * ht_ku_tot_k[ku.optimal_temperature_index].first;
+			var_correction = tadT[ku.optimal_temperature_index]/targetT * exp( emin * (1.0-targetT/tadT[ku.optimal_temperature_index]) ) * ku.unknown_variance;
+			var_correction -= ht_ku_tot_k[ku.optimal_temperature_index].first / ku.unknown_rate * ku.unknown_variance;
+			if(var_correction > 0. && !safe_opt) _kc += var_correction;
 			_kc /= 1. + HashCost * ht_ku_tot_k[ku.optimal_temperature_index].second + (HashCost+NEBCost) * ht_ku_tot_k[ku.optimal_temperature_index].first;
+			_kc *= exp(-(ht_ku_tot_k[ku.optimal_temperature_index].first + ht_ku_tot_k[ku.optimal_temperature_index].second));
+			//----
 			ku.optimal_rate = ht_ku_tot_k[ku.optimal_temperature_index].first;
 			ku.optimal_gradient = _kc;
 		} else {
@@ -1416,10 +1479,10 @@ void TammberModel::bayes_ku_kuvar(std::vector<std::pair<double,double>> &k_fp,do
 	min_k = std::min(ku,min_k);
 };
 
-void TammberModel::generateTADs(std::list<TADjob> &jobs, int nMax) {
+void TammberModel::generateTADs(std::list<TADjob> &jobs, int nMax, bool screen) {
 	LOGGER("TammberModel::generateTADs")
 	std::map<Label,std::pair<double,double>> weights; // Label : (weight, temperature)
-	predict(weights);
+	predict(weights,screen);
 	jobs.clear();
 	int tot_count=0;
 	double sub_weight=0.0;
@@ -1434,7 +1497,8 @@ void TammberModel::generateTADs(std::list<TADjob> &jobs, int nMax) {
 		if(tot_count++ >= PredictionSize) break;
 	}
 
-	LOGGERA("=============PREDICTION===============")
+	if(screen) LOGGERA("=============PREDICTION===============")
+
 
 	tot_count=0;
 	for(auto &k: keysort) { // sorted in descending counts
@@ -1454,42 +1518,48 @@ void TammberModel::generateTADs(std::list<TADjob> &jobs, int nMax) {
 			jobs.push_back(job);
 			line += " ALLOC.";
 		}
-		LOGGERA(line)
+		if(screen) LOGGERA(line)
 		tot_count += count;
 	}
-	LOGGERA("======================================")
+	if(screen) LOGGERA("======================================")
 };
 
-void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
+void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights,bool screen) {
 
 	// (re)calculate all rates TODO make this more efficient....
 	Rates.clear();
 	SelfRates.clear();
+
 	unsigned bar_count=0;
 
 	for(auto &el: StateEdges) {
 		Rate kf,kb;
-		calculate_rates(el.first,kf,kb);
 
+		calculate_rates(el.first,kf,kb);
 
 		LOGGER(el.first.first<<" "<<el.first.second<<" : "<<kf.target_k_fp.first<<" "<<kb.target_k_fp.first)
 
 		if(kf.target_k_fp.first<1.0e-30 || kb.target_k_fp.first<1.0e-30) continue;
 
 		if(el.first.first==el.first.second) { // SelfRates
+
 			if(SelfRates.find(el.first.first)==SelfRates.end())
 				SelfRates.insert( std::make_pair(el.first.first, *(new std::map<Label,Rate>) ) );
+
 			SelfRates.at(el.first.first).insert(std::make_pair(el.first.second,kf));
-			//SelfRates.at(el.first.second).insert(std::make_pair(el.first.first,kb));
+
 		} else {
 
 			if(Rates.find(el.first.first)==Rates.end())
 				Rates.insert( std::make_pair(el.first.first, *(new std::map<Label,Rate>) ) );
+
 			Rates.at(el.first.first).insert(std::make_pair(el.first.second,kf));
 
 			if(Rates.find(el.first.second)==Rates.end())
 				Rates.insert( std::make_pair(el.first.second, *(new std::map<Label,Rate>) ) );
+
 			Rates.at(el.first.second).insert(std::make_pair(el.first.first,kb));
+
 			bar_count++;
 		}
 	}
@@ -1504,21 +1574,22 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 		UnknownRate ku;
 		unknown_rate(v.first,ku);
 		UnknownRates.insert(std::make_pair(v.first,ku));
-		// being very careful basically- only when there are rates and unknown_rates do we do anything...
-		if(Rates.find(v.first)!=Rates.end() && ku.unknown_rate>0.0) {
+		// being very careful- only when unknown_rate exists do we do anything...
+		if(ku.unknown_rate>0.0 && allow_allocation(v.first)) {
 			IndexLabel.push_back(v.first);
 			LabelIndex.insert(std::make_pair(v.first,IndexLabel.size()-1));
 			ms++;
-		}
+		} else if(screen) LOGGERA("STATE "<<v.first<<" NOT ALLOCATED");
 	}
 
 	bool solved_one = false;
 	bool solved_two = false;
+
 	std::vector<double> allocation(ms,0.0), pabs(ms,0.0), ku(ms,0.0), kuvar(ms,0.0), times(ms,0.0);
 
 
 
-	LOGGERA("bar_count , ms: "<<bar_count<<" , "<<ms)
+	if(screen) LOGGERA("bar_count , state_count: "<<bar_count<<" , "<<ms)
 
 	if(bar_count>0 && ms>0) {
 		// make matricies
@@ -1537,14 +1608,14 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 		}
 
 		// Boltzmann
-		int min_clust=10;
+		int min_clust=100000;
 		double rho_minE = 10.,rho_norm=0.0;
 		for(int si=0; si<ms; si++) {
 			if(StateVertices.at(IndexLabel[si]).energy<rho_minE) rho_minE = StateVertices.at(IndexLabel[si]).energy;
 			if(StateVertices.at(IndexLabel[si]).clusters<min_clust) min_clust = StateVertices.at(IndexLabel[si]).clusters;
 		}
-		LOGGERA("Minimum Energy: "<<rho_minE<<"eV")
-		LOGGERA("Minimum Cluster Count: "<<min_clust)
+		if(screen) LOGGERA("Minimum Energy: "<<rho_minE<<"eV")
+		if(screen) LOGGERA("Minimum Cluster Count: "<<min_clust)
 
 		for(int si=0; si<ms; si++) {
 			rhoboltz[si] = exp(-targetB*(StateVertices.at(IndexLabel[si]).energy - rho_minE));
@@ -1553,12 +1624,14 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 		for(int si=0; si<ms; si++) rhoboltz[si] /= rho_norm;
 		rho_norm=0.0;
 		for(int si=0; si<ms; si++) rho_norm += rhoboltz[si];
-		LOGGERA("Boltzmann Norm: "<<rho_norm)
+		if(screen) LOGGERA("Boltzmann Norm: "<<rho_norm)
 		int i,j;
 		double k;
 		std::vector<Eigen::Triplet<double>> LowTR_trip, LowTRT_trip;
 		LowTR_trip.reserve(bar_count);
 		LowTRT_trip.reserve(bar_count);
+
+		// go through all states
 		for(auto &l_i: LabelIndex) {
 			i = l_i.second;
 
@@ -1567,16 +1640,22 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 					selfk[i] += jr.second.target_k_fp.first;
 
 			auto ku = UnknownRates.find(l_i.first)->second;
+
 			ku.observed_rate = 0.0;
+
 			for(auto &jr: Rates.find(l_i.first)->second) { // std::map<Label,Rate>
-				j = LabelIndex[jr.first];
 				k = jr.second.target_k_fp.first;
+				if(LabelIndex.find(jr.first)==LabelIndex.end()) {
+					ku.observed_rate += k;
+					continue;
+				}
+				j = LabelIndex[jr.first];
 				if(i!=j) {
 					LowTR_trip.push_back(Eigen::Triplet<double>(i,j,k));
 					LowTRT_trip.push_back(Eigen::Triplet<double>(j,i,k));
 					ku.observed_rate += k;
 				} else {
-					LOGGER("i==i in Rates()! : "<<l_i.first<<" "<<jr.first<<" "<<i)
+					LOGGER("i<->i in Rates()! : "<<l_i.first<<" "<<jr.first<<" "<<i)
 					selfk[i] += k;
 				}
 			}
@@ -1606,7 +1685,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 		// overwrite rho_init if Boltzmann chosen or initialstate not available
 		if (!found_init) {
 			for(int si=0; si<ms; si++) rhoinit[si] = rhoboltz[si];
-			LOGGERA("INITIAL STATE NOT FOUND; USING BOLTZ INITIAL DIST")
+			if(screen) LOGGERA("INITIAL STATE NOT FOUND; USING BOLTZ INITIAL DIST")
 		}
 
 		//LOGGER("Q:\n"<<LowTR<<"\nQ.T:\n"<<LowTRT<<"\nSelfQ.diagonal:\n"<<selfk)
@@ -1619,26 +1698,26 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 
 		// Solve for PiQ
 		solved_one = true;
-		LOGGERA("STARTING SPARSE LINEAR SOLVE FOR P.iQ = iQT.P")
+		if(screen) LOGGERA("STARTING SPARSE LINEAR SOLVE FOR P.iQ = iQT.P")
 		solver.compute(LowTRT);
 		if(solver.info()==Eigen::Success) {
-			LOGGERA("FACTORIZATION DONE")
+			if(screen) LOGGERA("FACTORIZATION DONE")
 			if(RhoInitFlavor==1) PiQ = solver.solve(rhoboltz);
 			else if (RhoInitFlavor==2) PiQ = solver.solve(flat);
 			else PiQ = solver.solve(rhoinit);
 			if(solver.info()!=Eigen::Success) solved_one=false;
-			else LOGGERA("SOLVED FOR P.iQ")
+			else if(screen) LOGGERA("SOLVED FOR P.iQ")
 		} else solved_one=false;
 
 		// Solve for iQ.1
 		solved_two = true;
-		LOGGERA("STARTING SPARSE LINEAR SOLVE FOR iQ.1")
+		if(screen) LOGGERA("STARTING SPARSE LINEAR SOLVE FOR iQ.1")
 		solver.compute(LowTR);
 		if(solver.info()==Eigen::Success) {
-			LOGGERA("FACTORIZATION DONE")
+			if(screen) LOGGERA("FACTORIZATION DONE")
 			iQI = solver.solve(ones);
 			if(solver.info()!=Eigen::Success) solved_two=false;
-			else LOGGERA("SOLVED FOR iQl")
+			else if(screen) LOGGERA("SOLVED FOR iQl")
 		} else solved_two=false;
 
 
@@ -1646,18 +1725,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 		if (solved_one) {
 			st_norm = 0.0;
 			for(int si=0; si<ms; si++) {
-				allocation[si] = iQI[si] * PiQ[si] * UnknownRates.at(IndexLabel[si]).optimal_gradient;
-
-				if(allocation[si]<0.) {
-					LOGGERA("NEGATIVE ALLOC FOR STATE "<<IndexLabel[si]<<": "<<allocation[si]<<" -> 0")
-					allocation[si]=0.; // hard condition
-				}
-
-				if(StateVertices.at(IndexLabel[si]).clusters>std::max(ClusterThresh,min_clust)) {
-					LOGGERA("STATE "<<IndexLabel[si]<<" HAS "<<StateVertices.at(IndexLabel[si]).clusters<<" > "<<std::max(ClusterThresh,min_clust)<<" Clusters; SET TO ABSORBING (TBI) -> 0")
-					allocation[si]=0.; // hard condition
-				}
-
+				allocation[si] = std::max(0.0,iQI[si] * PiQ[si] * UnknownRates.at(IndexLabel[si]).optimal_gradient);
 				st_norm += allocation[si];
 			}
 			max_allo=0.;
@@ -1667,10 +1735,10 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 				if(max_allo<allocation[si]) max_allo = allocation[si];
 				if(min_allo>allocation[si]) min_allo = allocation[si];
 			}
-			LOGGERA("SOLVED; MAX/MIN ALLOCATION WEIGHT: "<<max_allo<<"/"<<min_allo)
+			if(screen) LOGGERA("SOLVED; MAX/MIN ALLOCATION WEIGHT: "<<max_allo<<"/"<<min_allo)
 
 			if(min_allo < 0. || max_allo <= 0.) {
-				LOGGERA("NEGATIVE/NONPOSITIVE ALLOCATION WEIGHTS!")
+				if(screen) LOGGERA("NEGATIVE/NONPOSITIVE ALLOCATION WEIGHTS!")
 				solved_one = false;
 				solved_two = false;
 			}
@@ -1681,12 +1749,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 			st_norm = 0.0;
 			for(int si=0; si<ms; si++) {
 				valid_time += -PiQ[si];
-				pabs[si] = -PiQ[si] * ku[si];
-				if(ku[si]<=0.0) pabs[si] = 0.; // hard condition
-				if(StateVertices.at(IndexLabel[si]).clusters>std::max(ClusterThresh,min_clust)) {
-					LOGGERA("STATE "<<IndexLabel[si]<<" HAS "<<StateVertices.at(IndexLabel[si]).clusters<<" > "<<std::max(ClusterThresh,min_clust)<<" Clusters; SET TO ABSORBING (TBI) -> 0")
-					pabs[si] = 0.; // hard condition
-				}
+				pabs[si] = std::max(-PiQ[si] * ku[si],0.0);
 				st_norm += pabs[si];
 			}
 			for(int si=0; si<ms; si++) pabs[si] /= st_norm;
@@ -1700,13 +1763,15 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 			}
 			if(valid_time>0.0) valid_time_sd = PiQ.dot(iQI)*2./valid_time/valid_time-1.;
 			else valid_time_sd=0.0;
-			LOGGERA("SOLVED; VALIDITY TIME MEAN (RIF="<<RhoInitFlavor<<"): "<<valid_time<<"ps, "<<"VARIANCE/MEAN^2: "<<valid_time_sd)
-			LOGGERA("VALIDITY TIME (BOLTZ): "<<-rhoboltz.dot(iQI)<<"ps")
-			LOGGERA("VALIDITY TIME (DELTA) : "<<-rhoinit.dot(iQI)<<"ps")
-			LOGGERA("VALIDITY TIME (ONES) : "<<-flat.dot(iQI)<<"ps")
+			if(screen) {
+			  LOGGERA("SOLVED; VALIDITY TIME MEAN (RIF="<<RhoInitFlavor<<"): "<<valid_time<<"ps, "<<"VARIANCE/MEAN^2: "<<valid_time_sd)
+			  LOGGERA("VALIDITY TIME (BOLTZ): "<<-rhoboltz.dot(iQI)<<"ps")
+			  LOGGERA("VALIDITY TIME (DELTA) : "<<-rhoinit.dot(iQI)<<"ps")
+			  LOGGERA("VALIDITY TIME (ONES) : "<<-flat.dot(iQI)<<"ps")
+			}
 		} else {
 			for(int si=0; si<ms; si++) valid_time += 1.0 / ku[si];
-			LOGGERA("COULD NOT SOLVE; SUM OF INVERSE UNKNOWN RATES: "<<valid_time<<"ps")
+			if(screen) LOGGERA("COULD NOT SOLVE; SUM OF INVERSE UNKNOWN RATES: "<<valid_time<<"ps")
 		}
 
 		LOGGER("ku, ku*t, kuvar*t, pabs, alloc.:")
@@ -1719,12 +1784,12 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 
 		if(solved_one && solved_two) {
 			if (AllocScheme==1) {
-				LOGGERA("USING Pabs ALLOCATION")
+				if(screen) LOGGERA("USING Pabs ALLOCATION")
 				for(int si=0;si<ms;si++) {
 					weights.insert(std::make_pair(IndexLabel[si],std::make_pair(pabs[si],UnknownRates.at(IndexLabel[si]).optimal_temperature)));
 				}
 			} else { // default to 0
-				LOGGERA("USING GRADIENT ALLOCATION")
+				if(screen) LOGGERA("USING GRADIENT ALLOCATION")
 				for(int si=0;si<ms;si++) {
 					weights.insert(std::make_pair(IndexLabel[si],std::make_pair(allocation[si],UnknownRates.at(IndexLabel[si]).optimal_temperature)));
 				}
@@ -1734,29 +1799,29 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 		}
 
 		if(solved_two) {
-			LOGGERA("COULD NOT SOLVE GRADIENT: USING Pabs ALLOCATION")
+			if(screen) LOGGERA("COULD NOT SOLVE GRADIENT: USING Pabs ALLOCATION")
 			for(int si=0;si<ms;si++)
 				weights.insert(std::make_pair(IndexLabel[si],std::make_pair(pabs[si],tadT[0])));
 			return;
 		}
 	}
-	LOGGERA("COULD NOT SOLVE OR NETWORK TOO SMALL; USING 1/time ALLOCATION WEIGHTS")
+	if(screen) LOGGERA("COULD NOT SOLVE OR NETWORK TOO SMALL; USING 1/time ALLOCATION WEIGHTS")
 	double vt=0.0,Zsum=0.0,minE=10.0,rho_norm=0.0;
 	for(auto &v: StateVertices) minE = std::min(minE,v.second.energy);
 	for(auto &v: StateVertices) rho_norm += exp(-targetB*(v.second.energy-minE));
 	for(auto &v: StateVertices)
 		vt += exp(-targetB*(v.second.energy-minE))/rho_norm/std::max(1.0,v.second.target_state_time);
-	LOGGERA("APPROXIMATE VALIDITY TIME: "<<1.0/vt<<"ps")
+	if(screen) LOGGERA("APPROXIMATE VALIDITY TIME: "<<1.0/vt<<"ps")
 
 	Label lab;
 	double tw=0.0,mt=0.0,t,temp,emin,sw=0.0;
 
 	for(auto &v: StateVertices) {
 		t = std::max(1.0,v.second.target_state_time);
-		if(v.second.clusters>ClusterThresh) {
-			LOGGERA("STATE "<<v.first<<" HAS "<<v.second.clusters<<" > "<<ClusterThresh<<" Clusters; NO ALLOCATION (TBI) -> 0")
-		} else tw += 1.0/t;
-		mt = std::max(mt,t);
+		if(allow_allocation(v.first)) {
+			tw += 1.0/t;
+			mt = std::max(mt,t);
+		}
 	}
 
 	for(auto &v: StateVertices) {
@@ -1769,8 +1834,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights) {
 		temp = std::min(*std::prev(tadT.end()),temp);
 		lab = v.first;
 		t = std::max(1.0,v.second.target_state_time);
-		sw = 1.0/tw/t;
-		if(v.second.clusters>ClusterThresh) sw = 0.0;
+		sw = allow_allocation(lab) ? 1.0/tw/t : 0.0;
 		weights.insert(std::make_pair(lab,std::make_pair(sw,temp)));
 	}
 

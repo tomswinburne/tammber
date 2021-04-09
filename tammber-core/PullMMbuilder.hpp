@@ -146,6 +146,7 @@ void initializeSystems() {
 	std::string testfn;
 	for(auto initialConfiguration : initialConfigurations) {
 		boost::trim(initialConfiguration);
+		LOGGER("PullMMbuilder::initializeSystems() : loading "<<initialConfiguration)
 		if(initialConfiguration.length()==0) continue;
 		TaskDescriptor task;
 		task.type=mapper.type("TASK_INIT_MIN");
@@ -165,15 +166,20 @@ void initializeSystems() {
 	std::list<GenericTask> tasks;
 	//std::set<LabelPair> initialStateSet;
 	int counts=0,pcount;
+	unsigned int sleepms=500;
 	if(initialConfigurations.size()==1) {
 		bool init=false;
 		while(not init) {
+			LOGGER("PullMMbuilder::initializeSystems() : "<<init)
 			processSend();
 			processRecv();
 			ready.extract(mapper.type("TASK_INIT_MIN"),tasks);
 			init=bool(tasks.size()>0);
+			LOGGER("PullMMbuilder::initializeSystems() : Waiting "<<sleepms<<"ms to check initialization")
+			std::this_thread::sleep_for(std::chrono::milliseconds(sleepms));
 		}
 	} else while(counts<initialConfigurations.size()) {
+		LOGGER("PullMMbuilder::initializeSystems() : "<<counts<<","<<initialConfigurations.size())
 		processSend();
 		processRecv();
 		pcount = tasks.size();
@@ -183,7 +189,11 @@ void initializeSystems() {
 		if (tasks.size()!=pcount) {
 			LOGGERA("Counts:"<<counts<<" "<<tasks.size()<<" "<<initialConfigurations.size())
 		}
+		LOGGER("PullMMbuilder::initializeSystems() : Waiting "<<sleepms<<"ms to check initialization")
+		std::this_thread::sleep_for(std::chrono::milliseconds(sleepms));
 	}
+
+	LOGGER("PullMMbuilder::initializeSystems() : received "<<tasks.size()<<" tasks")
 
 	for(auto &tt: tasks) {
 		LabelPair labels;
@@ -244,7 +254,11 @@ virtual void report_impl(){
 		Timer t;
 		LOGGER(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now()-start).count()+carryOverTime)
 		LOGGERA(markovModel.info_str())
+		LOGGERA("PREDICTION WITH 100 WORKERS :")
+		std::list<TADjob> jobs;
+		markovModel.generateTADs(jobs,100,true);
 		completedTasks.report();
+		LOGGERA("In TaskQueue: "<<taskQueue.count())
 	}
 };
 
@@ -263,10 +277,11 @@ virtual void full_print(bool model) {
 		}
 	}
 	// Print analysis to screen
-	std::cout<<markovModel.info_str(true)<<std::endl;
+	LOGGERA(markovModel.info_str(true))
 	if(model) markovModel.write_model("MarkovModel.xml");
 	std::list<TADjob> jobs;
-	markovModel.generateTADs(jobs,100);
+	LOGGERA("PREDICTION WITH 100 WORKERS :")
+	markovModel.generateTADs(jobs,100,true);
 
 };
 
@@ -297,7 +312,7 @@ virtual TaskDescriptorBundle generateTasks(int consumerID, int nTasks){
 	//get the "global" tasks first
 	taskQueue.transferTo(tasks,nTasks);
 	int batchSize=tasks.count();
-
+	LOGGER("PullMMbuilder::generateTasks : batchSize="<<batchSize<<", nTasks="<<nTasks<<", initialized:"<<initialized)
 	if (batchSize>=nTasks || not initialized) return tasks;
 
 	LOGGER("PullMMbuilder::generateTasks : initialized && batchSize<=nTasks")
@@ -354,8 +369,11 @@ virtual TaskDescriptorBundle generateTasks(int consumerID, int nTasks){
 	//batchSize=tasks.count();
 
 	std::list<TADjob> tads;
-	markovModel.generateTADs(tads,nTasks-batchSize);
-
+	#ifdef VERBOSE
+	markovModel.generateTADs(tads,nTasks-batchSize,true);
+	#else
+	markovModel.generateTADs(tads,nTasks-batchSize,false);
+	#endif
 	task.type=mapper.type("TASK_SEGMENT");
 	task.imposeOrdering=true;
 	task.optional=true;
@@ -373,6 +391,8 @@ virtual TaskDescriptorBundle generateTasks(int consumerID, int nTasks){
 		for(auto bl: tad->BasinLabels) segment.BasinLabels.insert(bl);
 
 		LOGGER("PullMMbuilder::generateTasks : SUBMITTING SEGMENT "<<segment.submit_info_str())
+		bool ProductionRun=true; // not debug run
+		insert("ProductionRun",task.arguments,ProductionRun);
 
 		insert("TADSegment",task.arguments,segment);
 		insert("Minimum",tad->InitialLabels.second,LOCATION_SYSTEM_MIN,true,NECESSITY::REQUIRED,task.inputData);

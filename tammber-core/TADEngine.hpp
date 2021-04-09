@@ -126,9 +126,11 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 	// in input and output data here
 	TADSegment segment;
 	extract("TADSegment",task.arguments,segment);
+	bool ProductionRun=true;
+	extract("ProductionRun",task.arguments,ProductionRun);
 
 	//extract the systems we were provided
-	System minimum, reference, qsd, initial, current, currentMin;
+	System minimum, reference, qsd, initial, current, currentMin, annealingMin;
 
 	bool gotMin = extract("Minimum",task.inputData,minimum);
 
@@ -246,10 +248,15 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 			insert("State",label.inputData,currentMin);
 			BaseEngine::process(label);
 			extract("Labels",label.returns,CurrentLabels);
-
-			LOGGER("Dephase: REFERENCE CURRENTMIN MSD_2: "<<reference.msd(currentMin,false))
-			LOGGER("Dephase: REFERENCE CURRENTMIN MSD_INF: "<<reference.msd(currentMin,true))
-			LOGGER("Dephase: CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
+			if(ProductionRun) {
+				LOGGER("Dephase: REFERENCE CURRENTMIN MSD_2: "<<reference.msd(currentMin,false))
+				LOGGER("Dephase: REFERENCE CURRENTMIN MSD_INF: "<<reference.msd(currentMin,true))
+				LOGGER("Dephase: CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
+			} else {
+				LOGGERA("Dephase: REFERENCE CURRENTMIN MSD_2: "<<reference.msd(currentMin,false))
+				LOGGERA("Dephase: REFERENCE CURRENTMIN MSD_INF: "<<reference.msd(currentMin,true))
+				LOGGERA("Dephase: CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
+			}
 
 
 			// Current "Basin" implementation: anything below MSD thresh from reference
@@ -269,8 +276,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 			// currently we just log the basin transitions, we do not use them
 			// segment.dephased = !Transition or BasinTransition or NewBasinTransition;
 			segment.dephased = !Transition;
-
-			LOGGER("Dephased: "<<segment.dephased<<" "<<Transition<<" "<<BasinTransition<<" "<<NewBasinTransition)
+			if(!ProductionRun) LOGGERA("Dephased: "<<segment.dephased<<" "<<Transition<<" "<<BasinTransition<<" "<<NewBasinTransition);
+			LOGGER("Dephased: "<<segment.dephased<<" "<<Transition<<" "<<BasinTransition<<" "<<NewBasinTransition);
 
 			if(Transition) { // i.e. a transition. We
 				carve.clearInputs(); carve.clearOutputs();
@@ -303,8 +310,10 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 	if(segment.dephased) for(auto &nbl: newBasinLabels) segment.BasinLabels.insert(nbl);
 
 	if(segment.dephased) {
+		if(!ProductionRun) LOGGERA("DEPHASED WITH "<<newBasinLabels.size()<<" NEW BASIN STATES (NOT CURRENTLY USED)")
 		LOGGER("DEPHASED WITH "<<newBasinLabels.size()<<" NEW BASIN STATES (NOT CURRENTLY USED)")
 	} else {
+		if(!ProductionRun) LOGGERA("NOT DEPHASED; TRIED "<<newBasinLabels.size()<<" NEW FAKE BASIN STATES; EXITING")
 		LOGGER("NOT DEPHASED; TRIED "<<newBasinLabels.size()<<" NEW FAKE BASIN STATES; EXITING")
 	}
 
@@ -357,7 +366,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 		insert("State",min.inputData,current);
 		BaseEngine::process(min);
 		extract("State",min.outputData,currentMin);
-		LOGGER("REFERENCE CURRENTMIN MSD_INF (1st MIN): "<<reference.msd(currentMin,true))
+		if(!ProductionRun) LOGGERA("REFERENCE CURRENTMIN MSD_INF (1st MIN): "<<reference.msd(currentMin,true));
+		LOGGER("REFERENCE CURRENTMIN MSD_INF (1st MIN): "<<reference.msd(currentMin,true));
 
 		// just to avoid future issues..... count this?
 		min.clearInputs(); min.clearOutputs();
@@ -373,24 +383,34 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
 		// logs
 		msd_thresh = reference.msd(currentMin,true);
+		if(!ProductionRun) {
+			LOGGERA("REFERENCE CURRENTMIN MSD_INF (2nd MIN): "<<msd_thresh)
+			LOGGERA("CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
+		}
 		LOGGER("REFERENCE CURRENTMIN MSD_INF (2nd MIN): "<<msd_thresh)
 		LOGGER("CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
 
-		// transition check
-		BasinTransition = bool(segment.BasinLabels.find(CurrentLabels)!=segment.BasinLabels.end());
-		filter.clearInputs(); filter.clearOutputs();
-		insert("ReferenceState",filter.inputData,reference);
-		insert("State",filter.inputData,currentMin);
-		BaseEngine::process(filter);
-		extract("Valid",filter.returns,Transition);
-
 		if(annealing) {
-			//if(Transition and BasinTransition) { // annealing + transition == exit
-			if(Transition) { // annealing + transition == exit
+			// transition check
+			// BasinTransition = bool(segment.BasinLabels.find(CurrentLabels)!=segment.BasinLabels.end());
+			filter.clearInputs(); filter.clearOutputs();
+			insert("ReferenceState",filter.inputData,annealingMin);
+			insert("State",filter.inputData,currentMin);
+			BaseEngine::process(filter);
+			extract("Valid",filter.returns,Transition);
+			bool Annealed = !Transition;
 
-				LOGGER("ANNEALED! TRANSITION MADE!")
+			filter.clearInputs(); filter.clearOutputs();
+			insert("ReferenceState",filter.inputData,reference);
+			insert("State",filter.inputData,currentMin);
+			BaseEngine::process(filter);
+			extract("Valid",filter.returns,Transition);
 
-				//LOGGER("INSERTING "<<CurrentLabels.first<<","<<CurrentLabels.second<<" , E="<<currentMin.getEnergy())
+
+
+			if(Annealed and Transition) { // no transition after annealing == exit
+				if(!ProductionRun) LOGGERA("ANNEALED! VALID TRANSITION MADE!");
+				LOGGER("ANNEALED! VALID TRANSITION MADE!");
 				insert("FinalMinimum",CurrentLabels.first,CurrentLabels.second,LOCATION_SYSTEM_MIN,true,task.outputData,currentMin);
 
 				// carve
@@ -407,26 +427,41 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
 				segment.transition.first = InitialLabels;
 				segment.transition.second = CurrentLabels;
+				if(!ProductionRun)
+					LOGGERA("INSERTING "<<CurrentLabels.first<<","<<CurrentLabels.second<<" , E="<<currentMin.getEnergy()<<", NClust = "<<clusters<<", Position: "<<position[0]<<" "<<position[1]<<" "<<position[2])
 				LOGGER("INSERTING "<<CurrentLabels.first<<","<<CurrentLabels.second<<" , E="<<currentMin.getEnergy()<<", NClust = "<<clusters<<", Position: "<<position[0]<<" "<<position[1]<<" "<<position[2])
+
 				annealing = false; // not annealing any more
 				break;
 			} else { // annealing + !transition == continue
-				LOGGER("NO TRANSITION AFTER ANNEALING! CONTINUING")
+				if(!ProductionRun) LOGGERA("NO VALID TRANSITION AFTER ANNEALING! CONTINUING")
+				LOGGER("NO VALID TRANSITION AFTER ANNEALING! CONTINUING")
 				annealing = false;
 			}
 		} else {
 
+			// transition check
+			//BasinTransition = bool(segment.BasinLabels.find(CurrentLabels)!=segment.BasinLabels.end());
+			filter.clearInputs(); filter.clearOutputs();
+			insert("ReferenceState",filter.inputData,reference);
+			insert("State",filter.inputData,currentMin);
+			BaseEngine::process(filter);
+			extract("Valid",filter.returns,Transition);
+
 
 			//if(Transition and (not BasinTransition) ) { // no basin labels yet
 			if(Transition) { // not annealing + not no transition == transition has been made
+				if(!ProductionRun) LOGGERA("TRANSITION DETECTED! ANNEALING FOR AnnealingTime BLOCKS AT AnnealingTemperature")
 				LOGGER("TRANSITION DETECTED! ANNEALING FOR AnnealingTime BLOCKS AT AnnealingTemperature")
 				segment.transition.first = InitialLabels;
 				annealing=true;
+				annealingMin = currentMin;
 
 			} else { // no transition, continue MD
 
 				// reset labels as the only change was due to small fluctuations
 				if(!Transition and (CurrentLabels!=InitialLabels)) {
+					if(!ProductionRun) LOGGERA("NO TRANSITION FROM MSD CHECK");
 					LOGGER("NO TRANSITION FROM MSD CHECK");
 					CurrentLabels=InitialLabels; //
 				}
@@ -436,8 +471,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 			}
 		}
 		if(segment.duration>=maximumSegmentLength and !annealing) {
+			if(!ProductionRun) LOGGERA("SEGMENT EXCEEDED MaximumSegmentLength BLOCKS. EXITING.")
 			LOGGER("SEGMENT EXCEEDED MaximumSegmentLength BLOCKS. EXITING.")
-
 			segment.initialE = reference.getEnergy();
 			segment.finalE = currentMin.getEnergy();
 			segment.OutOfBasin = false;
@@ -446,7 +481,6 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
 			break;
 		}
-
 	}
 	//if(LabelError) CurrentLabels = InitialLabels;
 	//segment.transition.second = CurrentLabels;
@@ -476,7 +510,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
  	//read parameters from the task
  	double dt=safe_extractor<double>(parameters,"NEBTimestep",0.001);
-	double WellDepth=safe_extractor<double>(parameters,"WellDepth",0.1);
+	double WellDepth=safe_extractor<double>(parameters,"WellDepth",0.5);
 	int nImages=safe_extractor<int>(parameters,"Images",11);
 	int maxiter=safe_extractor<int>(parameters,"MaxIterations",1000);
  	double spring=safe_extractor<double>(parameters,"Spring",1.0);
@@ -485,7 +519,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  	bool writeFiles=safe_extractor<bool>(parameters,"WriteFiles",false);
 	bool self_check=safe_extractor<bool>(parameters,"SelfCheck",true);
 	bool thresh_check=safe_extractor<bool>(parameters,"ThreshCheck",false);
-	int clust_thresh=safe_extractor<int>(parameters,"NEBClusterThresh",1);
+	int clust_thresh=safe_extractor<int>(parameters,"NEBClusterThresh",-1);
 	bool CalculatePrefactor=safe_extractor<bool>(parameters,"CalculatePrefactor",false);
 	double ThresholdBarrier=safe_extractor<double>(parameters,"ThresholdBarrier",1.0);
 
@@ -629,22 +663,21 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  	}
 
  	pathway.valid=true; // innocent until proven guilty...
-	LOGGERA("InitialClusters: "<<InitialClusters<<" FinalClusters: "<<FinalClusters)
-	if(InitialClusters>clust_thresh or FinalClusters>clust_thresh) {
- 		pathway.saddleE = pathway.initialE + MAX_BARRIER;
+	LOGGER("InitialClusters: "<<InitialClusters<<" FinalClusters: "<<FinalClusters)
+	if(clust_thresh>0 and std::max(InitialClusters,FinalClusters)>clust_thresh) {
+		pathway.valid=false; // innocent until proven guilty...
+		pathway.saddleE = pathway.initialE + MAX_BARRIER;
  		insert("NEBPathway",task.returns,pathway);
+		LOGGERA("TOO MANY CLUSTERS; EXITING")
 		return;
 	}
 
  	LOGGER("CANONICAL TRANSITION: "<<InitialLabels.first<<" -> "<<FinalLabels.first)
 
-
-
-
  	// add initial and final states to spacemap
  	spacemap.clearInputs();
 
- 	// THIS MAKES vf2_graph_iso VERY SLOW! DO NOT KNOW WHY!!
+ 	// THIS MAKES vf2_graph_iso VERY SLOW
  	/*
  	std::map<int,int> c_map;
  	BaseMDEngine::labeler->canonicalMap(initial,c_map,InitialLabels.second);
@@ -1058,7 +1091,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  * arguments: Filename
  *
  * This returns
- * returns: Labels
+ * returns: Labels, Clusters, Position, SelfSymmetries
  * outputData State
  */
 std::function<void(GenericTask&)> init_min_impl = [this](GenericTask &task) {
@@ -1133,6 +1166,7 @@ std::function<void(GenericTask&)> init_min_impl = [this](GenericTask &task) {
 		insert("SelfSymmetries",task.returns,self_symmetries[labels.first]);
 	}
 	#endif
+
 	insert("State",labels.first, labels.second, LOCATION_SYSTEM_MIN, true, task.outputData, s);
 
 };
@@ -1187,121 +1221,81 @@ std::function<void(GenericTask&)> carve_impl = [this](GenericTask &task) {
 	extract("State",task.inputData,sysl);
 	task.clearInputs();
 
-	LOGGER("CARVE: FOUND "<<sysl.size()<<" STATES")
+	LOGGER("TADEngine::carve_impl : FOUND "<<sysl.size()<<" STATES")
 	for(auto &s : sysl) {
 		Cell bc = s.getCell();
-
+		System thr_s;
+		int clusters=1,thr_N=0;
+		std::array<double,3> position={0.,0.,0.},fatom={0.,0.,0.},temp={0.,0.,0.};
 		double wcom=0.0;
 		std::vector<double> csl;
-		centro.clearInputs(); centro.clearOutputs();
-		insert("State",centro.inputData,s);
-		insert("CentroNeighbors",centro.arguments,nn);
-		BaseEngine::process(centro);
-		extract("CentroSymmetry",centro.outputData,csl);
 
-		System thr_s;
-		thr_s.setCell(s.getCell());
-		int thr_N=0;
-		for(int i=0; i<csl.size();i++) if(csl[i]>thresh) thr_N++;
-		thr_s.setNAtoms(thr_N);
-		int clusters=1;
-		std::array<double,3> position={0.,0.,0.},fatom={0.,0.,0.},temp={0.,0.,0.};
+		if(nn==0) {
+			LOGGER("TADEngine::carve_impl : CentroNeighbors==0; assigning center of mass position")
+			insert("Clusters",task.returns,clusters);
+			insert("Position",task.returns,position);
+			thr_N = s.getNAtoms();
+			for(int i=0; i<thr_N;i++) for(int j=0;j<3;j++)
+				position[j] += s.getPosition(i,j)/double(thr_N);
+			thr_N = 0;
+		} else {
+			centro.clearInputs(); centro.clearOutputs();
+			insert("State",centro.inputData,s);
+			insert("CentroNeighbors",centro.arguments,nn);
+			BaseEngine::process(centro);
+			extract("CentroSymmetry",centro.outputData,csl);
+			thr_s.setCell(s.getCell());
+			for(int i=0; i<csl.size();i++) if(csl[i]>thresh) thr_N++;
+			thr_s.setNAtoms(thr_N);
+			if(thr_N==0) LOGGERA("TADEngine::carve_impl : No atoms above threshold!")
+		}
+
 
 		if(thr_N==0) {
-			LOGGERA("No atoms above threshold!")
-			insert("Clusters",task.returns,clusters);
-			LOGGER("NClusters : "<<clusters);
-			insert("Position",task.returns,position);
-			continue;
-		}
-
-		thr_N=0;
-		LOGGER("Thresholding:")
-		for(int i=0; i<csl.size();i++) if(csl[i]>thresh) {
-			LOGGER(s.getUniqueID(i)<<" "<<s.getPosition(i,0)<<" "<<s.getPosition(i,1)<<" "<<s.getPosition(i,2)<<" "<<csl[i]<<" "<<thresh)
-			thr_s.setUniqueID(thr_N,s.getUniqueID(i));
-			if(thr_N==0) for(int j=0;j<3;j++) fatom[j] = s.getPosition(i,j);
-			for(int j=0;j<3;j++) temp[j] = s.getPosition(i,j)-fatom[j];
-			bc.wrapc(temp);
-			for(int j=0;j<3;j++) thr_s.setPosition(thr_N,j,(fatom[j]+temp[j])/scale);
-			thr_s.setSpecies(thr_N,s.getSpecies(i));
-			thr_N++;
-		}
-
-		std::vector<int> cluster_occ;
-		clusters = BaseMDEngine::labeler->connectedComponents(thr_s,cluster_occ);
-		insert("Clusters",task.returns,clusters);
-		insert("ThreshState",task.outputData,thr_s);
-		LOGGER("NClusters : "<<clusters);
-
-		std::vector<int> rocc(clusters,0);
-		std::vector<double> rocw(clusters,0.0);
-		std::vector<std::array<double,3>> rocp(clusters,{0.,0.,0.});
-
-		for(int i=0;i<cluster_occ.size();i++) {
-			for(int j=0;j<3;j++) rocp[cluster_occ[i]][j] += thr_s.getPosition(i,j)*scale;
-			rocc[cluster_occ[i]]++;
-		}
-
-		/* Return position of largest cluster */
-		int max_cl=0;
-		for(int i=0;i<clusters;i++) {
-			if(rocc[i]>0) for(int j=0;j<3;j++) rocp[i][j] /= float(rocc[i]);
-			LOGGER("Cluster "<<i+1<<" : "<<rocc[i]<<" atoms, position :"<<rocp[i][0]<<" "<<rocp[i][1]<<" "<<rocp[i][2])
-			if(rocc[i]>rocc[max_cl]) max_cl = i;
-		}
-		for(int j=0;j<3;j++) position[j] = rocp[max_cl][j];
-		insert("Position",task.returns,position);
-		LOGGER("Position: "<<position[0]<<" "<<position[1]<<" "<<position[2])
-
-	}
-};
-
-
-
-/*
-	InputData:
-	Targets: even number (pairs) of systems
-	Candidates: even number (pairs) of systems to compare
-*/
-/*
-std::function<void(GenericTask&)> automap_impl = [this](GenericTask &task) {
-
-	std::list<PointShiftSymmetry> symsl;
-	std::set<PointShiftSymmetry> symss;
-	std::list<System> sysl;
-	std::map<int,int> c_map;
-	std::pair<Label,PointShiftSymmetry> trans;
-	std::array<double,NDIM> temp;
-
-	extract("State",task.inputData,sysl);
-	Label lab;
-	if(sysl.size()>0) {
-		bool cover = SelfSymmetries(*(sysl.begin()),symss);
-
-		Cell bc = sysl.begin()->getCell();
-
-		for(auto &sys: sysl) {
-			LOGGER("Checking for self transform...")
-			BaseMDEngine::labeler->isomorphicMap(*(sysl.begin()),sys,c_map); // 2 -> C -> 1
-			auto ops = find_transforms(*(sysl.begin()),sys,c_map);
-			for(auto op:ops) {
-				lab = BaseMDEngine::labeler->hash(sys,false);
-				for(auto symm: symss) {
-					PointShiftSymmetry cop = symm.compound(op);
-					// wrap?
-					for(int j=0;j<NDIM;j++) temp[j] = cop.shift[j];
-					bc.wrap(temp);
-					for(int j=0;j<NDIM;j++) cop.shift[j] = temp[j];
-					trans = std::make_pair(lab,cop);
-					insert("SelfIsomorphisms",task.returns,trans);
-				}
+			insert("ThreshState",task.outputData,s);
+		} else {
+			thr_N=0;
+			LOGGER("TADEngine::carve_impl : Thresholding:")
+			// Build new system from above-threshold atoms, scaled by RelativeCutoff
+			for(int i=0; i<csl.size();i++) if(csl[i]>thresh) {
+				LOGGER(s.getUniqueID(i)<<" "<<s.getPosition(i,0)<<" "<<s.getPosition(i,1)<<" "<<s.getPosition(i,2)<<" "<<csl[i]<<" "<<thresh)
+				thr_s.setUniqueID(thr_N,s.getUniqueID(i));
+				if(thr_N==0) for(int j=0;j<3;j++) fatom[j] = s.getPosition(i,j);
+				for(int j=0;j<3;j++) temp[j] = s.getPosition(i,j)-fatom[j];
+				bc.wrapc(temp);
+				for(int j=0;j<3;j++) thr_s.setPosition(thr_N,j,(fatom[j]+temp[j])/scale);
+				thr_s.setSpecies(thr_N,s.getSpecies(i));
+				thr_N++;
 			}
+			// Find clusters
+			std::vector<int> cluster_occ;
+			clusters = BaseMDEngine::labeler->connectedComponents(thr_s,cluster_occ);
+			insert("ThreshState",task.outputData,thr_s);
+
+			// find size and center of mass of each cluster
+			std::vector<int> rocc(clusters,0); // size
+			std::vector<std::array<double,3>> rocp(clusters,{0.,0.,0.}); // position
+			for(int i=0;i<cluster_occ.size();i++) {
+				for(int j=0;j<3;j++) rocp[cluster_occ[i]][j] += thr_s.getPosition(i,j)*scale;
+				rocc[cluster_occ[i]]++;
+			}
+
+			// Return position of largest cluster
+			int max_cl=0;
+			for(int i=0;i<clusters;i++) {
+				if(rocc[i]>0) for(int j=0;j<3;j++) rocp[i][j] /= float(rocc[i]);
+				LOGGER("Cluster "<<i+1<<" : "<<rocc[i]<<" atoms, position :"<<rocp[i][0]<<" "<<rocp[i][1]<<" "<<rocp[i][2])
+				if(rocc[i]>rocc[max_cl]) max_cl = i;
+			}
+			for(int j=0;j<3;j++) position[j] = rocp[max_cl][j];
+
 		}
+		LOGGER("TADEngine::carve_impl : NClusters = "<<clusters);
+		LOGGER("TADEngine::carve_impl : Position = ["<<position[0]<<" "<<position[1]<<" "<<position[2]<<"]")
+		insert("Position",task.returns,position);
+		insert("Clusters",task.returns,clusters);
 	}
-	return ;
 };
-*/
 
 std::function<void(GenericTask&)> spacemap_impl = [this](GenericTask &task) {
 	/*
@@ -1746,7 +1740,7 @@ std::set<PointShiftSymmetry> find_transforms(System &one, System two, std::map<i
 };
 
 bool SelfSymmetries(System &one, std::set<PointShiftSymmetry> &syms,bool return_maps=false) {
-	LOGGER("TADEngine::SelfSymmetries")
+	LOGGER("TADEngine::SelfSymmetries");
 	std::list<std::map<int,int>> amaps;
 	syms.clear();
 	BaseMDEngine::labeler->isomorphicSelfMaps(one,amaps);

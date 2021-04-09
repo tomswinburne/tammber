@@ -172,7 +172,7 @@ virtual void initialize(boost::property_tree::ptree &config) {
 			distinguishableSpecies.insert(sp);
 		}
 	}
-
+	std::set<int> bond_set; // to replace typemaps
 	BOOST_FOREACH(boost::property_tree::ptree::value_type &v, config.get_child("Configuration.StateLabeler.Bonds")) {
 		std::string s=v.second.get<std::string>("Between");
 		boost::trim(s);
@@ -180,6 +180,8 @@ virtual void initialize(boost::property_tree::ptree &config) {
 		boost::split(sp, s, boost::is_any_of("\t "), boost::token_compress_on);
 		int i0=boost::lexical_cast<int>(sp[0]);
 		int i1=boost::lexical_cast<int>(sp[1]);
+		bond_set.insert(i0);
+		bond_set.insert(i1);
 		double cut=v.second.get<double>("Cutoff");
 		mcutoffs[std::make_pair(i0,i1)]=cut;
 		mcutoffs[std::make_pair(i1,i0)]=cut;
@@ -202,7 +204,7 @@ virtual void initialize(boost::property_tree::ptree &config) {
 			LOGGER("TypeMap: "<<i0<<" -> "<<i1)
 		}
 	}
-	if(TypeMap.size()==0) for(int i=1;i<10;i++)
+	if(TypeMap.size()==0) for(auto i: bond_set)
 		TypeMap.insert(std::make_pair(i,i)); // backup option
 
 	// need to inverse TypeMap here- so go through double loop

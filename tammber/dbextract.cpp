@@ -54,38 +54,8 @@ int main(int argc, char * argv[]) {
 
 	TaskMapperType mapper;
 
-	std::cout << "Tammber-dbextract\n";
-
-	// Create empty property tree object
-	boost::property_tree::ptree config;
-	// Parse the XML into the property tree.
-	boost::property_tree::read_xml("./input/ps-config.xml", config, boost::property_tree::xml_parser::no_comments );
-
-
-
-	std::map< std::pair<int,int>, std::map<std::string,std::string> > parameters;
-	BOOST_FOREACH(boost::property_tree::ptree::value_type &v, config.get_child("Configuration.TaskParameters")) {
-		boost::optional<std::string> otype= v.second.get_optional<std::string>("Task");
-		if(otype) {
-			std::string stype=*otype;
-			boost::trim(stype);
-			std::cout<<"STYPE: "<<stype<<std::endl;
-			std::cout<<"MAPPED TYPE:"<<mapper.type(stype)<<std::endl;
-			/*
-			int type=TaskMap.at(stype); // SPECIFIC TO MDEngine !!!
-			int flavor=v.second.get<int>("Flavor");
-			BOOST_FOREACH(boost::property_tree::ptree::value_type &vv, v.second.get_child("")) {
-				std::string key=vv.first;
-				std::string data=vv.second.data();
-				boost::trim(key);
-				boost::trim(data);
-				std::cout<<key<<" "<<data<<std::endl;
-				parameters[std::make_pair(type,flavor)][key]=data;
-			}
-			*/
-		}
-	}
-
+	std::cout << "TAMMBER-dbextract\n";
+	
 	MPI_Comm localComm, workerComm;
 
 	if(rank==0) {

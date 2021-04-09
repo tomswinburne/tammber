@@ -351,7 +351,7 @@ void transferTo(TaskDescriptorBundle &t, int nInstancesMax){
 	}
 };
 
-int count(){
+int count() {
 	int nInstances=0;
 	for(auto it=tasks.begin(); it!=tasks.end(); it++) {
 		nInstances+=it->nInstances;

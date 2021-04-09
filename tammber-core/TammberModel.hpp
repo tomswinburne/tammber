@@ -239,9 +239,9 @@ struct StateVertex {
   StateVertex(LabelPair ref,double energy_,int id_);
 	std::string info_str(double targetT, double eshift, double ku);
   // TEST THIS
-  void update(Label lab, double energy_);
-	void update(Label lab, double energy_,int clust, std::array<double,3> pos);
-	void update(Label lab, double energy_,int clust, std::array<double,3> pos, std::set<PointShiftSymmetry> ss);
+  void update(Label lab, double energy_,bool force);
+	void update(Label lab, double energy_,int clust, std::array<double,3> pos,bool force);
+	void update(Label lab, double energy_,int clust, std::array<double,3> pos, std::set<PointShiftSymmetry> ss,bool force);
 	void add_segment(TADSegment &seg);
 
   template<class Archive>
@@ -315,9 +315,9 @@ public:
 
 	int newIndex();
   // to be overloaded
-  void add_vertex(LabelPair labels, double energy);
-	void add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos);
-	void add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos, std::set<PointShiftSymmetry> ss);
+  void add_vertex(LabelPair labels, double energy,bool force=false);
+	void add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos,bool force=false);
+	void add_vertex(LabelPair labels, double energy,int clusters,std::array<double,3> pos, std::set<PointShiftSymmetry> ss,bool force=false);
 
   void add_edge(SymmLabelPair el);
   void add_edge(SymmLabelPair el,SymmLabelPair tl);
@@ -346,11 +346,13 @@ public:
 
 	void generateNEBs(std::list<NEBjob> &jobs, int nMax);
 
-	void generateTADs(std::list<TADjob> &jobs, int nMax);
+	void generateTADs(std::list<TADjob> &jobs, int nMax,bool screen);
 
-	void predict(std::map<Label,std::pair<double,double>> &weights);
+	void predict(std::map<Label,std::pair<double,double>> &weights,bool screen);
 
 	void calculate_rates(SymmLabelPair el, Rate &kf, Rate &kb);// canonical labels
+
+	bool allow_allocation(Label lab);
 
 	void unknown_rate(Label lab, UnknownRate &ku); // canonical label
 
@@ -394,7 +396,7 @@ protected:
   // Bayes parameters
   double min_barrier, prefactorCountThresh, max_ku, min_ku, max_k, HashCost, NEBCost;
   // TAD parameters
-  double  targetT, targetB, valid_time, valid_time_sd,pNEB_Prior;
+  double  targetT, targetB, valid_time, valid_time_sd,pNEB_Prior,DephaseThresh;
 	int max_id, RhoInitFlavor, PredictionSize, AllocScheme;
 	int ClusterThresh;
   std::vector<double> tadT;

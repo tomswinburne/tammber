@@ -142,8 +142,10 @@ or replace `src/library.*` in your `LAMMPS` distribution
 - Edit the makefile (`src/MAKE/Makefile.mpi` in this example) :
 	```make
 	...
+	CC=mpicxx # default option, change if required to match that used to compile TAMMBER
 	#CCFLAGS =	-g -O3 # previous
 	CCFLAGS =	-g -O3 -std=c++11 # our modification
+	#CCFLAGS =	-g -O3 -std=c++11 -restrict # our modification for intel compilers
 	...
 	# LMP_INC =	-DLAMMPS_GZIP -DLAMMPS_MEMALIGN=64 # previous
 	LMP_INC =	-DLAMMPS_GZIP -DLAMMPS_MEMALIGN=64  -DLAMMPS_EXCEPTIONS # our modification
