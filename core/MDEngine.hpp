@@ -160,9 +160,9 @@ std::function<void(GenericTask&)> symmetry_impl = [this](GenericTask &task) {
 	std::unordered_map<std::string,std::string> parameters=\
 		extractParameters(task.type,task.flavor,defaultFlavor,taskParameters);
 	//read parameters from the task
-	bool self_check=safe_extractor<int>(parameters,"SelfCheck",true);
-	bool thresh_check=safe_extractor<double>(parameters,"ThreshCheck",true);
-	bool vf2_check=safe_extractor<double>(parameters,"UseAutoMorphism",true);
+	bool self_check=safe_extractor<bool>(parameters,"SelfCheck",true);
+	bool thresh_check=safe_extractor<bool>(parameters,"ThreshCheck",true);
+	bool vf2_check=safe_extractor<bool>(parameters,"UseVF2",false);
 
 	std::set<PointShiftSymmetry> self_symmetry, ops, f_ops;
 	std::map<Label,std::set<PointShiftSymmetry>> self_symmetries;//,local_self_symmetries;
@@ -194,7 +194,7 @@ std::function<void(GenericTask&)> symmetry_impl = [this](GenericTask &task) {
 
 				if(thresh_check) {
 					if(vf2_check) {
-						LOGGER("Using carved configuration + VF2 UseAutoMorphism")
+						LOGGER("Using carved configuration + VF2 UseVF2")
 						GenericTask t; t.clear();
 						t.type=BaseEngine::mapper.type("TASK_CARVE");
 						insert("State",t.inputData,target);

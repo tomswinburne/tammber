@@ -8,11 +8,12 @@ on systems of interest to you!
 - [Specifying initial configuration(s)](#2)
 - [Configuring simulation parameters in `LAMMPS`](#3)
 - [State identification](#4)
+  [Cluster Definitions For Diffusion](#9)
 - [Configuring the Markov model managing the sampling](#5)
   - [Crystal symmetry for diffusion tensor](#6)
   - [Parameters controlling accelerated sampling](#7)
-  - [Cluster Monitoring](#9)
-- [Analyzing output](#8)
+  -[Test Routines](#8)
+- [Analyzing output](#10)
 
 
 
@@ -51,6 +52,7 @@ the moment we use only one, as specified above:
 input/initial.dat
 </InitialConfigurations>
 ```
+
 ## Configuring simulation parameters in `LAMMPS`<a name="3"></a>
 Atomistic simulations are controlled with snippets of `LAMMPS` scripts,
 so if you have used `LAMMPS` you should be able to use `TAMMBER` !
@@ -135,6 +137,114 @@ thus specify a cutoff. For pure Fe, we use the `1/2<111>` bond length:
     </Bond>
 </Bonds>
 ```
+
+
+## Cluster Definitions For Diffusion<a name="9"></a>
+
+For diffusion problems we want
+a) only one migrating object
+b) a position assigned to that object
+c) knowledge of any self-symmetries of the object's structure
+
+Sampling is much more efficient if we have access to a), post-processing is much
+simpler if we can calculate b) at runtime, and c) is *significantly* accelerated
+if we have knowledge of the defect structure.
+
+### `MarkovModel`
+In the `<MarkovModel>` tags we can restrict sampling to a single cluster with
+```xml
+  <ClusterThresh>1</ClusterThresh>
+```
+To disable this restriction, i.e. sample everything, we set
+```xml
+  <ClusterThresh>0</ClusterThresh>
+```
+
+###  `TASK_CARVE`
+The current stable TAMMBER version uses a simple "carving"
+routine using the centrosymmetry parameter as implemented in `LAMMMPS` [link](https://lammps.sandia.gov/doc/compute_centro_atom.html)
+This requires specifying the centrosymmetry parameter `CentroNeighbors`
+(an even integer), and a `Threshold` value above which atoms are considered "defective"
+
+To disable this carving, set `CentroNeighbors==0`
+
+This will be generalized in new versions- feel free to fork and try yourself!
+
+For elemental systems choosing the centrosymmetry is simple
+(12/8 for fcc/bcc, lattice has centrosymmetry value of zero),
+but in general (e.g. alloys) there will not be an obvious choice.
+We recommend using a visualization routine e.g. `OVITO` to determine the values;
+typically `CentroNeighbors=6` is a good choice for cubic systems.
+
+Some examples-
+MgO interstitial defect studied in [this paper](https://www.nature.com/articles/s41524-020-00463-8)
+```xml
+<TaskParameter>
+  <Task> TASK_CARVE </Task>
+  <Flavor> 0 </Flavor> <!-- Default -->
+  <!-- bcc:8, fcc: 12, cubic: 6, to disable: 0 -->
+  <CentroNeighbors> 6 </CentroNeighbors>
+  <!-- determined by inspection -->
+  <Threshold>1.0</Threshold>
+  <!-- Typically ratio of 2nd neighbor length to 1st -->
+  <RelativeCutoff>1.5</RelativeCutoff>
+</TaskParameter>
+```
+bcc vacancy:
+```xml
+<TaskParameter>
+  <Task> TASK_CARVE </Task>
+  <Flavor> 0 </Flavor> <!-- Default -->
+  <!-- cubic -->
+  <CentroNeighbors> 8 </CentroNeighbors>
+  <Threshold>0.2</Threshold>
+  <!-- Typically ratio of 2nd neighbor length to 1st -->
+  <RelativeCutoff>1.5</RelativeCutoff>
+</TaskParameter>
+```
+bcc 110 surface:
+```xml
+<TaskParameter>
+  <Task> TASK_CARVE </Task>
+  <Flavor> 0 </Flavor> <!-- Default -->
+  <!-- cubic -->
+  <CentroNeighbors> 8 </CentroNeighbors>
+  <Threshold>5.0</Threshold>
+  <!-- Typically ratio of 2nd neighbor length to 1st -->
+  <RelativeCutoff>1.5</RelativeCutoff>
+</TaskParameter>
+```
+The `<RelativeCutoff>` tag is a little hack to ensure the connectivity of the
+"carved" out configuration can be identified using the same `<Bonds>`.
+This is most relevant for vacancy defects though will leave other structures unaffected.
+For the bcc vacancy example,
+
+For our example, we know we will leave a "cage" of atoms around
+the vacancy in bcc are separated by <100> (2nd nn bond length)
+which is longer than the target 1/2<111> bond cutoff. We therefore scale by
+|100|/|1/2(111)|~1.5 to ensure this is counted as one cluster.
+Generally, RelativeCutoff ~ (2nd nn bond length) / (1st nn bond length).
+
+###  `TASK_SYMMETRY`
+Symmetry Comparisons for NEB pairs and self symmetries. If we do not carve out
+a defective region, the VF2 graph matching routine will be used, which has
+worst case time complexity of O(N!N). Whilst rare, this can cause simulations to
+hang for many minutes when waiting for the VF2 routine to finish.
+
+`SelfCheck` : Directly test for self symmetries. If not set, these symmetries will only be found during MD sampling.
+`ThreshCheck` : Carve out defective region using `TASK_CARVE` (much faster checks)
+`UseVF2` : force use of VF2 matching. Default=1 when `ThreshCheck=0`
+Fastest results are with
+```xml
+<TaskParameter>
+  <Task> TASK_SYMMETRY </Task>
+  <Flavor> 0 </Flavor>
+  <SelfCheck>1</SelfCheck>
+  <ThreshCheck>1</ThreshCheck>
+  <UseVF2>0</UseVF2>
+</TaskParameter>
+```
+
 
 
 ## Configuring the Markov model managing the sampling<a name="5"></a>
@@ -233,41 +343,27 @@ an option to exeute only  `TAMMBER` j
   <OnlyNEBS> 0 </OnlyNEBS>
 ```
 
-### Cluster Monitoring<a name="9"></a>
-For diffusion problems we typically want only one migrating object, but at high temperatures
-clusters can break apart. We want to capture this breakup, but only starting sampling runs 
-with one cluster. 
-We use a cluster identification method to count the number of clusters, "carving" out
-clusters by selecting atoms with a centrosymmetry higher than some threshold.
-In the `<MarkovModel>` tags we can restrict sampling to a single cluster with
-```xml
-  <!-- Only sample in states with ClusterThresh clusters or less. Disabled if ClusterThresh<=0 -->
-  <ClusterThresh>1</ClusterThresh>
-```
-We also need to specify the parameters of `TASK_CARVE` below:
+## Test Routines<a name="8"></a>
+We *strongly* recommend building `tammber-md` which will attempt to
+- load in starting configuration
+- carve out defective region if `ThreshCheck==1`
+- check for self symmetries (if if `SelfCheck==1`)
+- generate an MD segment at lowest simulation temperature
+- look for transitions
 
-```xml
-<!-- CentroSymmetry based carving of clusters -->
-<TaskParameter>
-  <Task> TASK_CARVE </Task>
-  <Flavor> 0 </Flavor> <!-- Default -->
-  <!-- bcc -->
-  <CentroNeighbors> 8 </CentroNeighbors>
-  <!-- NB: Much higher for surfaces! -->
-  <Threshold>5.0</Threshold>
-  <!-- Typically ratio of 2nd neighbor length to 1st -->
-  <RelativeCutoff>1.5</RelativeCutoff>
-</TaskParameter>
+This will produce a verbose output which can be very useful to check if your
+simulation will run as expected. It can be ran on two cores, with e.g.
+```bash
+cd execution-directory
+mpirun -np 2 /path/to/tammber/build/tammber-md
 ```
-The `<RelativeCutoff>` tag is a little hack to ensure the connectivity of the
-"carved" out configuration can be identified using the same `<Bonds>` as
-above. For our example, we know we will leave a "cage" of atoms around
-the vacancy in bcc are separated by <100> (2nd nn bond length)
-which is longer than the target 1/2<111> bond cutoff. We therefore scale by
-|100|/|1/2(111)|~1.5 to ensure this is counted as one cluster.
-Generally, RelativeCutoff ~ (2nd nn bond length) / (1st nn bond length).
+The output will be printed to the screen-
+- search for `NClusters` to see results of the carving routine
+- search for ``CURRENT LABEL` and `TRANSITION DETECTED` to see results of MD
 
-## Analyzing output<a name="8"></a>
+Future versions will have friendlier testing routines!
+
+## Analyzing output<a name="10"></a>
 After a simulation run, you will see the following files:
 ```bash
   execution-directory:
