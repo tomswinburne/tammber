@@ -178,7 +178,7 @@ struct NEBPathway {
 	std::pair<double,double> priornu;
 
 	std::list< TransitionSymmetry > self_transitions; // when isomorphic
-	std::list< TransitionSymmetry > equivalent_transitions; // after spacemap
+	std::list< TransitionSymmetry > equivalent_transitions; // after symmetry
 	std::list< TransitionSymmetry > equivalent_states;
 	std::list<LabelPair> compared_transitions;
 

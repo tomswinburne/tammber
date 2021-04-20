@@ -2,6 +2,7 @@ build/*
 buld/*
 sample-input/*
 !sample-input/vac-Fe/
+!sample-input/sia-Fe/
 process/.ipynb_checkpoints/*
 process/__pycache__/*
 .DS_Store

@@ -4,6 +4,9 @@
 ##  [Installation Instructions](INSTALL.md)
 
 ##  [Getting Started](EXAMPLE.md)
+- *If you are using TAMMBER diffusion studies please read the "Cluster Monitoring" section!*
+- *It is highly recommended to run the `tammber-md` test rouine first!*
+
 
 ## [Output Analysis](process/Diffusion_Model_Example.ipynb) :  Run online with Binder: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/tomswinburne/tammber/HEAD?filepath=process%2FDiffusion_Model_Example.ipynb)
 
@@ -21,7 +24,7 @@ The work management is controlled through an absorbing Markov chain; the goal is
 
 New code incorporates crystal symmetries using graph isomorphisms to efficiently and autonomously calculate diffusion matricies
 
-[2] Thomas D Swinburne and Danny Perez, *Automated Calculation of Defect Transport Tensors*, Accepted in NPJ Computational Materials, 2020. [preprint](https://arxiv.org/abs/2003.07752)
+[2] Thomas D Swinburne and Danny Perez, *Automated Calculation of Defect Transport Tensors*, NPJ Computational Materials, 2020. [article](https://www.nature.com/articles/s41524-020-00463-8)
 
 --------------------------------------------------------------------------------
 

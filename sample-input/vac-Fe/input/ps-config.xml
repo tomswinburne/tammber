@@ -334,11 +334,28 @@ AND an above-threshold change in atomic positions for a transition to be valid
 
 </TaskParameter>
 
+<!--
+  Symmetry Comparisons for NEB pairs and self symmetries
+  SelfCheck : Look for self symmetries
+  ThreshCheck : Carve out defective region (much faster checks)
+  UseVF2 : use VF2 matching, which has O(N!N) worst case time complexity
+  but is able to treat full, uncarved, configurations.
+
+  If ThreshCheck==0 and SelfCheck==1 VF2 will be used. In this case, simulations
+  may be blocked waiting for VF2 to finish. It is therefore recommended to
+  set ThreshCheck==1, UseVF2==0 if SelfCheck==1
+-->
+<TaskParameter>
+  <Task> TASK_SYMMETRY </Task>
+  <Flavor> 0 </Flavor>
+  <SelfCheck>1</SelfCheck>
+  <ThreshCheck>1</ThreshCheck>
+  <UseVF2>0</UseVF2>
+</TaskParameter>
 
 <TaskParameter>
   <Task> TASK_NEB </Task>
   <Flavor> 0 </Flavor>
-  <ForceChoice> 0 </ForceChoice>
   <Images> 11 </Images> <!-- NEB knots -->
   <Spring> .5 </Spring> <!-- NEB spring constant, in [F]/[X] MD units  -->
 
@@ -361,8 +378,6 @@ AND an above-threshold change in atomic positions for a transition to be valid
   <ThresholdBarrier> 1.0 </ThresholdBarrier>
   <WriteFiles>0</WriteFiles>
 
-  <SelfCheck>1</SelfCheck>
-  <ThreshCheck>1</ThreshCheck>
 </TaskParameter>
 
 

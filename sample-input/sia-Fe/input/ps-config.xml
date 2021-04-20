@@ -1,0 +1,388 @@
+<Configuration>
+<!-- Minutes -->
+<RunTime> 118 </RunTime>
+
+<DB>
+  <SyncDelay> 2 </SyncDelay>
+  <RootDirectory> ./ </RootDirectory>
+  <SharedCacheSize> 1000000000  </SharedCacheSize>
+</DB>
+<MarkovModel>
+  <!-- Lattice parameters to build diffusion tensor
+  Only required to generate output for postprocessing with tammber-analyze ,
+  not required for main sampling run with tammber
+  -->
+  <!-- The following are equivalent : -->
+  <Lattice> 2.855312 bcc </Lattice>
+
+  <!-- or we specify the PrimitiveUnitCell in lattice units ourselves -->
+  <!--
+  <Lattice>2.8552</Lattice>
+  <PrimitiveUnitCell>
+  -0.5 +0.5 +0.5
+  +0.5 -0.5 +0.5
+  +0.5 +0.5 -0.5
+  </PrimitiveUnitCell>
+  -->
+
+  <!-- Cartesian UnitCell vectors in lattice units-->
+  <UnitCell>
+  1.0 0.0 0.0
+  0.0 1.0 0.0
+  0.0 0.0 1.0
+  </UnitCell>
+
+  <!--
+  Supercell vectors [A,B,C] can be specified from UnitCell or PrimitiveUnitCell
+  - for UnitCell, give vector v such that [A,B,C] = diag(v) x UnitCell
+  - for PrimitiveUnitCell, give matrix M such that [A,B,C] = M x PrimitiveUnitCell
+  The following are thus equivalent:
+  -->
+  <SuperCell>7 7 7</SuperCell> <!-- i.e. A=a[700], B=a[070], C=a[007] -->
+  <!-- Same thing using PrimitiveUnitCell -->
+  <!--
+  <SuperCell>
+  +0.0 +7.0 +7.0
+  +7.0 +0.0 +7.0
+  +7.0 +7.0 +0.0
+  </SuperCell>
+  -->
+
+  <!-- Remainder is required for main sampling run -->
+
+  <!-- Lowest target temperature, in K -->
+  <TargetTemperature>300.0</TargetTemperature>
+
+  <!-- Temperature range for TAD sampling -->
+  <MinTemperature>300.0</MinTemperature>
+  <MaxTemperature>600.0</MaxTemperature>
+  <!-- Inclusive Steps -->
+  <TemperatureSteps>9</TemperatureSteps>
+
+  <!-- Delay at which the web will checkpoint, in ms -->
+  <CheckpointDelay>60000 </CheckpointDelay>
+
+  <!-- Delay at which the web will broadcast new segment request, in ms. -->
+  <BroadcastDelay> 60000 </BroadcastDelay>
+
+  <!-- Delay at which the web will print to screen, in ms. -->
+  <ReportDelay> 60000 </BroadcastDelay>
+
+  <!-- Initial distribution flavour:
+  0: Delta function on first state in InitialConfigurations
+  1: Boltzmann on all discovered states
+  2: Uniform on all states (good to drive discovery for single funnel landscapes)
+  -->
+  <RhoInitFlavor> 1 </RhoInitFlavor>
+
+  <!--
+  Scheme to allocate observed states to workers.
+  0: Such that validity time increases as fast as possible (within available info)
+  1: Proportional to probability of finding new event from state
+  -->
+  <AllocScheme> 0 </AllocScheme>
+
+  <!-- How many states to distribute across workers (should be << than # workers) -->
+  <PredictionSize> 500 </PredictionSize>
+
+  <!--
+  Approx number of transition counts to overcome Bayesian prefactor prior
+  High: trust prior, typically means prefactor calculation is on (see TASK_NEB)
+  Low: trust MD, typically means prefactor calculation is off (see TASK_NEB)
+  -->
+  <PrefactorCountThresh> 2 </PreFactorCountThresh>
+
+  <!-- Estimated cost of doing a NEB, in ps of MD (NB: multiple images!)-->
+  <NEBCost> 1000 </NEBCost>
+
+  <!-- Estimated cost of hashing and restarting a state, in ps of MD -->
+  <HashCost> 2 </HashCost>
+
+  <!--
+  Only perform NEBS, useful to complete remaining NEBS after a timeout
+  0: Normal operation, MD and NEB
+  1: Only complete remaining NEBs
+  -->
+  <OnlyNEBS> 0 </OnlyNEBS>
+
+  <!-- Only sample in states with ClusterThresh clusters or less. Disabled if ClusterThresh<=0 -->
+  <ClusterThresh>0</ClusterThresh>
+
+  <!-- Only sample in states which have Prob(dephase) > DephaseThresh Disabled if DephaseThresh<=0 -->
+  <DephaseThresh>0.2</DephaseThresh>
+
+</MarkovModel>
+
+
+
+
+<SystemModifier>
+<Type> NullSystemModifier </Type>
+</SystemModifier>
+
+<StateLabeler>
+<Type> ConnectivityGraphStateLabeler </Type>
+<!-- Connectivity Graph Parameters.
+  TypeMaps connect MD atom types to TAMMBER atom types
+  Useful for alloy simulations in LAMMPS where a single species can have multiple
+  types- e.g. NiAl, Ni = 1 and Al = 2,3 in some models. In this case we
+  would have
+  <TypeMaps>
+    <TypeMap>1 1</TypeMap>
+    <TypeMap>2 2</TypeMap>
+    <TypeMap>3 2</TypeMap>
+  </TypeMaps>
+-->
+<TypeMaps>
+  <TypeMap>1 1</TypeMap>
+</TypeMaps>
+<!-- Cutoff radii for TAMMBER atom types
+In above NiAl example we would therefore specify (1,1), (2,2) and (1,2) cutoffs
+ -->
+<Bonds>
+    <Bond>
+        <Between> 1 1 </Between>
+        <Cutoff> 2.67 </Cutoff>
+    </Bond>
+</Bonds>
+</StateLabeler>
+
+
+
+<ResultManager>
+<BundleSize> 1 </BundleSize>
+<Timeout> 10 </Timeout>
+</ResultManager>
+
+<WorkManager>
+<ReportDelay> 10000 </ReportDelay>
+<SharedCacheSize> 1000000000 </SharedCacheSize>
+<LocalCacheSize> 1000000000 </LocalCacheSize>
+
+</WorkManager>
+<!-- list of initial configurations; here we have one -->
+<InitialConfigurations>input/sia-Fe.dat</InitialConfigurations>
+
+<LAMMPSEngine>
+  <LogLammps>0</LogLammps>
+
+  <InitScript>
+    clear
+    units metal
+    atom_style atomic
+    atom_modify map array sort 0 0.0
+    dimension 3
+    boundary p p p
+    read_data %Filename%
+    pair_style eam/fs
+    pair_coeff * * input/Fe.eam.fs Fe
+    neighbor 2.0 bin
+    neigh_modify every 1 delay 0 check yes
+    run 0
+  </InitScript>
+
+
+  <PostInitScript>
+  </PostInitScript>
+
+  <MDScript>
+    timestep %Timestep%
+
+    fix NVE all nve
+    fix T all langevin %Temperature% %Temperature% %Friction% %RANDU% gjf no
+
+    thermo 10
+    fix fixcom all recenter INIT INIT INIT
+    run %Nsteps%
+    unfix fixcom
+
+    unfix NVE
+    unfix T
+
+  </MDScript>
+
+  <!-- Force criteria only for minimization -->
+  <MinScript>
+    min_style fire
+    minimize 0.0  %Tolerance% 400 400
+    min_style cg
+    minimize 0.0 %Tolerance% 1000 1000
+  </MinScript>
+
+  <WriteScript>
+    write_data %Filename%
+  </WriteScript>
+
+
+
+  <VelocityInitScript>
+
+    velocity    all create %InitTemperature%  %RANDU% dist gaussian
+  </VelocityInitScript>
+
+
+
+</LAMMPSEngine>
+
+
+
+
+
+<TaskParameters>
+
+
+<DefaultFlavor> 0 </DefaultFlavor>
+
+
+<TaskParameter>
+<Task> TASK_INIT_FROM_FILE </Task>
+<Flavor> 0 </Flavor>
+</TaskParameter>
+
+<TaskParameter>
+<Task> TASK_SEGMENT </Task>
+<Flavor> 0 </Flavor>
+<!-- Duration of block in MD time units. =1ps for LAMMPS metal units -->
+<BlockTime> 1 </BlockTime>
+<!-- dephasing blocks for segment - should be equal 1ps for energy minima -->
+<PreCorrelationTime> 1 </PreCorrelationTime>
+<!-- If a transition is detected, we "anneal" for AnnealingTime (sub-)blocks at
+a low AnnealingTemperature to check newly found state is stable enough for sampling-->
+<AnnealingTime>0.5</AnnealingTime>
+<AnnealingTemperature>300.0</AnnealingTemperature>
+
+<MinimumSegmentLength> 1 </MinimumSegmentLength>
+<MaximumDephasingTrials> 3 </MaximumDephasingTrials>
+<MaximumSegmentLength> 5 </MaximumSegmentLength>
+<ReportIntermediates> 1 </ReportIntermediates>
+</TaskParameter>
+
+<!-- InitTemperature is typically overwritten but must be specified -->
+<TaskParameter>
+<Task> TASK_INIT_VELOCITIES  </Task>
+<Flavor> 0 </Flavor>
+<InitTemperature> 600 </InitTemperature>
+</TaskParameter>
+
+<!-- Temperature is typically overwritten but must be specified -->
+<TaskParameter>
+<Task> TASK_MD </Task>
+<Flavor> 0 </Flavor>
+<BlockTime> 1 </BlockTime>
+<Timestep> 0.001 </Timestep>
+<Temperature>300</Temperature>
+<Friction> 0.1 </Friction>
+</TaskParameter>
+
+
+<TaskParameter>
+<Task> TASK_MIN </Task>
+<Flavor> 0 </Flavor>
+<Tolerance> 1e-13 </Tolerance>
+</TaskParameter>
+
+<TaskParameter>
+<Task> TASK_LABEL </Task>
+<Flavor> 0 </Flavor>
+<Type> ConnectivityGraphStateLabeler </Type>
+</TaskParameter>
+
+<!--
+CentroSymmetry parameters for cluster identification
+To disable, set CentroNeighbors = 0
+Routine will set entire system as cluster, with center of mass position
+-->
+<TaskParameter>
+  <Task> TASK_CARVE </Task>
+  <Flavor> 0 </Flavor>
+  <CentroNeighbors> 8 </CentroNeighbors>
+  <Threshold>0.1</Threshold>
+  <!--
+  Relative Cutoff for connectivity after removing bulk atoms.
+  Here, we set to second neighbor, i.e. a scaling of |[100]|/|[111]/2| = 2/sqrt(3) ~ 1.5
+  -->
+  <RelativeCutoff>1.5</RelativeCutoff>
+</TaskParameter>
+
+
+
+
+<TaskParameter>
+<Task> TASK_REMAP </Task>
+<Flavor> 0 </Flavor>
+<Canonical> 1 </Canonical>
+</TaskParameter>
+
+<TaskParameter>
+<Task> TASK_WRITE_TO_FILE </Task>
+<Flavor> 0 </Flavor>
+</TaskParameter>
+
+<TaskParameter>
+<Task> TASK_FILTER_TRANSITION </Task>
+<Flavor> 0 </Flavor>
+<!-- dXTransitionFilter requires a change of state label
+AND an above-threshold change in atomic positions for a transition to be valid
+-->
+<Type> dXTransitionFilter </Type>
+<!--
+0: L_2 norm, i.e. magnitude
+1: L_inf norm, i.e. max component. Typically gives less false positives
+-->
+<MaxNorm> 1 </MaxNorm>
+
+<!-- Threshold distance threshold (should be < 0.25nn bond to be safe) -->
+<Thresh> 0.6 </Thresh>
+
+</TaskParameter>
+
+<!--
+  Symmetry Comparisons for NEB pairs and self symmetries
+  SelfCheck : Look for self symmetries
+  ThreshCheck : Carve out defective region (much faster checks)
+  UseVF2 : use VF2 matching, which has O(N!N) worst case time complexity
+  but is able to treat full, uncarved, configurations.
+
+  If ThreshCheck==0 and SelfCheck==1 VF2 will be used. In this case, simulations
+  may be blocked waiting for VF2 to finish. It is therefore recommended to
+  set ThreshCheck==1, UseVF2==0 if SelfCheck==1
+-->
+<TaskParameter>
+  <Task> TASK_SYMMETRY </Task>
+  <Flavor> 0 </Flavor>
+  <SelfCheck>1</SelfCheck>
+  <ThreshCheck>1</ThreshCheck>
+  <UseVF2>0</UseVF2>
+</TaskParameter>
+
+
+<TaskParameter>
+  <Task> TASK_NEB </Task>
+  <Flavor> 0 </Flavor>
+  <Images> 11 </Images> <!-- NEB knots -->
+  <Spring> .5 </Spring> <!-- NEB spring constant, in [F]/[X] MD units  -->
+
+  <!-- Threshold depth of intermediate minimum to split NEB return result -->
+  <WellDepth> 0.2 </WellDepth>
+
+  <!-- Maximum element of force vector in MD units -->
+  <ForceTolerance> 0.01 </ForceTolerance>
+
+  <!-- Maximum number of force calls -->
+  <MaxIterations> 1000 </MaxIterations>
+
+  <!-- timestep for NEB min, in whatever units the MD engine uses -->
+  <NEBTimestep> 0.002 </NEBTimestep>
+
+  <!-- Calculate prefactor via Hessian for Bayes prior (expensive, usually=0) -->
+  <CalculatePrefactor> 0 </CalculatePrefactor>
+
+  <!-- Even when CalculatePrefactor=1, only compute Hessian for large barriers -->
+  <ThresholdBarrier> 1.0 </ThresholdBarrier>
+  <WriteFiles>0</WriteFiles>
+</TaskParameter>
+
+
+</TaskParameters>
+
+</Configuration>
