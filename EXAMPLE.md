@@ -162,21 +162,24 @@ To disable this restriction, i.e. sample everything, we set
 
 ###  `TASK_CARVE`
 The current stable TAMMBER version uses a simple "carving"
-routine using the centrosymmetry parameter as implemented in `LAMMMPS` [link](https://lammps.sandia.gov/doc/compute_centro_atom.html)
+routine using the centrosymmetry parameter as [implemented](https://lammps.sandia.gov/doc/compute_centro_atom.html) in `LAMMMPS`.
 This requires specifying the centrosymmetry parameter `CentroNeighbors`
 (an even integer), and a `Threshold` value above which atoms are considered "defective"
-
-To disable this carving, set `CentroNeighbors==0`
-
-This will be generalized in new versions- feel free to fork and try yourself!
-
-For elemental systems choosing the centrosymmetry is simple
-(12/8 for fcc/bcc, lattice has centrosymmetry value of zero),
-but in general (e.g. alloys) there will not be an obvious choice.
 We recommend using a visualization routine e.g. `OVITO` to determine the values;
-typically `CentroNeighbors=6` is a good choice for cubic systems.
+typically `CentroNeighbors=6` is a good choice for cubic systems, 12/8 for fcc/bcc.
+This carving will be generalized in new versions- feel free to fork and try yourself!
 
 Some examples-
+
+No carving -
+```xml
+<TaskParameter>
+  <Task> TASK_CARVE </Task>
+  <Flavor> 0 </Flavor> <!-- Default -->
+  <CentroNeighbors> 0 </CentroNeighbors>
+</TaskParameter>
+```
+
 MgO interstitial defect studied in [this paper](https://www.nature.com/articles/s41524-020-00463-8)
 ```xml
 <TaskParameter>
