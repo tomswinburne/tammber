@@ -360,8 +360,9 @@ AND an above-threshold change in atomic positions for a transition to be valid
   <!-- Even when CalculatePrefactor=1, only compute Hessian for large barriers -->
   <ThresholdBarrier> 1.0 </ThresholdBarrier>
   <WriteFiles>0</WriteFiles>
+
   <SelfCheck>1</SelfCheck>
-  <ThreshCheck>0</ThreshCheck>
+  <ThreshCheck>1</ThreshCheck>
 </TaskParameter>
 
 
