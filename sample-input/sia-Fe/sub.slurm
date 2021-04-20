@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -C partition
-#SBATCH -J TAMMBER_vac_test
+#SBATCH -J TAMMBER_sia_test
 #SBATCH --nodes=10
 #SBATCH --ntasks-per-node=28
 #SBATCH --time=0:15:00
