@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 
 set(PREFIX "$ENV{PREFIX}") # example value
-set(CMAKE_CXX_COMPILER mpic++) # example value
+# ENSURE ALL COMPILATIONS USE THE SAME MPI AS THE RUNTIME ENVIRONMENT!!
+set(CMAKE_CXX_COMPILER mpicxx) # example value
 set(CMAKE_C_COMPILER mpicc) # example value
 
 # Setting VERBOSE=1 will generate a lot of output for debugging purposes
