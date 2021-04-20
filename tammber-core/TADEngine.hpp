@@ -530,9 +530,9 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 	carve.type=BaseEngine::mapper.type("TASK_CARVE");
 	carve.flavor = task.flavor;
 
- 	GenericTask spacemap;
- 	spacemap.type=BaseEngine::mapper.type("TASK_SPACEMAP");
- 	spacemap.flavor=task.flavor;
+ 	GenericTask symmetry;
+ 	symmetry.type=BaseEngine::mapper.type("TASK_SYMMETRY");
+ 	symmetry.flavor=task.flavor;
 
  	GenericTask write;
  	write.type=BaseEngine::mapper.type("TASK_WRITE_TO_FILE");
@@ -668,8 +668,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
  	LOGGER("CANONICAL TRANSITION: "<<InitialLabels.first<<" -> "<<FinalLabels.first)
 
- 	// add initial and final states to spacemap
- 	spacemap.clearInputs();
+ 	// add initial and final states to symmetry
+ 	symmetry.clearInputs();
 
  	// THIS MAKES vf2_graph_iso VERY SLOW
  	/*
@@ -686,10 +686,10 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  	for(auto ss: pathway.InitialSymmetries) self_symmetries[pathway.InitialLabels.first].insert(ss);
  	for(auto ss: pathway.FinalSymmetries) self_symmetries[pathway.FinalLabels.first].insert(ss);
 
- 	insert("Targets",InitialLabels.first,InitialLabels.second,0,false,spacemap.inputData,initial);
- 	insert("Targets",FinalLabels.first,FinalLabels.second,0,false,spacemap.inputData,final);
+ 	insert("Targets",InitialLabels.first,InitialLabels.second,0,false,symmetry.inputData,initial);
+ 	insert("Targets",FinalLabels.first,FinalLabels.second,0,false,symmetry.inputData,final);
 
- 	insert("SelfSymmetries",spacemap.arguments,self_symmetries);
+ 	insert("SelfSymmetries",symmetry.arguments,self_symmetries);
 
  	// minimize all ExistingPairs then compare transitions
  	extract("ExistingPairs",task.inputData,ExistingPairs);
@@ -712,24 +712,24 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  			BaseEngine::process(label);
  			extract("Labels",label.returns,labels);
 
- 			insert("Candidates",labels.first,labels.second,0,false,spacemap.inputData,*sys_ep);
+ 			insert("Candidates",labels.first,labels.second,0,false,symmetry.inputData,*sys_ep);
  			LOGGER("Adding ExistingPairs: ("<<labels.first<<","<<labels.second<<")")
 
- 			sys_ep = ExistingPairs.erase(sys_ep); // delete from master; added to spacemap
+ 			sys_ep = ExistingPairs.erase(sys_ep); // delete from master; added to symmetry
  			//labels = std::next(labels);
  		}
  	}
 
 
- 	BaseEngine::process(spacemap);
+ 	BaseEngine::process(symmetry);
 
- 	// extract spacemap returns
- 	extract("SelfTransitions",spacemap.returns,pathway.self_transitions);
- 	extract("StateIsomorphisms",spacemap.returns,pathway.equivalent_states);
- 	extract("TransitionIsomorphisms",spacemap.returns,pathway.equivalent_transitions);
+ 	// extract symmetry returns
+ 	extract("SelfTransitions",symmetry.returns,pathway.self_transitions);
+ 	extract("StateIsomorphisms",symmetry.returns,pathway.equivalent_states);
+ 	extract("TransitionIsomorphisms",symmetry.returns,pathway.equivalent_transitions);
 
  	self_symmetries.clear();
- 	extract("SelfSymmetries",spacemap.returns,self_symmetries);
+ 	extract("SelfSymmetries",symmetry.returns,self_symmetries);
  	for(auto ss: self_symmetries) {
  		if(ss.first==pathway.InitialLabels.first)
  			for(auto sss: ss.second) pathway.InitialSymmetries.insert(sss);
@@ -1144,7 +1144,7 @@ std::function<void(GenericTask&)> init_min_impl = [this](GenericTask &task) {
 
 	std::map<Label,std::set<PointShiftSymmetry>> self_symmetries;
 	t.clear();
-	t.type=BaseEngine::mapper.type("TASK_SPACEMAP");
+	t.type=BaseEngine::mapper.type("TASK_SYMMETRY");
  	insert("Targets",labels.first, labels.second,0,false,t.inputData,s);
 	BaseEngine::process(t);
 	extract("SelfSymmetries",t.returns,self_symmetries);

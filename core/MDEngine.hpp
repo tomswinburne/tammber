@@ -41,7 +41,7 @@ MDTaskMapper() : AbstractTaskMapper() {
 	AbstractTaskMapper::insert("TASK_FORCES");
 	AbstractTaskMapper::insert("TASK_CENTRO");
 	AbstractTaskMapper::insert("TASK_CARVE");
-	AbstractTaskMapper::insert("TASK_SPACEMAP");
+	AbstractTaskMapper::insert("TASK_SYMMETRY");
 	AbstractTaskMapper::insert("TASK_INIT_FROM_FILE");
 	AbstractTaskMapper::insert("TASK_WRITE_TO_FILE");
 	AbstractTaskMapper::insert("TASK_LABEL");
@@ -106,7 +106,7 @@ MDEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_) : 
 	BaseEngine::impls["TASK_FORCES"] = MDEngine::forces_impl; // insert("TASK_FORCES");
 	BaseEngine::impls["TASK_CENTRO"] = MDEngine::centro_impl; // insert("TASK_CENTRO");
 	BaseEngine::impls["TASK_CARVE"] = MDEngine::carve_impl; // insert("TASK_CARVE");
-	BaseEngine::impls["TASK_SPACEMAP"] = MDEngine::spacemap_impl; // insert("TASK_SPACEMAP");
+	BaseEngine::impls["TASK_SYMMETRY"] = MDEngine::symmetry_impl; // insert("TASK_SYMMETRY");
 	BaseEngine::impls["TASK_INIT_FROM_FILE"] = MDEngine::file_init_impl; // insert("TASK_INIT_FROM_FILE");
 	BaseEngine::impls["TASK_WRITE_TO_FILE"] = MDEngine::file_write_impl; // insert("TASK_WRITE_TO_FILE");
 	BaseEngine::impls["TASK_LABEL"] = MDEngine::label_impl; // insert("TASK_LABEL");
@@ -147,7 +147,7 @@ std::function<void(GenericTask&)> centro_impl = [this](GenericTask &task) {
 	/* to be overwritten (in impls as well) */
 };
 
-std::function<void(GenericTask&)> spacemap_impl = [this](GenericTask &task) {
+std::function<void(GenericTask&)> symmetry_impl = [this](GenericTask &task) {
 	/*
 		clabels match by definition
 		- find SelfSymmetries of targetInitial: SSI
@@ -1209,6 +1209,7 @@ bool find_transforms_direct(System &one, System two, PointShiftSymmetry &op, std
 		for(int k=0;k<NDIM;k++) temp[j] += T[NDIM*j+k] * position[k];
 		temp[j] -= position[j];
 	}
+	bc.wrap(temp);
 	LOGGER("       ["<<T[0]<<" "<<T[1]<<" "<<T[2]<<"]")
 	LOGGER("matrix:["<<T[3]<<" "<<T[4]<<" "<<T[5]<<"]")
 	LOGGER("       ["<<T[6]<<" "<<T[7]<<" "<<T[8]<<"]")

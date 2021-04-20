@@ -331,7 +331,7 @@ public:
 
 	// from NEB
 	void add_pathway(NEBPathway &path);
-	void add_spacemaps(NEBPathway &path);
+	void add_symmetrys(NEBPathway &path);
 	bool add_transitionMaps(NEBPathway &path);
 	bool add_duplicate(NEBPathway &path);
 

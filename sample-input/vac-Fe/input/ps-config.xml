@@ -334,13 +334,23 @@ AND an above-threshold change in atomic positions for a transition to be valid
 
 </TaskParameter>
 
+<!--
+  Symmetry Comparisons for NEB pairs and self symmetries
+  SelfCheck : Look for self symmetries
+  ThreshCheck : Carve out defective region (much faster checks)
+  UseAutoMorphism : use VF2 matching, which has O(N!N) worst case time complexity
+  but is able to treat full, uncarved, configurations.
 
+  If ThreshCheck==0 and SelfCheck==1 VF2 will be used. In this case, simulations
+  may be blocked waiting for VF2 to finish. It is therefore recommended to
+  set ThreshCheck==1, UseAutoMorphism==0 if SelfCheck==1
+-->
 <TaskParameter>
-  <Task> TASK_SPACEMAP </Task>
+  <Task> TASK_SYMMETRY </Task>
   <Flavor> 0 </Flavor>
   <SelfCheck>1</SelfCheck>
   <ThreshCheck>1</ThreshCheck>
-  <UseAutoMorphism>1</UseAutoMorphism>
+  <UseAutoMorphism>0</UseAutoMorphism>
 </TaskParameter>
 
 <TaskParameter>

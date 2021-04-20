@@ -590,9 +590,9 @@ void TammberModel::add_segment(TADSegment &seg) {
 	} // OutOfBasin
 };
 
-void TammberModel::add_spacemaps(NEBPathway &path) {
-	LOGGER("TammberModel::add_spacemaps")
-	// first off, incorporate the spacemap results
+void TammberModel::add_symmetrys(NEBPathway &path) {
+	LOGGER("TammberModel::add_symmetrys")
+	// first off, incorporate the symmetry results
 	add_vertex(path.InitialLabels,path.initialE,true);
 	add_vertex(path.FinalLabels,path.finalE,true);
 
@@ -742,8 +742,8 @@ void TammberModel::add_pathway(NEBPathway &path) {
 		return;
 	}
 
-	// first off, incorporate the spacemap results
-	add_spacemaps(path);
+	// first off, incorporate the symmetry results
+	add_symmetrys(path);
 
 	// If NEB found multiple jumps- we request the jumps and add maps
 	bool multijump = add_transitionMaps(path);
