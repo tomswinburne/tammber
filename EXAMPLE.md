@@ -8,7 +8,7 @@ on systems of interest to you!
 - [Specifying initial configuration(s)](#2)
 - [Configuring simulation parameters in `LAMMPS`](#3)
 - [State identification](#4)
-  [Cluster Definitions For Diffusion](#9)
+- [Cluster Definitions For Diffusion](#9)
 - [Configuring the Markov model managing the sampling](#5)
   - [Crystal symmetry for diffusion tensor](#6)
   - [Parameters controlling accelerated sampling](#7)
