@@ -165,18 +165,20 @@ void initializeSystems() {
 
 	std::list<GenericTask> tasks;
 	//std::set<LabelPair> initialStateSet;
-	int counts=0,pcount;
+	int counts=0,pcount,print_count=0;
 	unsigned int sleepms=500;
 	if(initialConfigurations.size()==1) {
 		bool init=false;
 		while(not init) {
-			LOGGER("PullMMbuilder::initializeSystems() : "<<init)
+			if(print_count++%1000==0) {
+				LOGGER("PullMMbuilder::initializeSystems() : "<<init)
+			}
 			processSend();
 			processRecv();
 			ready.extract(mapper.type("TASK_INIT_MIN"),tasks);
 			init=bool(tasks.size()>0);
-			LOGGER("PullMMbuilder::initializeSystems() : Waiting "<<sleepms<<"ms to check initialization")
-			std::this_thread::sleep_for(std::chrono::milliseconds(sleepms));
+			//LOGGER("PullMMbuilder::initializeSystems() : Waiting "<<sleepms<<"ms to check initialization")
+			//std::this_thread::sleep_for(std::chrono::milliseconds(sleepms));
 		}
 	} else while(counts<initialConfigurations.size()) {
 		LOGGER("PullMMbuilder::initializeSystems() : "<<counts<<","<<initialConfigurations.size())

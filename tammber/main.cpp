@@ -182,7 +182,7 @@ int main(int argc, char * argv[]) {
 
 	// Everyone waits for Splicer
 	MPI_Barrier(MPI_COMM_WORLD);
-
+	
 	uint64_t maxDataSize=100000000;
 	uint64_t maxCacheSize=1000000000;
 
