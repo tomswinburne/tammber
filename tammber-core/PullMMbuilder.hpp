@@ -162,37 +162,28 @@ void initializeSystems() {
 		LOGGERA("IN TQ: "<<taskQueue.count())
 	}
 
-
 	std::list<GenericTask> tasks;
-	//std::set<LabelPair> initialStateSet;
-	int counts=0,pcount,print_count=0;
-	unsigned int sleepms=500;
-	if(initialConfigurations.size()==1) {
-		bool init=false;
-		while(not init) {
-			if(print_count++%1000==0) {
-				LOGGER("PullMMbuilder::initializeSystems() : "<<init)
-			}
-			processSend();
-			processRecv();
-			ready.extract(mapper.type("TASK_INIT_MIN"),tasks);
-			init=bool(tasks.size()>0);
-			//LOGGER("PullMMbuilder::initializeSystems() : Waiting "<<sleepms<<"ms to check initialization")
-			//std::this_thread::sleep_for(std::chrono::milliseconds(sleepms));
-		}
-	} else while(counts<initialConfigurations.size()) {
-		LOGGER("PullMMbuilder::initializeSystems() : "<<counts<<","<<initialConfigurations.size())
+	int counts=0, prev_counts=0, total_counts=initialConfigurations.size();
+	std::chrono::high_resolution_clock::time_point now,FirstLog,LastLog;
+	std::chrono::milliseconds LogDelay,MaxDelay;
+	LogDelay = std::chrono::milliseconds(1000); // 1s
+	MaxDelay = std::chrono::milliseconds(60000); // 60s
+	now = std::chrono::high_resolution_clock::now();
+	FirstLog = now;
+	LastLog = now;
+
+	while(counts<initialConfigurations.size()) {
 		processSend();
 		processRecv();
-		pcount = tasks.size();
+		prev_counts = tasks.size();
 		ready.extract(mapper.type("TASK_INIT_MIN"),tasks);
-
-		counts += tasks.size()-pcount;
-		if (tasks.size()!=pcount) {
-			LOGGERA("Counts:"<<counts<<" "<<tasks.size()<<" "<<initialConfigurations.size())
+		counts += tasks.size() - prev_counts;
+		now = std::chrono::high_resolution_clock::now();
+		if(now - LastLog > LogDelay || tasks.size()>prev_counts) {
+			LOGGER("PullMMbuilder::initializeSystems() :  "<<counts<<"/"<<total_counts)
+			LastLog = now;
 		}
-		LOGGER("PullMMbuilder::initializeSystems() : Waiting "<<sleepms<<"ms to check initialization")
-		std::this_thread::sleep_for(std::chrono::milliseconds(sleepms));
+		if(now - FirstLog > MaxDelay && tasks.size()>0) break;
 	}
 
 	LOGGER("PullMMbuilder::initializeSystems() : received "<<tasks.size()<<" tasks")
