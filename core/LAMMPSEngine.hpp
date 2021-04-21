@@ -100,7 +100,7 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 	if(initScript=="" || mdScript=="" || minScript=="") {
 		GenericTask die;
 		die.type=MDBaseEngine::BaseEngine::mapper.type("TASK_DIE");
-		die.flavor=MDBaseEngine::BaseEngine::defaultFlavor;
+		die.flavor=MDBaseEngine::defaultFlavor;
 		MDBaseEngine::BaseEngine::process(die);
 	}
 

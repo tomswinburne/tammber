@@ -52,7 +52,7 @@ void worker(MPI_Comm localComm, MPI_Comm interComm, int seed){
 	TaskMapperType TaskMapper;
 
 	int local_rank=0;
-	MPI_Comm_rank(localComm,local_rank);
+	MPI_Comm_rank(localComm,&local_rank);
 
 	// Create empty property tree object
 	boost::property_tree::ptree tree;
