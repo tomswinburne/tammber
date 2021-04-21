@@ -55,7 +55,6 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 
 	log_lammps = config.get<bool>("Configuration.LAMMPSEngine.LogLammps");
 
-	int local_rank;
 	MPI_Comm_rank(localComm_,&local_rank);
 	std::string logfile="none";
 	if(log_lammps) logfile="log_"+std::to_string(local_rank)+"_"+std::to_string(seed_)+".lammps";
@@ -145,7 +144,7 @@ virtual bool failed(){
 	if(bool(lammps_has_error(lmp))) {
 		char error_message[2048];
 		int error_type = lammps_get_last_error_message(lmp,error_message,2048);
-		LOGGERA("LAMMPS ERROR! type:"<<error_type<<" msg:"<<error_message)
+		if(local_rank==0) LOGGERA("LAMMPS ERROR! type:"<<error_type<<" msg:"<<error_message)
 		return true;
 	} else return false;
 };
@@ -205,7 +204,7 @@ std::unordered_map<std::string,std::string> parameters=extractParameters(task.ty
 		lammps_commands_string(lmp,(char *) cmd.c_str());
 
 		natomsEnd = (int) *((int64_t *) lammps_extract_global(lmp,(char *) "natoms"));
-		if(natomsEnd!=natomsBegin) LOGGERA("ERROR: LAMMPS LOST ATOMS. RESTARTING TASK")
+		if(natomsEnd!=natomsBegin && local_rank==0) LOGGERA("ERROR: LAMMPS LOST ATOMS. RESTARTING TASK")
 	} while(natomsBegin != natomsEnd );
 
 	transferAtomsFromLammps(s);
