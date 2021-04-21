@@ -53,7 +53,7 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 	parser.seed(seed_);
 	// TODO: how to pass command-line args to LAMMPS at some point?
 
-	log_lammps = config.get<bool>("Configuration.LAMMPSEngine.LogLammps");
+	log_lammps = config.get<bool>("Configuration.LAMMPSEngine.LogLammps",false);
 
 	std::string logfile="none";
 	if(log_lammps) logfile="log_"+std::to_string(MDBaseEngine::local_rank)+"_"+std::to_string(seed_)+".lammps";
@@ -90,11 +90,20 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 
 	//bootstrapScript=config.get<std::string>("Configuration.LAMMPSEngine.BootstrapScript");
 	mdScript=config.get<std::string>("Configuration.LAMMPSEngine.MDScript");
-	minScript=config.get<std::string>("Configuration.LAMMPSEngine.MinScript");
-	writeScript=config.get<std::string>("Configuration.LAMMPSEngine.WriteScript");
-	initScript=config.get<std::string>("Configuration.LAMMPSEngine.InitScript");
-	postInitScript=config.get<std::string>("Configuration.LAMMPSEngine.PostInitScript");
-	velocityInitScript=config.get<std::string>("Configuration.LAMMPSEngine.VelocityInitScript");
+	minScript=config.get<std::string>("Configuration.LAMMPSEngine.MinScript","");
+	writeScript=config.get<std::string>("Configuration.LAMMPSEngine.WriteScript","");
+	initScript=config.get<std::string>("Configuration.LAMMPSEngine.InitScript","");
+	postInitScript=config.get<std::string>("Configuration.LAMMPSEngine.PostInitScript","");
+	velocityInitScript=config.get<std::string>("Configuration.LAMMPSEngine.VelocityInitScript","");
+
+	// kill off worker if a fault is produced
+	if(initScript=="" || mdScript=="" || minScript=="") {
+		GenericTask die;
+		die.type=MDBaseEngine::BaseEngine::mapper.type("TASK_DIE");
+		die.flavor=MDBaseEngine::BaseEngine::defaultFlavor;
+		MDBaseEngine::BaseEngine::process(die);
+	}
+
 
 	int nGPU=config.get<int>("Configuration.LAMMPSEngine.NAccelerators",1);
 	int rank;
@@ -139,13 +148,15 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 	MDBaseEngine::BaseEngine::impls["TASK_CENTRO"] = LAMMPSEngine::centro_impl;
 };
 
-virtual bool failed(){
-	if(bool(lammps_has_error(lmp))) {
-		char error_message[2048];
-		int error_type = lammps_get_last_error_message(lmp,error_message,2048);
-		if(MDBaseEngine::local_rank==0) LOGGERA("LAMMPS ERROR! type:"<<error_type<<" msg:"<<error_message)
-		return true;
-	} else return false;
+virtual bool failed() {
+	try{
+		if(bool(lammps_has_error(lmp))) {
+			char error_message[2048];
+			int error_type = lammps_get_last_error_message(lmp,error_message,2048);
+			if(MDBaseEngine::local_rank==0) LOGGERA("LAMMPS ERROR! type:"<<error_type<<" msg:"<<error_message)
+			return true;
+		} else return false;
+	} catch(...) return true;
 };
 
 
@@ -416,7 +427,7 @@ std::function<void(GenericTask&)> file_write_impl = [this](GenericTask &task) {
 
 };
 
-void transferAtomsFromLammps(System &s){
+void transferAtomsFromLammps(System &s) {
 	lammps_command(lmp,(char *) "run 0");
 	LAMMPSSystem *sys = &s;
 	lammps_gather(lmp,(char *) "id",LAMMPS_INT,1,&sys->id[0]);

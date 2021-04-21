@@ -89,23 +89,11 @@ void worker(MPI_Comm localComm, MPI_Comm interComm, int seed){
 				auto d = std::chrono::duration_cast<std::chrono::milliseconds>(t1-t0).count();
 				LOGGERA("PROCESSING TASK "<<t.type<<" ")
 			}
+
 			if(t.type == TaskMapper.type("TASK_DIE") || not healthy ) {
 				//TODO: add cleanup
 				break;
 			}
-
-
-#ifdef INJECT_FAULT
-
-			{
-				if (distribution(generator)) {
-					std::cout<<"SUICIDE!!!"<<std::endl;
-					*(char *)0 = 0;
-					//__builtin_trap();
-				}
-			}
-
-#endif
 
 			//process the task
 			try{
