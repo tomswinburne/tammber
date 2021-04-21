@@ -989,7 +989,8 @@ std::function<void(GenericTask&)> carve_impl = [this](GenericTask &task) {
 			thr_s.setCell(s.getCell());
 			for(int i=0; i<csl.size();i++) if(csl[i]>thresh) thr_N++;
 			thr_s.setNAtoms(thr_N);
-			if(thr_N==0) LOGGERA("TADEngine::carve_impl : No atoms above threshold!")
+			if(thr_N==0&&BaseEngine::local_rank==0)
+				LOGGERA("TADEngine::carve_impl : No atoms above threshold!")
 		}
 
 
@@ -997,10 +998,12 @@ std::function<void(GenericTask&)> carve_impl = [this](GenericTask &task) {
 			insert("ThreshState",task.outputData,s);
 		} else {
 			thr_N=0;
-			LOGGER("TADEngine::carve_impl : Thresholding:")
+			if(BaseEngine::local_rank==0)
+				LOGGER("TADEngine::carve_impl : Thresholding:")
 			// Build new system from above-threshold atoms, scaled by RelativeCutoff
 			for(int i=0; i<csl.size();i++) if(csl[i]>thresh) {
-				LOGGER(s.getUniqueID(i)<<" "<<s.getPosition(i,0)<<" "<<s.getPosition(i,1)<<" "<<s.getPosition(i,2)<<" "<<csl[i]<<" "<<thresh)
+				if(BaseEngine::local_rank==0)
+					LOGGER(s.getUniqueID(i)<<" "<<s.getPosition(i,0)<<" "<<s.getPosition(i,1)<<" "<<s.getPosition(i,2)<<" "<<csl[i]<<" "<<thresh)
 				// new ID
 				thr_s.setUniqueID(thr_N,s.getUniqueID(i));
 				// snap to first position
@@ -1035,14 +1038,17 @@ std::function<void(GenericTask&)> carve_impl = [this](GenericTask &task) {
 			int max_cl=0;
 			for(int i=0;i<clusters;i++) {
 				if(rocc[i]>0) for(int j=0;j<3;j++) rocp[i][j] /= float(rocc[i]);
-				LOGGER("Cluster "<<i+1<<" : "<<rocc[i]<<" atoms, position :"<<rocp[i][0]<<" "<<rocp[i][1]<<" "<<rocp[i][2])
+				if(BaseEngine::local_rank==0)
+					LOGGER("Cluster "<<i+1<<" : "<<rocc[i]<<" atoms, position :"<<rocp[i][0]<<" "<<rocp[i][1]<<" "<<rocp[i][2])
 				if(rocc[i]>rocc[max_cl]) max_cl = i;
 			}
 			for(int j=0;j<3;j++) position[j] = rocp[max_cl][j];
 
 		}
-		LOGGER("TADEngine::carve_impl : NClusters = "<<clusters);
-		LOGGER("TADEngine::carve_impl : Position = ["<<position[0]<<" "<<position[1]<<" "<<position[2]<<"]")
+		if(BaseEngine::local_rank==0)
+			LOGGER("TADEngine::carve_impl : NClusters = "<<clusters);
+		if(BaseEngine::local_rank==0)
+			LOGGER("TADEngine::carve_impl : Position = ["<<position[0]<<" "<<position[1]<<" "<<position[2]<<"]")
 		insert("Position",task.returns,position);
 		insert("Clusters",task.returns,clusters);
 	}
@@ -1053,7 +1059,8 @@ std::function<void(GenericTask&)> carve_impl = [this](GenericTask &task) {
 
 // two is not passed by reference due to remap. finds mapping T,d such that T(y)+d = x  for  y,x == two,one
 std::set<PointShiftSymmetry> find_transforms(System &one, System two, std::map<int,int> &map) {
-	LOGGER("MDEngine::find_transforms");
+	if(BaseEngine::local_rank==0)
+		LOGGER("MDEngine::find_transforms");
 
 	Cell bc = one.getCell();
 
@@ -1066,9 +1073,11 @@ std::set<PointShiftSymmetry> find_transforms(System &one, System two, std::map<i
 	for(int j=0;j<NDIM;j++) for(int k=0;k<NDIM;k++) cc[j] += bc.rsp[j][k]/2.0;
 
 	two.remap(map);
+	if(BaseEngine::local_rank==0){
+		LOGGER("cell center: "<<cc[0]<<" "<<cc[1]<<" "<<cc[2])
+		LOGGER("cell origin: "<<bc.origin[0]<<" "<<bc.origin[1]<<" "<<bc.origin[2])
+	}
 
-	LOGGER("cell center: "<<cc[0]<<" "<<cc[1]<<" "<<cc[2])
-	LOGGER("cell origin: "<<bc.origin[0]<<" "<<bc.origin[1]<<" "<<bc.origin[2])
 	// Rotate around, then shift: X-c = G.(X-c) + d_i
 
 	for(int operation=0; operation<48; operation++) {
@@ -1097,10 +1106,12 @@ std::set<PointShiftSymmetry> find_transforms(System &one, System two, std::map<i
 		}
 		if(complete) {
 			bc.wrap(shift);
-			LOGGER("       ["<<T[0]<<" "<<T[1]<<" "<<T[2]<<"]")
-			LOGGER("matrix:["<<T[3]<<" "<<T[4]<<" "<<T[5]<<"]")
-			LOGGER("       ["<<T[6]<<" "<<T[7]<<" "<<T[8]<<"]")
-			LOGGER("shift: ["<<shift[0]<<" "<<shift[1]<<" "<<shift[2]<<"]")
+			if(BaseEngine::local_rank==0){
+				LOGGER("       ["<<T[0]<<" "<<T[1]<<" "<<T[2]<<"]")
+				LOGGER("matrix:["<<T[3]<<" "<<T[4]<<" "<<T[5]<<"]")
+				LOGGER("       ["<<T[6]<<" "<<T[7]<<" "<<T[8]<<"]")
+				LOGGER("shift: ["<<shift[0]<<" "<<shift[1]<<" "<<shift[2]<<"]")
+			}
 			op.operation=operation;
 			op.matrix=T;
 			for(int j=0;j<NDIM;j++) op.shift[j] = shift[j];
@@ -1112,11 +1123,11 @@ std::set<PointShiftSymmetry> find_transforms(System &one, System two, std::map<i
 };
 
 bool SelfSymmetries(System &one, std::set<PointShiftSymmetry> &syms,bool return_maps=false) {
-	LOGGER("MDEngine::SelfSymmetries");
+	if(BaseEngine::local_rank==0) LOGGER("MDEngine::SelfSymmetries");
 	std::list<std::map<int,int>> amaps;
 	syms.clear();
 	labeler->isomorphicSelfMaps(one,amaps);
-	LOGGER("FOUND "<<amaps.size()<<" SELF MAPS");
+	if(BaseEngine::local_rank==0) LOGGER("FOUND "<<amaps.size()<<" SELF MAPS");
 	int count = 0;
 	for (auto &map: amaps) {
 		auto ops = find_transforms(one, one, map);
@@ -1126,7 +1137,7 @@ bool SelfSymmetries(System &one, std::set<PointShiftSymmetry> &syms,bool return_
 		}
 		count++;
 		if(count>48) {
-			LOGGER("TRIED 96 SELF MAPS, FOUND "<<syms.size()<<" OPERATIONS. EXITING")
+			if(BaseEngine::local_rank==0) LOGGER("TRIED 96 SELF MAPS, FOUND "<<syms.size()<<" OPERATIONS. EXITING")
 			break;
 		}
 	}
@@ -1137,7 +1148,7 @@ bool SelfSymmetries(System &one, std::set<PointShiftSymmetry> &syms,bool return_
 // VF2-free implementation
 
 bool find_transforms_direct(System &one, System two, PointShiftSymmetry &op, std::array<double,NDIM> position, int operation) {
-	LOGGER("MDEngine::find_transforms_direct");
+	if(BaseEngine::local_rank==0) LOGGER("MDEngine::find_transforms_direct");
 
 	Cell bc = one.getCell();
 	int natoms = one.getNAtoms();
@@ -1149,10 +1160,10 @@ bool find_transforms_direct(System &one, System two, PointShiftSymmetry &op, std
 	for(int j=0;j<NDIM;j++) for(int k=0;k<NDIM;k++) cc[j] += bc.rsp[j][k]/2.0;
 
 	std::vector<int> count(natoms,0);
-
-	LOGGER("cell center: "<<cc[0]<<" "<<cc[1]<<" "<<cc[2])
-	LOGGER("cell origin: "<<bc.origin[0]<<" "<<bc.origin[1]<<" "<<bc.origin[2])
-
+	if(BaseEngine::local_rank==0) {
+		LOGGER("cell center: "<<cc[0]<<" "<<cc[1]<<" "<<cc[2])
+		LOGGER("cell origin: "<<bc.origin[0]<<" "<<bc.origin[1]<<" "<<bc.origin[2])
+	}
 	// Rotate around position with transform matrix
 	// one : centered_cluster + com
 	// two : T.centered_cluster (no com shift)
@@ -1169,11 +1180,14 @@ bool find_transforms_direct(System &one, System two, PointShiftSymmetry &op, std
 			cc2[j] += two.getPosition(i,j) / natoms;
 		}
 	}
-	LOGGER("one com - position: "<<cc[0]<<" "<<cc[1]<<" "<<cc[2])
-	LOGGER("two com - position: "<<cc2[0]<<" "<<cc2[1]<<" "<<cc2[2])
-
 	temp_d=0.; for(int j=0;j<NDIM;j++) temp_d += (cc[j]-cc2[j])*(cc[j]-cc2[j]);
-	LOGGER("com difference: "<<sqrt(temp_d))
+
+	if(BaseEngine::local_rank==0) {
+		LOGGER("one com - position: "<<cc[0]<<" "<<cc[1]<<" "<<cc[2])
+		LOGGER("two com - position: "<<cc2[0]<<" "<<cc2[1]<<" "<<cc2[2])
+		LOGGER("com difference: "<<sqrt(temp_d))
+	}
+
 	if(sqrt(temp_d)>1.0) return false; // quit if not identical here
 
 
@@ -1211,10 +1225,12 @@ bool find_transforms_direct(System &one, System two, PointShiftSymmetry &op, std
 		temp[j] -= position[j];
 	}
 	bc.wrap(temp);
-	LOGGER("       ["<<T[0]<<" "<<T[1]<<" "<<T[2]<<"]")
-	LOGGER("matrix:["<<T[3]<<" "<<T[4]<<" "<<T[5]<<"]")
-	LOGGER("       ["<<T[6]<<" "<<T[7]<<" "<<T[8]<<"]")
-	LOGGER("shift: ["<<temp[0]<<" "<<temp[1]<<" "<<temp[2]<<"]")
+	if(BaseEngine::local_rank==0) {
+		LOGGER("       ["<<T[0]<<" "<<T[1]<<" "<<T[2]<<"]")
+		LOGGER("matrix:["<<T[3]<<" "<<T[4]<<" "<<T[5]<<"]")
+		LOGGER("       ["<<T[6]<<" "<<T[7]<<" "<<T[8]<<"]")
+		LOGGER("shift: ["<<temp[0]<<" "<<temp[1]<<" "<<temp[2]<<"]")
+	}
 	op.operation=operation;
 	op.matrix=T;
 	for(int j=0;j<NDIM;j++) op.shift[j] = temp[j];
@@ -1226,7 +1242,7 @@ bool find_transforms_direct(System &one, System two, PointShiftSymmetry &op, std
 
 
 bool SelfSymmetriesCarve(System &one, std::set<PointShiftSymmetry> &syms) {
-	LOGGER("MDEngine::SelfSymmetriesCarve");
+	if(BaseEngine::local_rank==0) LOGGER("MDEngine::SelfSymmetriesCarve");
 	GenericTask t;
 	System carved;
 	int clusters=1;
@@ -1249,7 +1265,8 @@ bool SelfSymmetriesCarve(System &one, std::set<PointShiftSymmetry> &syms) {
 	for(int operation=0; operation<48; operation++)
 		if(find_transforms_direct(carved,carved,op,position,operation))
 			syms.insert(op);
-	LOGGER("TRIED 48 SELF MAPS, FOUND "<<syms.size()<<" OPERATIONS. EXITING")
+  if(BaseEngine::local_rank==0)
+		LOGGER("TRIED 48 SELF MAPS, FOUND "<<syms.size()<<" OPERATIONS. EXITING")
 	return true;
 };
 
