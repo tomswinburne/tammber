@@ -95,9 +95,9 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 	int maximumSegmentLength = safe_extractor<int>(parameters,"MaximumSegmentLength",25*minimumSegmentLength);
 
 	//create tasks
-	GenericTask md,min,label,carve,initVelocities,filter;//,write;
-	//write.type = BaseEngine::mapper.type("TASK_WRITE_TO_FILE");
-	//write.flavor = task.flavor;
+	GenericTask md,min,label,carve,initVelocities,filter,write;
+	write.type = BaseEngine::mapper.type("TASK_WRITE_TO_FILE");
+	write.flavor = task.flavor;
 
 	md.type=BaseEngine::mapper.type("TASK_MD");
 	md.flavor=task.flavor;
@@ -286,6 +286,13 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 				newBasinLabels[CurrentLabels] = currentMin.getEnergy();
 				if(reportIntermediates)
 					insert("State",CurrentLabels.first,CurrentLabels.second,LOCATION_SYSTEM_MIN,true,task.outputData,currentMin);
+				if(!ProductionRun) {
+					std::string _fn = "states/state-"+std::to_string(CurrentLabels.first)+"-"+std::to_string(CurrentLabels.second)+".dat";
+					write.clearInputs(); write.clearOutputs();
+		 			insert("Filename",write.arguments,_fn);
+		 			insert("State",write.inputData,currentMin);
+		 			BaseEngine::process(write);
+				}
 			}
 
 			if(!Transition) {
@@ -449,7 +456,13 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 				segment.transition.first = InitialLabels;
 				annealing=true;
 				annealingMin = currentMin;
-
+				if(!ProductionRun) {
+					std::string _fn = "states/state-"+std::to_string(CurrentLabels.first)+"-"+std::to_string(CurrentLabels.second)+".dat";
+					write.clearInputs(); write.clearOutputs();
+		 			insert("Filename",write.arguments,_fn);
+		 			insert("State",write.inputData,currentMin);
+		 			BaseEngine::process(write);
+				}
 			} else { // no transition, continue MD
 
 				// reset labels as the only change was due to small fluctuations
@@ -1161,7 +1174,8 @@ std::function<void(GenericTask&)> label_impl = [this](GenericTask &task) {
 	LabelPair labels;
 	labels.first = BaseMDEngine::labeler->hash(s,true);
 	labels.second = BaseMDEngine::labeler->hash(s,false);
-	if(BaseEngine::local_rank==0) LOGGER(labels.first<<" "<<labels.second)
+	if(BaseEngine::local_rank==0)
+		LOGGER("TADEngine::label_impl: "<<labels.first<<" "<<labels.second)
 	insert("State",labels.first,labels.second,0,false,task.outputData,s);
 	insert("Labels",task.returns,labels);
 	insert("Label",task.returns,labels.second);
