@@ -118,13 +118,13 @@ MDEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_) : 
 };
 
 int defaultFlavor;
+int local_rank;
 
 //std::map< std::pair<int,int>, std::map<std::string,std::string> > taskParameters;
 std::unordered_map< std::pair<int,int>, std::unordered_map<std::string,std::string>, boost::hash< std::pair<int,int> > > taskParameters;
 
 protected:
 std::shared_ptr<AbstractStateLabeler> labeler;
-int local_rank;
 
 
 private:

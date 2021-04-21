@@ -67,7 +67,7 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 	lmp = NULL;
 	lmp = new LAMMPS(argc,lammps_argv,localComm_);
 
-	LOGGER("Opened lammps worker "<<MDBaseEngine::local_rank)
+	LOGGER("Opened lammps worker ; local rank = "<<MDBaseEngine::local_rank)
 
 
 
