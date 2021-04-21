@@ -156,7 +156,10 @@ virtual bool failed() {
 			if(MDBaseEngine::local_rank==0) LOGGERA("LAMMPS ERROR! type:"<<error_type<<" msg:"<<error_message)
 			return true;
 		} else return false;
-	} catch(...) return true;
+	} catch(...) {
+		if(MDBaseEngine::local_rank==0) LOGGERA("LAMMPS IS CLOSED!)
+		return true;
+	}
 };
 
 
