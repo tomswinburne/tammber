@@ -157,7 +157,7 @@ virtual bool failed() {
 			return true;
 		} else return false;
 	} catch(...) {
-		if(MDBaseEngine::local_rank==0) LOGGERA("LAMMPS IS CLOSED!)
+		if(MDBaseEngine::local_rank==0) LOGGERA("LAMMPS IS CLOSED!")
 		return true;
 	}
 };
