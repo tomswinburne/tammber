@@ -183,7 +183,7 @@ void initializeSystems() {
 			LOGGER("PullMMbuilder::initializeSystems() :  "<<counts<<"/"<<total_counts)
 			LastLog = now;
 		}
-		if(now - FirstLog > MaxDelay && task.size()>0) break;
+		if(now - FirstLog > MaxDelay && tasks.size()>0) break;
 	}
 
 	LOGGER("PullMMbuilder::initializeSystems() : received "<<tasks.size()<<" tasks")
