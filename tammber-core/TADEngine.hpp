@@ -138,7 +138,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 			BaseEngine::process(min);
 			gotMin = extract("State",min.outputData,minimum);
 		} else {
-			if(local_rank==0) LOGGER("NO QSD OR MINIMUM! EXITING")
+			if(BaseEngine::local_rank==0) LOGGER("NO QSD OR MINIMUM! EXITING")
 			return ;
 		}
 	}
@@ -243,13 +243,13 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 			BaseEngine::process(label);
 			extract("Labels",label.returns,CurrentLabels);
 			if(ProductionRun) {
-				if(local_rank==0) LOGGER("Dephase: REFERENCE CURRENTMIN MSD_2: "<<reference.msd(currentMin,false))
-				if(local_rank==0) LOGGER("Dephase: REFERENCE CURRENTMIN MSD_INF: "<<reference.msd(currentMin,true))
-				if(local_rank==0) LOGGER("Dephase: CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
+				if(BaseEngine::local_rank==0) LOGGER("Dephase: REFERENCE CURRENTMIN MSD_2: "<<reference.msd(currentMin,false))
+				if(BaseEngine::local_rank==0) LOGGER("Dephase: REFERENCE CURRENTMIN MSD_INF: "<<reference.msd(currentMin,true))
+				if(BaseEngine::local_rank==0) LOGGER("Dephase: CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
 			} else {
-				if(local_rank==0) LOGGERA("Dephase: REFERENCE CURRENTMIN MSD_2: "<<reference.msd(currentMin,false))
-				if(local_rank==0) LOGGERA("Dephase: REFERENCE CURRENTMIN MSD_INF: "<<reference.msd(currentMin,true))
-				if(local_rank==0) LOGGERA("Dephase: CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
+				if(BaseEngine::local_rank==0) LOGGERA("Dephase: REFERENCE CURRENTMIN MSD_2: "<<reference.msd(currentMin,false))
+				if(BaseEngine::local_rank==0) LOGGERA("Dephase: REFERENCE CURRENTMIN MSD_INF: "<<reference.msd(currentMin,true))
+				if(BaseEngine::local_rank==0) LOGGERA("Dephase: CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
 			}
 
 
@@ -270,8 +270,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 			// currently we just log the basin transitions, we do not use them
 			// segment.dephased = !Transition or BasinTransition or NewBasinTransition;
 			segment.dephased = !Transition;
-			if(!ProductionRun) if(local_rank==0) LOGGERA("Dephased: "<<segment.dephased<<" "<<Transition<<" "<<BasinTransition<<" "<<NewBasinTransition);
-			if(local_rank==0) LOGGER("Dephased: "<<segment.dephased<<" "<<Transition<<" "<<BasinTransition<<" "<<NewBasinTransition);
+			if(!ProductionRun) if(BaseEngine::local_rank==0) LOGGERA("Dephased: "<<segment.dephased<<" "<<Transition<<" "<<BasinTransition<<" "<<NewBasinTransition);
+			if(BaseEngine::local_rank==0) LOGGER("Dephased: "<<segment.dephased<<" "<<Transition<<" "<<BasinTransition<<" "<<NewBasinTransition);
 
 			if(Transition) { // i.e. a transition. We
 				carve.clearInputs(); carve.clearOutputs();
@@ -304,11 +304,11 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 	if(segment.dephased) for(auto &nbl: newBasinLabels) segment.BasinLabels.insert(nbl);
 
 	if(segment.dephased) {
-		if(!ProductionRun) if(local_rank==0) LOGGERA("DEPHASED WITH "<<newBasinLabels.size()<<" NEW BASIN STATES (NOT CURRENTLY USED)")
-		if(local_rank==0) LOGGER("DEPHASED WITH "<<newBasinLabels.size()<<" NEW BASIN STATES (NOT CURRENTLY USED)")
+		if(!ProductionRun) if(BaseEngine::local_rank==0) LOGGERA("DEPHASED WITH "<<newBasinLabels.size()<<" NEW BASIN STATES (NOT CURRENTLY USED)")
+		if(BaseEngine::local_rank==0) LOGGER("DEPHASED WITH "<<newBasinLabels.size()<<" NEW BASIN STATES (NOT CURRENTLY USED)")
 	} else {
-		if(!ProductionRun) if(local_rank==0) LOGGERA("NOT DEPHASED; TRIED "<<newBasinLabels.size()<<" NEW FAKE BASIN STATES; EXITING")
-		if(local_rank==0) LOGGER("NOT DEPHASED; TRIED "<<newBasinLabels.size()<<" NEW FAKE BASIN STATES; EXITING")
+		if(!ProductionRun) if(BaseEngine::local_rank==0) LOGGERA("NOT DEPHASED; TRIED "<<newBasinLabels.size()<<" NEW FAKE BASIN STATES; EXITING")
+		if(BaseEngine::local_rank==0) LOGGER("NOT DEPHASED; TRIED "<<newBasinLabels.size()<<" NEW FAKE BASIN STATES; EXITING")
 	}
 
 	if(!segment.dephased) {
@@ -360,8 +360,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 		insert("State",min.inputData,current);
 		BaseEngine::process(min);
 		extract("State",min.outputData,currentMin);
-		if(!ProductionRun && local_rank==0) LOGGERA("REFERENCE CURRENTMIN MSD_INF (1st MIN): "<<reference.msd(currentMin,true));
-		if(local_rank==0) LOGGER("REFERENCE CURRENTMIN MSD_INF (1st MIN): "<<reference.msd(currentMin,true));
+		if(!ProductionRun && BaseEngine::local_rank==0) LOGGERA("REFERENCE CURRENTMIN MSD_INF (1st MIN): "<<reference.msd(currentMin,true));
+		if(BaseEngine::local_rank==0) LOGGER("REFERENCE CURRENTMIN MSD_INF (1st MIN): "<<reference.msd(currentMin,true));
 
 		// just to avoid future issues..... count this?
 		min.clearInputs(); min.clearOutputs();
@@ -378,11 +378,11 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 		// logs
 		msd_thresh = reference.msd(currentMin,true);
 		if(!ProductionRun) {
-			if(local_rank==0) LOGGERA("REFERENCE CURRENTMIN MSD_INF (2nd MIN): "<<msd_thresh)
-			if(local_rank==0) LOGGERA("CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
+			if(BaseEngine::local_rank==0) LOGGERA("REFERENCE CURRENTMIN MSD_INF (2nd MIN): "<<msd_thresh)
+			if(BaseEngine::local_rank==0) LOGGERA("CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
 		}
-		if(local_rank==0) LOGGER("REFERENCE CURRENTMIN MSD_INF (2nd MIN): "<<msd_thresh)
-		if(local_rank==0) LOGGER("CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
+		if(BaseEngine::local_rank==0) LOGGER("REFERENCE CURRENTMIN MSD_INF (2nd MIN): "<<msd_thresh)
+		if(BaseEngine::local_rank==0) LOGGER("CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
 
 		if(annealing) {
 			// transition check
@@ -403,8 +403,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
 
 			if(Annealed and Transition) { // no transition after annealing == exit
-				if(!ProductionRun) if(local_rank==0) LOGGERA("ANNEALED! VALID TRANSITION MADE!");
-				if(local_rank==0) LOGGER("ANNEALED! VALID TRANSITION MADE!");
+				if(!ProductionRun) if(BaseEngine::local_rank==0) LOGGERA("ANNEALED! VALID TRANSITION MADE!");
+				if(BaseEngine::local_rank==0) LOGGER("ANNEALED! VALID TRANSITION MADE!");
 				insert("FinalMinimum",CurrentLabels.first,CurrentLabels.second,LOCATION_SYSTEM_MIN,true,task.outputData,currentMin);
 
 				// carve
@@ -421,14 +421,14 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
 				segment.transition.first = InitialLabels;
 				segment.transition.second = CurrentLabels;
-				if(!ProductionRun && local_rank==0) LOGGERA("INSERTING "<<CurrentLabels.first<<","<<CurrentLabels.second<<" , E="<<currentMin.getEnergy()<<", NClust = "<<clusters<<", Position: "<<position[0]<<" "<<position[1]<<" "<<position[2])
-				if(local_rank==0) LOGGER("INSERTING "<<CurrentLabels.first<<","<<CurrentLabels.second<<" , E="<<currentMin.getEnergy()<<", NClust = "<<clusters<<", Position: "<<position[0]<<" "<<position[1]<<" "<<position[2])
+				if(!ProductionRun && BaseEngine::local_rank==0) LOGGERA("INSERTING "<<CurrentLabels.first<<","<<CurrentLabels.second<<" , E="<<currentMin.getEnergy()<<", NClust = "<<clusters<<", Position: "<<position[0]<<" "<<position[1]<<" "<<position[2])
+				if(BaseEngine::local_rank==0) LOGGER("INSERTING "<<CurrentLabels.first<<","<<CurrentLabels.second<<" , E="<<currentMin.getEnergy()<<", NClust = "<<clusters<<", Position: "<<position[0]<<" "<<position[1]<<" "<<position[2])
 
 				annealing = false; // not annealing any more
 				break;
 			} else { // annealing + !transition == continue
-				if(!ProductionRun && local_rank==0) LOGGERA("NO VALID TRANSITION AFTER ANNEALING! CONTINUING")
-				if(local_rank==0) LOGGER("NO VALID TRANSITION AFTER ANNEALING! CONTINUING")
+				if(!ProductionRun && BaseEngine::local_rank==0) LOGGERA("NO VALID TRANSITION AFTER ANNEALING! CONTINUING")
+				if(BaseEngine::local_rank==0) LOGGER("NO VALID TRANSITION AFTER ANNEALING! CONTINUING")
 				annealing = false;
 			}
 		} else {
@@ -444,8 +444,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
 			//if(Transition and (not BasinTransition) ) { // no basin labels yet
 			if(Transition) { // not annealing + not no transition == transition has been made
-				if(!ProductionRun && local_rank==0)  LOGGERA("TRANSITION DETECTED! ANNEALING FOR AnnealingTime BLOCKS AT AnnealingTemperature")
-				if(local_rank==0) LOGGER("TRANSITION DETECTED! ANNEALING FOR AnnealingTime BLOCKS AT AnnealingTemperature")
+				if(!ProductionRun && BaseEngine::local_rank==0)  LOGGERA("TRANSITION DETECTED! ANNEALING FOR AnnealingTime BLOCKS AT AnnealingTemperature")
+				if(BaseEngine::local_rank==0) LOGGER("TRANSITION DETECTED! ANNEALING FOR AnnealingTime BLOCKS AT AnnealingTemperature")
 				segment.transition.first = InitialLabels;
 				annealing=true;
 				annealingMin = currentMin;
@@ -454,8 +454,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
 				// reset labels as the only change was due to small fluctuations
 				if(!Transition and (CurrentLabels!=InitialLabels)) {
-					if(!ProductionRun && local_rank==0) LOGGERA("NO TRANSITION FROM MSD CHECK");
-					if(local_rank==0) LOGGER("NO TRANSITION FROM MSD CHECK");
+					if(!ProductionRun && BaseEngine::local_rank==0) LOGGERA("NO TRANSITION FROM MSD CHECK");
+					if(BaseEngine::local_rank==0) LOGGER("NO TRANSITION FROM MSD CHECK");
 					CurrentLabels=InitialLabels; //
 				}
 
@@ -464,8 +464,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 			}
 		}
 		if(segment.duration>=maximumSegmentLength and !annealing) {
-			if(!ProductionRun && local_rank==0) LOGGERA("SEGMENT EXCEEDED MaximumSegmentLength BLOCKS. EXITING.")
-			if(local_rank==0) LOGGER("SEGMENT EXCEEDED MaximumSegmentLength BLOCKS. EXITING.")
+			if(!ProductionRun && BaseEngine::local_rank==0) LOGGERA("SEGMENT EXCEEDED MaximumSegmentLength BLOCKS. EXITING.")
+			if(BaseEngine::local_rank==0) LOGGER("SEGMENT EXCEEDED MaximumSegmentLength BLOCKS. EXITING.")
 			segment.initialE = reference.getEnergy();
 			segment.finalE = currentMin.getEnergy();
 			segment.OutOfBasin = false;
@@ -557,8 +557,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  	fsuccess = extract("Final",task.inputData,final);
  	have_saddle = extract("Saddle",task.inputData,saddle);
 
- 	if(!success) if(local_rank==0) LOGGERA("COULDN'T FIND INITIAL STATES! EXITING!")
- 	if(!fsuccess) if(local_rank==0) LOGGERA("COULDN'T FIND FINAL STATES! EXITING!")
+ 	if(!success) if(BaseEngine::local_rank==0) LOGGERA("COULDN'T FIND INITIAL STATES! EXITING!")
+ 	if(!fsuccess) if(BaseEngine::local_rank==0) LOGGERA("COULDN'T FIND FINAL STATES! EXITING!")
 
  	if(!success || !fsuccess) {
  		pathway.valid=false;
@@ -595,7 +595,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  	BaseEngine::process(carve);
  	extract("Clusters",carve.returns,InitialClusters);
 
- 	if(local_rank==0) LOGGER("Initial E: "<<initial.getEnergy())
+ 	if(BaseEngine::local_rank==0) LOGGER("Initial E: "<<initial.getEnergy())
  	pathway.initialE = initial.getEnergy();
 
 
@@ -614,25 +614,25 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  	BaseEngine::process(carve);
  	extract("Clusters",carve.returns,FinalClusters);
 
- 	if(local_rank==0) LOGGER("Final E: "<<final.getEnergy())
+ 	if(BaseEngine::local_rank==0) LOGGER("Final E: "<<final.getEnergy())
  	pathway.finalE = final.getEnergy();
 
 	pathway.mismatch = false;
 
  	if(have_pathway and (pathway.InitialLabels!=InitialLabels or pathway.FinalLabels != FinalLabels)) {
  		if(pathway.InitialLabels!=InitialLabels) {
- 			if(local_rank==0) LOGGER("INITIAL LABEL MISMATCH: "<<pathway.InitialLabels.first<<","<<pathway.InitialLabels.second<<" != "<<InitialLabels.first<<","<<InitialLabels.second)
+ 			if(BaseEngine::local_rank==0) LOGGER("INITIAL LABEL MISMATCH: "<<pathway.InitialLabels.first<<","<<pathway.InitialLabels.second<<" != "<<InitialLabels.first<<","<<InitialLabels.second)
  		} else {
- 			if(local_rank==0) LOGGER("INITIAL LABEL MATCH: "<<pathway.InitialLabels.first<<","<<pathway.InitialLabels.second<<" == "<<InitialLabels.first<<","<<InitialLabels.second)
+ 			if(BaseEngine::local_rank==0) LOGGER("INITIAL LABEL MATCH: "<<pathway.InitialLabels.first<<","<<pathway.InitialLabels.second<<" == "<<InitialLabels.first<<","<<InitialLabels.second)
  		}
  		if(pathway.FinalLabels != FinalLabels) {
- 			if(local_rank==0) LOGGER("FINAL LABEL MISMATCH: "<<pathway.FinalLabels.first<<","<<pathway.FinalLabels.second<<" != "<<FinalLabels.first<<","<<FinalLabels.second)
+ 			if(BaseEngine::local_rank==0) LOGGER("FINAL LABEL MISMATCH: "<<pathway.FinalLabels.first<<","<<pathway.FinalLabels.second<<" != "<<FinalLabels.first<<","<<FinalLabels.second)
  		} else {
- 			if(local_rank==0) LOGGER("FINAL LABEL MATCH: "<<pathway.FinalLabels.first<<","<<pathway.FinalLabels.second<<" == "<<FinalLabels.first<<","<<FinalLabels.second)
+ 			if(BaseEngine::local_rank==0) LOGGER("FINAL LABEL MATCH: "<<pathway.FinalLabels.first<<","<<pathway.FinalLabels.second<<" == "<<FinalLabels.first<<","<<FinalLabels.second)
  		}
 
  		if((pathway.InitialLabels==FinalLabels) and (pathway.FinalLabels==InitialLabels)) {
- 			if(local_rank==0) LOGGER("STRANGE SWAPPING BUG IN std::list<System>. SWAPPING BACK")
+ 			if(BaseEngine::local_rank==0) LOGGER("STRANGE SWAPPING BUG IN std::list<System>. SWAPPING BACK")
  			System temp_S = initial;
  			initial = final;
  			final = temp_S;
@@ -645,7 +645,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  			pathway.mismatch = true;
  			pathway.MMInitialLabels = InitialLabels;
  			pathway.MMFinalLabels = FinalLabels;
- 			if(local_rank==0) LOGGER("STRANGE MISMATCH BUG IN DB. EXITING AND TRYING AGAIN....")
+ 			if(BaseEngine::local_rank==0) LOGGER("STRANGE MISMATCH BUG IN DB. EXITING AND TRYING AGAIN....")
  			pathway.valid=false;
  			pathway.saddleE = MAX_BARRIER;
  			insert("NEBPathway",task.returns,pathway);
@@ -654,16 +654,16 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  	}
 
  	pathway.valid=true; // innocent until proven guilty...
-	if(local_rank==0) LOGGER("InitialClusters: "<<InitialClusters<<" FinalClusters: "<<FinalClusters)
+	if(BaseEngine::local_rank==0) LOGGER("InitialClusters: "<<InitialClusters<<" FinalClusters: "<<FinalClusters)
 	if(clust_thresh>0 and std::max(InitialClusters,FinalClusters)>clust_thresh) {
 		pathway.valid=false; // innocent until proven guilty...
 		pathway.saddleE = pathway.initialE + MAX_BARRIER;
  		insert("NEBPathway",task.returns,pathway);
-		if(local_rank==0) LOGGERA("TOO MANY CLUSTERS; EXITING")
+		if(BaseEngine::local_rank==0) LOGGERA("TOO MANY CLUSTERS; EXITING")
 		return;
 	}
 
- 	if(local_rank==0) LOGGER("CANONICAL TRANSITION: "<<InitialLabels.first<<" -> "<<FinalLabels.first)
+ 	if(BaseEngine::local_rank==0) LOGGER("CANONICAL TRANSITION: "<<InitialLabels.first<<" -> "<<FinalLabels.first)
 
  	// add initial and final states to symmetry
  	symmetry.clearInputs();
@@ -693,7 +693,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  	have_pairs = (ExistingPairs.size()>0) and (ExistingPairs.size()%2==0);
 
  	if (have_pairs) {
- 		if(local_rank==0) LOGGER("Found "<<ExistingPairs.size()/2<<" pairs")
+ 		if(BaseEngine::local_rank==0) LOGGER("Found "<<ExistingPairs.size()/2<<" pairs")
  		auto sys_ep = ExistingPairs.begin();
  		LabelPair labels;
 
@@ -710,7 +710,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  			extract("Labels",label.returns,labels);
 
  			insert("Candidates",labels.first,labels.second,0,false,symmetry.inputData,*sys_ep);
- 			if(local_rank==0) LOGGER("Adding ExistingPairs: ("<<labels.first<<","<<labels.second<<")")
+ 			if(BaseEngine::local_rank==0) LOGGER("Adding ExistingPairs: ("<<labels.first<<","<<labels.second<<")")
 
  			sys_ep = ExistingPairs.erase(sys_ep); // delete from master; added to symmetry
  			//labels = std::next(labels);
@@ -736,11 +736,11 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
  	if (pathway.equivalent_transitions.size() > 0) {
  		pathway.duplicate = true;
- 		if(local_rank==0) LOGGER("Matches found, exiting NEB")
+ 		if(BaseEngine::local_rank==0) LOGGER("Matches found, exiting NEB")
  		task.clearInputs();
  		insert("NEBPathway",task.returns,pathway);
  		if(writeFiles) {
- 			if(local_rank==0) LOGGER("Writing Initial and Final states")
+ 			if(BaseEngine::local_rank==0) LOGGER("Writing Initial and Final states")
  			// write initial and final states....
  			write.clearInputs(); write.clearOutputs();
  			filename="states/state-"+std::to_string(pathway.InitialLabels.first)+"-"+std::to_string(pathway.InitialLabels.second)+".dat";
@@ -756,7 +756,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  		}
  		return;
  	} else {
- 		if(local_rank==0) LOGGER("No matches found, Starting NEB")
+ 		if(BaseEngine::local_rank==0) LOGGER("No matches found, Starting NEB")
  		pathway.duplicate = false;
  	}
  	#endif
@@ -767,19 +767,19 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  	initial.minimumImage(final); // final -> initial + minimumImageVector(final-initial)
  	pathway.dXmax = initial.msd(final,true);
  	pathway.dX = initial.msd(final,false);
- 	if(local_rank==0) LOGGER("dXThresh: "<<pathway.dXmax<<" "<<pathway.dX)
+ 	if(BaseEngine::local_rank==0) LOGGER("dXThresh: "<<pathway.dXmax<<" "<<pathway.dX)
 
  	// if gap too large return with MAX_BARRIER
  	if (pathway.dXmax>10.0) {
  		pathway.valid=false;
- 		if(local_rank==0) LOGGER("max|dX| > 10A!!")
+ 		if(BaseEngine::local_rank==0) LOGGER("max|dX| > 10A!!")
  		pathway.SaddleLabels = pathway.InitialLabels;
  		pathway.saddleE = pathway.initialE + 2.0 * MAX_BARRIER;
  		pathway.Ftol = 100.0;
  		task.clearInputs();
  		insert("NEBPathway",task.returns,pathway);
  		if(writeFiles) {
- 			if(local_rank==0) LOGGER("Writing Initial and Final states")
+ 			if(BaseEngine::local_rank==0) LOGGER("Writing Initial and Final states")
  			// write initial and final states....
  			write.clearInputs(); write.clearOutputs();
  			filename="states/state-"+std::to_string(pathway.InitialLabels.first)+"-"+std::to_string(pathway.InitialLabels.second)+".dat";
@@ -822,7 +822,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  	neb_forces(neb_systems,initial,final,energies); // no projection here
 
  	int i=0;
- 	if(local_rank==0) for( auto E: energies) LOGGER(i++<<" "<<E-initial.getEnergy())
+ 	if(BaseEngine::local_rank==0) for( auto E: energies) LOGGER(i++<<" "<<E-initial.getEnergy())
 
 
  	// Initializations for FIRE
@@ -847,19 +847,19 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  	double max_x_disp=0.0,max_x_c_disp=0.0;
  	double max_f_at_sq = 10.0 * ftol * ftol;
  	timer.start("NEB_ROUTINE");
- 	if(local_rank==0) LOGGERA("NEB STEP: MinImage ClimbingImage InterMinImages? E[ClimbingImage]-E[0] E[MinImage]-E[0] sqrt(max_f_at_sq) sqrt(max_x_c_disp) dt")
+ 	if(BaseEngine::local_rank==0) LOGGERA("NEB STEP: MinImage ClimbingImage InterMinImages? E[ClimbingImage]-E[0] E[MinImage]-E[0] sqrt(max_f_at_sq) sqrt(max_x_c_disp) dt")
 
  	pathway.FoundTransitions.clear();
  	for(int iter = 0; iter < maxiter; iter++) {
  		timer.start("NEB_ITERATION");
 
  		if(max_x_c_disp>.1*.1 || max_f_at_sq>1.0*1.0) { // skin depth is 2A, so 1A conservative....
- 			if(local_rank==0) LOGGER("Relisting neighbors due to drift: |dX|_inf="<<sqrt(max_x_c_disp)<<", |F|_inf="<<sqrt(max_f_at_sq))
+ 			if(BaseEngine::local_rank==0) LOGGER("Relisting neighbors due to drift: |dX|_inf="<<sqrt(max_x_c_disp)<<", |F|_inf="<<sqrt(max_f_at_sq))
  			rcNN=true;
  			max_x_c_disp=0.0;
 			if(max_f_at_sq>50.0*50.0) {
-				if(local_rank==0) LOGGER("Fmax is very large! Quitting this NEB routine and flagging for restart!")
-				if(local_rank==0) LOGGERA("eV/A -> EXIT NEB")
+				if(BaseEngine::local_rank==0) LOGGER("Fmax is very large! Quitting this NEB routine and flagging for restart!")
+				if(BaseEngine::local_rank==0) LOGGERA("eV/A -> EXIT NEB")
 				pathway.valid=false;
  				pathway.SaddleLabels = pathway.InitialLabels;
 		 		pathway.saddleE = pathway.initialE + 2.0 * MAX_BARRIER;
@@ -879,8 +879,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  		// we have intermediate minima...
  		if ((InterMinImages.size()>0) && ((max_f_at_sq<4.0*ftol*ftol)||(iter==maxiter-1))) {
  			ReDiscretize = true; // only happens once..
- 			if(local_rank==0) LOGGERA("NEB "<<iter<<": "<<MinImage<<" "<<ClimbingImage<<" "<<bool(InterMinImages.size()>0)<<" "<<energies[ClimbingImage]-energies[0]<<" "<<energies[MinImage]-energies[0]<<" "<<sqrt(max_f_at_sq)<<" "<<sqrt(max_x_c_disp))
- 			if(local_rank==0) LOGGERA("InterMinImage(s) detected! Profile: E[0]="<<energies[0])
+ 			if(BaseEngine::local_rank==0) LOGGERA("NEB "<<iter<<": "<<MinImage<<" "<<ClimbingImage<<" "<<bool(InterMinImages.size()>0)<<" "<<energies[ClimbingImage]-energies[0]<<" "<<energies[MinImage]-energies[0]<<" "<<sqrt(max_f_at_sq)<<" "<<sqrt(max_x_c_disp))
+ 			if(BaseEngine::local_rank==0) LOGGERA("InterMinImage(s) detected! Profile: E[0]="<<energies[0])
  			double dE = energies[ClimbingImage]-energies[0];
  			// max res: 20 spaces
  			for(int im=0;im<nImages;im++) {
@@ -888,7 +888,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  				for(int ss=0;ss<int(20.0*(energies[im]-energies[0])/dE);ss++) res+=" ";
  				res += "| "+std::to_string(energies[im]-energies[0]);
  				for(auto InterMinImage: InterMinImages)	if(im==InterMinImage) res+=" InterMinImage";
- 				if(local_rank==0) LOGGERA(res)
+ 				if(BaseEngine::local_rank==0) LOGGERA(res)
  			}
 
  			Transition ntrans;
@@ -907,10 +907,10 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  				extract("Labels",label.returns,ntrans.second);
 
  				pathway.FoundTransitions.push_back(ntrans);
- 				if(local_rank==0) LOGGER("INSERTING "<<ntrans.second.first<<","<<ntrans.second.second)
+ 				if(BaseEngine::local_rank==0) LOGGER("INSERTING "<<ntrans.second.first<<","<<ntrans.second.second)
  				insert("State",ntrans.second.first,ntrans.second.second,LOCATION_SYSTEM_MIN,true,task.outputData,saddle);
  				if(writeFiles) {
- 					if(local_rank==0) LOGGER("Writing Intermediate states")
+ 					if(BaseEngine::local_rank==0) LOGGER("Writing Intermediate states")
  					// write initial and final states....
  					write.clearInputs(); write.clearOutputs();
  					filename="states/state-"+std::to_string(ntrans.second.first)+"-"+std::to_string(ntrans.second.second)+".dat";
@@ -928,10 +928,11 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  			pathway.energies = energies;
  			pathway.Ftol = 100.0;//sqrt(max_f_at_sq);
  			insert("NEBPathway",task.returns,pathway);
- 			if(local_rank==0) LOGGER("Exiting NEB!")
+ 			if(BaseEngine::local_rank==0) LOGGER("Exiting NEB!")
 
  			if(writeFiles) {
- 				if(local_rank==0) LOGGER("Writing Initial and Final states")
+ 				if(BaseEngine::local_rank==0)
+					LOGGER("Writing Initial and Final states")
  				// write initial and final states....
  				write.clearInputs(); write.clearOutputs();
  				filename="states/state-"+std::to_string(pathway.InitialLabels.first)+"-"+std::to_string(pathway.InitialLabels.second)+".dat";
@@ -948,7 +949,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  			return;
  		}
 
- 		if(iter%10==0&&local_rank==0) LOGGERA("NEB "<<iter<<": "<<MinImage<<" "<<ClimbingImage<<" "<<bool(InterMinImages.size()>0)<<" "<<energies[ClimbingImage]-energies[0]<<" "<<energies[MinImage]-energies[0]<<" "<<sqrt(max_f_at_sq)<<" "<<sqrt(max_x_c_disp))
+ 		if(iter%10==0 && BaseEngine::local_rank==0)
+			LOGGERA("NEB "<<iter<<": "<<MinImage<<" "<<ClimbingImage<<" "<<bool(InterMinImages.size()>0)<<" "<<energies[ClimbingImage]-energies[0]<<" "<<energies[MinImage]-energies[0]<<" "<<sqrt(max_f_at_sq)<<" "<<sqrt(max_x_c_disp))
 
 
 
@@ -1009,7 +1011,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
  		if (max_f_at_sq < 4.0 * ftol * ftol) {
   		 if (!Climbing and doClimb) {
-  			 if(local_rank==0) LOGGER("CLIMBING"<<std::endl)
+  			 if(BaseEngine::local_rank==0) LOGGER("CLIMBING"<<std::endl)
   			 Climbing = true;
   		 } else if(max_f_at_sq<ftol*ftol) break;
   	 }
@@ -1018,7 +1020,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  	timer.stop("NEB_ROUTINE");
 
  	i=0;
- 	if(local_rank==0) {
+ 	if(BaseEngine::local_rank==0) {
 		for( auto E: energies) LOGGERA("E["<<i++<<"]-E[0]="<<E-initial.getEnergy())
 	 	LOGGERA(energies[ClimbingImage]-energies[0]<<" "<<neb_systems.size()<<" "<<ClimbingImage)
 	}
@@ -1041,7 +1043,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
 
  	if(writeFiles) {
- 		if(local_rank==0) LOGGER("Writing Initial, Final and Saddle states")
+ 		if(BaseEngine::local_rank==0) LOGGER("Writing Initial, Final and Saddle states")
  		// write initial and final states....
  		write.clearInputs(); write.clearOutputs();
  		filename="states/state-"+std::to_string(pathway.InitialLabels.first)+"-"+std::to_string(pathway.InitialLabels.second)+".dat";
@@ -1159,7 +1161,7 @@ std::function<void(GenericTask&)> label_impl = [this](GenericTask &task) {
 	LabelPair labels;
 	labels.first = BaseMDEngine::labeler->hash(s,true);
 	labels.second = BaseMDEngine::labeler->hash(s,false);
-	if(local_rank==0) LOGGER(labels.first<<" "<<labels.second)
+	if(BaseEngine::local_rank==0) LOGGER(labels.first<<" "<<labels.second)
 	insert("State",labels.first,labels.second,0,false,task.outputData,s);
 	insert("Labels",task.returns,labels);
 	insert("Label",task.returns,labels.second);
