@@ -128,6 +128,7 @@ std::shared_ptr<AbstractStateLabeler> labeler;
 private:
 
 int seed;
+int local_rank;
 MPI_Comm localComm;
 std::shared_ptr<AbstractSystemModifier> modifier;
 

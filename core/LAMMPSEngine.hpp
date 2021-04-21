@@ -55,19 +55,19 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 
 	log_lammps = config.get<bool>("Configuration.LAMMPSEngine.LogLammps");
 
-	MPI_Comm_rank(localComm_,&BaseEngine::local_rank);
+	MPI_Comm_rank(localComm_,&MDBaseEngine::local_rank);
 	std::string logfile="none";
-	if(log_lammps) logfile="log_"+std::to_string(BaseEngine::local_rank)+"_"+std::to_string(seed_)+".lammps";
+	if(log_lammps) logfile="log_"+std::to_string(MDBaseEngine::local_rank)+"_"+std::to_string(seed_)+".lammps";
 
 	int argc=5;
 	char *lammps_argv[]={(char *)"tammber",(char *)"-screen",(char *)"none",(char *)"-log",(char *)logfile.c_str()};
 
-	LOGGER("Trying to open lammps worker "<<BaseEngine::local_rank)
+	LOGGER("Trying to open lammps worker; local rank = "<<MDBaseEngine::local_rank)
 
 	lmp = NULL;
 	lmp = new LAMMPS(argc,lammps_argv,localComm_);
 
-	LOGGER("Opened lammps worker "<<BaseEngine::local_rank)
+	LOGGER("Opened lammps worker "<<MDBaseEngine::local_rank)
 
 
 
@@ -144,7 +144,7 @@ virtual bool failed(){
 	if(bool(lammps_has_error(lmp))) {
 		char error_message[2048];
 		int error_type = lammps_get_last_error_message(lmp,error_message,2048);
-		if(BaseEngine::local_rank==0) LOGGERA("LAMMPS ERROR! type:"<<error_type<<" msg:"<<error_message)
+		if(MDBaseEngine::local_rank==0) LOGGERA("LAMMPS ERROR! type:"<<error_type<<" msg:"<<error_message)
 		return true;
 	} else return false;
 };
@@ -204,7 +204,7 @@ std::unordered_map<std::string,std::string> parameters=extractParameters(task.ty
 		lammps_commands_string(lmp,(char *) cmd.c_str());
 
 		natomsEnd = (int) *((int64_t *) lammps_extract_global(lmp,(char *) "natoms"));
-		if(natomsEnd!=natomsBegin && BaseEngine::local_rank==0) LOGGERA("ERROR: LAMMPS LOST ATOMS. RESTARTING TASK")
+		if(natomsEnd!=natomsBegin && MDBaseEngine::local_rank==0) LOGGERA("ERROR: LAMMPS LOST ATOMS. RESTARTING TASK")
 	} while(natomsBegin != natomsEnd );
 
 	transferAtomsFromLammps(s);

@@ -172,9 +172,7 @@ virtual bool failed() {
 	return false;
 };
 
-
 protected:
-int local_rank;
 EngineTaskMapper mapper;
 std::map< const std::string, std::function<void(GenericTask&)> > impls;
 #ifdef USE_BOOST_LOG
