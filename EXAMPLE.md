@@ -142,13 +142,10 @@ thus specify a cutoff. For pure Fe, we use the `1/2<111>` bond length:
 ## Cluster Definitions For Diffusion<a name="9"></a>
 
 For diffusion problems we want
-a) only one migrating object
-b) a position assigned to that object
-c) knowledge of any self-symmetries of the object's structure
 
-Sampling is much more efficient if we have access to a), post-processing is much
-simpler if we can calculate b) at runtime, and c) is *significantly* accelerated
-if we have knowledge of the defect structure.
+- only one migrating object (this also makes sampling *much* more efficient)
+- a position assigned to that object (much simpler post-processing if we can do this at runtime)
+- knowledge of any self-symmetries of the object's structure (*significantly* accelerates sampling, as we don't have to find equivalent structures through unbiased MD)
 
 ### `MarkovModel`
 In the `<MarkovModel>` tags we can restrict sampling to a single cluster with
@@ -167,11 +164,19 @@ This requires specifying the centrosymmetry parameter `CentroNeighbors`
 (an even integer), and a `Threshold` value above which atoms are considered "defective"
 We recommend using a visualization routine e.g. `OVITO` to determine the values;
 typically `CentroNeighbors=6` is a good choice for cubic systems, 12/8 for fcc/bcc.
-This carving will be generalized in new versions- feel free to fork and try yourself!
 
-Some examples-
+After carving, the remaining atoms can be further than a nearest neighbor distance, even
+though they are clearly the same cluster. This is most likely for vacancy defects- e.g.
+bcc vacancy leaves a "[100] cube cage" with atoms separated by <100>, not 1/2<111>.
+We therefore rescale the `<Bond>` cutoffs by a factor `<RelativeCutoff>`, which
+should be approximately equal to (2nd nn bond length) / (1st nn bond length)
+(~1.5 for bcc)
 
-No carving -
+*This carving will be generalized in new versions- feel free to fork and rewrite `TASK_CARVE`  yourself!*
+
+Some example values for various structures (alloys, surfaces) :
+
+- No carving :
 ```xml
 <TaskParameter>
   <Task> TASK_CARVE </Task>
@@ -180,7 +185,7 @@ No carving -
 </TaskParameter>
 ```
 
-MgO interstitial defect studied in [this paper](https://www.nature.com/articles/s41524-020-00463-8)
+- MgO interstitial defect studied in [this paper](https://www.nature.com/articles/s41524-020-00463-8) :
 ```xml
 <TaskParameter>
   <Task> TASK_CARVE </Task>
@@ -193,7 +198,7 @@ MgO interstitial defect studied in [this paper](https://www.nature.com/articles/
   <RelativeCutoff>1.5</RelativeCutoff>
 </TaskParameter>
 ```
-bcc vacancy:
+- bcc vacancy:
 ```xml
 <TaskParameter>
   <Task> TASK_CARVE </Task>
@@ -205,7 +210,7 @@ bcc vacancy:
   <RelativeCutoff>1.5</RelativeCutoff>
 </TaskParameter>
 ```
-bcc 110 surface:
+- bcc 110 surface (note higher threshold!):
 ```xml
 <TaskParameter>
   <Task> TASK_CARVE </Task>
@@ -217,16 +222,6 @@ bcc 110 surface:
   <RelativeCutoff>1.5</RelativeCutoff>
 </TaskParameter>
 ```
-The `<RelativeCutoff>` tag is a little hack to ensure the connectivity of the
-"carved" out configuration can be identified using the same `<Bonds>`.
-This is most relevant for vacancy defects though will leave other structures unaffected.
-For the bcc vacancy example,
-
-For our example, we know we will leave a "cage" of atoms around
-the vacancy in bcc are separated by <100> (2nd nn bond length)
-which is longer than the target 1/2<111> bond cutoff. We therefore scale by
-|100|/|1/2(111)|~1.5 to ensure this is counted as one cluster.
-Generally, RelativeCutoff ~ (2nd nn bond length) / (1st nn bond length).
 
 ###  `TASK_SYMMETRY`
 Symmetry Comparisons for NEB pairs and self symmetries. If we do not carve out
