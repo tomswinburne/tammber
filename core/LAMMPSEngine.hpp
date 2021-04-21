@@ -55,7 +55,6 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 
 	log_lammps = config.get<bool>("Configuration.LAMMPSEngine.LogLammps");
 
-	MPI_Comm_rank(localComm_,&MDBaseEngine::local_rank);
 	std::string logfile="none";
 	if(log_lammps) logfile="log_"+std::to_string(MDBaseEngine::local_rank)+"_"+std::to_string(seed_)+".lammps";
 

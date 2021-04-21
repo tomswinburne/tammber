@@ -64,6 +64,8 @@ public:
 typedef AbstractEngine<EngineTaskMapper> BaseEngine;
 
 MDEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_) : BaseEngine(config,localComm_,seed_)  {
+
+	MPI_Comm_rank(localComm_,&local_rank);
 	localComm=localComm_;
 	seed=seed_;
 

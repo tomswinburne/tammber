@@ -144,7 +144,6 @@ template <class EngineTaskMapper>
 class AbstractEngine {
 public:
 AbstractEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_){
-	local_rank=0;
 	impls["TASK_DIE"] = die_impl;
 	impls["TASK_NOTHING"] = nothing_impl;
 };
