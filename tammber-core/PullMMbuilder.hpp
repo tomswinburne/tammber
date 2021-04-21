@@ -162,12 +162,12 @@ void initializeSystems() {
 		LOGGERA("IN TQ: "<<taskQueue.count())
 	}
 
-
 	std::list<GenericTask> tasks;
-	int counts=0,prev_counts=0;
-	int total_counts=initialConfigurations.size();
+	int counts=0, prev_counts=0, total_counts=initialConfigurations.size();
 	std::chrono::high_resolution_clock::time_point now,FirstLog,LastLog;
-
+	std::chrono::milliseconds LogDelay,MaxDelay;
+	LogDelay = std::chrono::milliseconds(1000); // 1s
+	MaxDelay = std::chrono::milliseconds(60000); // 60s
 	now = std::chrono::high_resolution_clock::now();
 	FirstLog = now;
 	LastLog = now;
@@ -179,11 +179,11 @@ void initializeSystems() {
 		ready.extract(mapper.type("TASK_INIT_MIN"),tasks);
 		counts += tasks.size() - prev_counts;
 		now = std::chrono::high_resolution_clock::now();
-		if(now - LastLog > 1000 || tasks.size()>prev_counts) {
+		if(now - LastLog > LogDelay || tasks.size()>prev_counts) {
 			LOGGER("PullMMbuilder::initializeSystems() :  "<<counts<<"/"<<total_counts)
 			LastLog = now;
 		}
-		if(now - FirstLog> 60000 && task.size()>0) break;
+		if(now - FirstLog > MaxDelay && task.size()>0) break;
 	}
 
 	LOGGER("PullMMbuilder::initializeSystems() : received "<<tasks.size()<<" tasks")
