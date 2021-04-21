@@ -66,6 +66,7 @@ typedef AbstractEngine<EngineTaskMapper> BaseEngine;
 MDEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_) : BaseEngine(config,localComm_,seed_)  {
 
 	MPI_Comm_rank(localComm_,&local_rank);
+	MPI_Comm_size(localComm_,&local_size);
 	localComm=localComm_;
 	seed=seed_;
 
@@ -121,6 +122,8 @@ MDEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_) : 
 
 int defaultFlavor;
 int local_rank;
+int local_size;
+
 
 //std::map< std::pair<int,int>, std::map<std::string,std::string> > taskParameters;
 std::unordered_map< std::pair<int,int>, std::unordered_map<std::string,std::string>, boost::hash< std::pair<int,int> > > taskParameters;

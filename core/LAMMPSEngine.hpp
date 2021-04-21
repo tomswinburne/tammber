@@ -60,13 +60,13 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 
 	int argc=5;
 	char *lammps_argv[]={(char *)"tammber",(char *)"-screen",(char *)"none",(char *)"-log",(char *)logfile.c_str()};
-
-	LOGGER("Trying to open lammps worker; local rank = "<<MDBaseEngine::local_rank)
+	if(MDBaseEngine::local_rank==0)
+		LOGGER("Trying to open lammps worker on "<<MDBaseEngine::local_size<<" cores");
 
 	lmp = NULL;
 	lmp = new LAMMPS(argc,lammps_argv,localComm_);
-
-	LOGGER("Opened lammps worker ; local rank = "<<MDBaseEngine::local_rank)
+	if(MDBaseEngine::local_rank==0)
+		LOGGER("Opened lammps worker  "<<MDBaseEngine::local_rank)
 
 
 
@@ -115,7 +115,7 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 	for(auto initialConf : initialConfs) {
 		boost::trim(initialConf);
 		if(initialConf.length()>0) {
-			LOGGER("BOOTSTRAP: "<<initialConf)
+			if(MDBaseEngine::local_rank==0) LOGGER("BOOTSTRAP: "<<initialConf)
 			p["Filename"] = initialConf;
 			break;
 		}
@@ -124,7 +124,7 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 	std::vector<std::string> cmdVector=parser.splitLines(bootstrapScript);
 	std::string cmd;
 	for(int i=0; i<cmdVector.size(); i++) {
-		LOGGER("LAMMPSCommand: "<<cmdVector[i])
+		if(MDBaseEngine::local_rank==0) LOGGER("LAMMPSCommand: "<<cmdVector[i])
 		lammps_commands_string(lmp,(char *) cmdVector[i].c_str());
 	}
 
@@ -188,7 +188,8 @@ std::unordered_map<std::string,std::string> parameters=extractParameters(task.ty
 
 		int nsteps = static_cast<int> (time / dt);
 		parameters["Nsteps"]=boost::str(boost::format("%1%" ) % nsteps );
-		LOGGER("Setting up MD at temperature of "<<temperature<<"K for "<<nsteps<<" steps")
+		if(MDBaseEngine::local_rank==0)
+			LOGGER("Setting up MD at temperature of "<<temperature<<"K for "<<nsteps<<" steps")
 
 		//parse the command string
 		std::string rawCmd = mdScript; //task.parameters["MDScript"];
@@ -203,7 +204,8 @@ std::unordered_map<std::string,std::string> parameters=extractParameters(task.ty
 		lammps_commands_string(lmp,(char *) cmd.c_str());
 
 		natomsEnd = (int) *((int64_t *) lammps_extract_global(lmp,(char *) "natoms"));
-		if(natomsEnd!=natomsBegin && MDBaseEngine::local_rank==0) LOGGERA("ERROR: LAMMPS LOST ATOMS. RESTARTING TASK")
+		if(natomsEnd!=natomsBegin && MDBaseEngine::local_rank==0)
+			LOGGERA("ERROR: LAMMPS LOST ATOMS. RESTARTING TASK")
 	} while(natomsBegin != natomsEnd );
 
 	transferAtomsFromLammps(s);
@@ -246,7 +248,7 @@ std::function<void(GenericTask&)> centro_impl = [this](GenericTask &task) {
 		extractParameters(task.type,task.flavor,MDBaseEngine::defaultFlavor,MDBaseEngine::taskParameters);
 		int nn; if(!extract("CentroNeighbors",task.arguments,nn)) nn = 8;
 
-		LOGGER("CSNN (C): "<<nn)
+		if(MDBaseEngine::local_rank==0) LOGGER("CSNN (C): "<<nn)
 
 		task.clearOutputs();
 		System s;
@@ -339,7 +341,7 @@ std::function<void(GenericTask&)> file_init_impl = [this](GenericTask &task){
 
 	if( extract("Filename",task.arguments,filename) ) {
 		parameters["Filename"]=filename;
-		LOGGER("Filename: "<<filename)
+		if(MDBaseEngine::local_rank==0) LOGGER("Filename: "<<filename)
 
 		//parse the command string
 		std::string rawCmd = initScript;// task.parameters["InitScript"];
@@ -351,7 +353,7 @@ std::function<void(GenericTask&)> file_init_impl = [this](GenericTask &task){
 		std::string cmd;
 		for(int i=0; i<cmdVector.size(); i++) {
 
-			LOGGER(cmdVector[i])
+			if(MDBaseEngine::local_rank==0) LOGGER(cmdVector[i])
 			cmd=cmdVector[i];
 			lammps_command(lmp,(char *)cmd.c_str());
 		}
@@ -437,7 +439,8 @@ void transferSystemFromLammps(System &s){
 	LAMMPSSystem *sys = &s;
 	int triclinic = *((int *) lammps_extract_global(lmp,(char *) "triclinic"));
 	int qflag = *((int *) lammps_extract_global(lmp,(char *) "q_flag"));
-	LOGGER("LAMMPSEngine::transferSystemFromLammps : q_flag="<<qflag)
+	if(MDBaseEngine::local_rank==0)
+		LOGGER("LAMMPSEngine::transferSystemFromLammps : q_flag="<<qflag)
 	sys->setNTimestep(0);
 	sys->qflag = qflag;
 	int natoms = (int) *((int64_t *)
@@ -491,7 +494,8 @@ void transferSystemToLammps(System &sys, std::unordered_map<std::string, std::st
 
 	lammps_create_atoms(lmp,natoms,&sys.id[0],&sys.species[0],&sys.x[0],&sys.v[0],NULL,1);
 	//if(sys.qflag) lammps_scatter_subset(lmp,(char *) "q",LAMMPS_DOUBLE,1,sys.id.size(),&sys.id[0],&sys.q[0]);
-	LOGGER("LAMMPSEngine::transferSystemToLammps : q_flag="<<sys.qflag)
+	if(MDBaseEngine::local_rank==0)
+		LOGGER("LAMMPSEngine::transferSystemToLammps : q_flag="<<sys.qflag)
 	if(sys.qflag) lammps_scatter(lmp,(char *) "q",LAMMPS_DOUBLE,1,&sys.q[0]);
 
 	//parse the command string
