@@ -64,10 +64,6 @@ public:
 typedef AbstractEngine<EngineTaskMapper> BaseEngine;
 
 MDEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_) : BaseEngine(config,localComm_,seed_)  {
-
-	MPI_Comm_rank(localComm_,&local_rank);
-	MPI_Comm_size(localComm_,&local_size);
-	localComm=localComm_;
 	seed=seed_;
 
 	//move this to the tasks
@@ -121,8 +117,6 @@ MDEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_) : 
 };
 
 int defaultFlavor;
-int local_rank;
-int local_size;
 
 
 //std::map< std::pair<int,int>, std::map<std::string,std::string> > taskParameters;
@@ -135,7 +129,6 @@ std::shared_ptr<AbstractStateLabeler> labeler;
 private:
 
 int seed;
-MPI_Comm localComm;
 std::shared_ptr<AbstractSystemModifier> modifier;
 
 std::function<void(GenericTask&)> md_impl = [this](GenericTask &task) {
@@ -962,14 +955,14 @@ std::function<void(GenericTask&)> carve_impl = [this](GenericTask &task) {
 	std::list<System> sysl;
 
 	GenericTask centro;
-	if(local_rank==0) LOGGER("CarveCompute: "<<carve_compute);
+	if(BaseEngine::local_rank==0) LOGGER("CarveCompute: "<<carve_compute);
 
 	centro.type = BaseEngine::mapper.type("TASK_CARVE_COMPUTE");
 	insert("CarveCompute",centro.arguments,carve_compute);
 	extract("State",task.inputData,sysl);
 	task.clearInputs();
 
-	if(local_rank==0)
+	if(BaseEngine::local_rank==0)
 		LOGGER("TADEngine::carve_impl : FOUND "<<sysl.size()<<" STATES")
 	for(auto &s : sysl) {
 		Cell bc = s.getCell();

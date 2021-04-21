@@ -50,23 +50,25 @@ typedef LAMMPSSystem System;
 
 LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_) : MDBaseEngine(config,localComm_,seed_) {
 
+	local_rank = MDBaseEngine::BaseEngine::local_rank;
+	local_size = MDBaseEngine::BaseEngine::local_size;
+
 	parser.seed(seed_);
 	// TODO: how to pass command-line args to LAMMPS at some point?
 
 	log_lammps = config.get<bool>("Configuration.LAMMPSEngine.LogLammps",false);
 
 	std::string logfile="none";
-	if(log_lammps) logfile="log_"+std::to_string(MDBaseEngine::local_rank)+"_"+std::to_string(seed_)+".lammps";
+	if(log_lammps) logfile="log_"+std::to_string(local_rank)+"_"+std::to_string(seed_)+".lammps";
 
 	int argc=5;
 	char *lammps_argv[]={(char *)"tammber",(char *)"-screen",(char *)"none",(char *)"-log",(char *)logfile.c_str()};
-	if(MDBaseEngine::local_rank==0)
-		LOGGER("Trying to open lammps worker on "<<MDBaseEngine::local_size<<" cores");
+	if(local_rank==0)
+		LOGGER("Trying to open lammps worker on "<<local_size<<" cores");
 
 	lmp = NULL;
 	lmp = new LAMMPS(argc,lammps_argv,localComm_);
-	if(MDBaseEngine::local_rank==0)
-		LOGGER("Opened lammps worker  "<<MDBaseEngine::local_rank)
+	if(local_rank==0) LOGGER("Opened lammps worker  "<<local_rank)
 
 
 
@@ -126,16 +128,15 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 	for(auto initialConf : initialConfs) {
 		boost::trim(initialConf);
 		if(initialConf.length()>0) {
-			if(MDBaseEngine::local_rank==0) LOGGER("BOOTSTRAP: "<<initialConf)
+			if(local_rank==0) LOGGER("BOOTSTRAP: "<<initialConf)
 			p["Filename"] = initialConf;
 			break;
 		}
 	}
 	bootstrapScript = parser.parse(initScript,p);
 	std::vector<std::string> cmdVector=parser.splitLines(bootstrapScript);
-	std::string cmd;
 	for(int i=0; i<cmdVector.size(); i++) {
-		if(MDBaseEngine::local_rank==0) LOGGER("LAMMPSCommand: "<<cmdVector[i])
+		if(local_rank==0) LOGGER("LAMMPSCommand: "<<cmdVector[i])
 		lammps_commands_string(lmp,(char *) cmdVector[i].c_str());
 	}
 
@@ -155,11 +156,11 @@ virtual bool failed() {
 		if(bool(lammps_has_error(lmp))) {
 			char error_message[2048];
 			int error_type = lammps_get_last_error_message(lmp,error_message,2048);
-			if(MDBaseEngine::local_rank==0) LOGGERA("LAMMPS ERROR! type:"<<error_type<<" msg:"<<error_message)
+			if(local_rank==0) LOGGERA("LAMMPS ERROR! type:"<<error_type<<" msg:"<<error_message)
 			return true;
 		} else return false;
 	} catch(...) {
-		if(MDBaseEngine::local_rank==0) LOGGERA("LAMMPS IS CLOSED!")
+		if(local_rank==0) LOGGERA("LAMMPS IS CLOSED!")
 		return true;
 	}
 };
@@ -204,7 +205,7 @@ std::unordered_map<std::string,std::string> parameters=extractParameters(task.ty
 
 		int nsteps = static_cast<int> (time / dt);
 		parameters["Nsteps"]=boost::str(boost::format("%1%" ) % nsteps );
-		if(MDBaseEngine::local_rank==0)
+		if(local_rank==0)
 			LOGGER("Setting up MD at temperature of "<<temperature<<"K for "<<nsteps<<" steps")
 
 		//parse the command string
@@ -220,7 +221,7 @@ std::unordered_map<std::string,std::string> parameters=extractParameters(task.ty
 		lammps_commands_string(lmp,(char *) cmd.c_str());
 
 		natomsEnd = (int) *((int64_t *) lammps_extract_global(lmp,(char *) "natoms"));
-		if(natomsEnd!=natomsBegin && MDBaseEngine::local_rank==0)
+		if(natomsEnd!=natomsBegin && local_rank==0)
 			LOGGERA("ERROR: LAMMPS LOST ATOMS. RESTARTING TASK")
 	} while(natomsBegin != natomsEnd );
 
@@ -265,7 +266,7 @@ std::function<void(GenericTask&)> carve_compute_impl = [this](GenericTask &task)
 		std::string carve_compute;
 		if(!extract("CarveCompute",task.arguments,carve_compute)) carve_compute = "centro";
 
-		if(MDBaseEngine::local_rank==0)
+		if(local_rank==0)
 			LOGGER("CarveComputeScript: "<<carveScript<<" CarveCompute: "<<carve_compute)
 
 		task.clearOutputs();
@@ -359,7 +360,7 @@ std::function<void(GenericTask&)> file_init_impl = [this](GenericTask &task){
 
 	if( extract("Filename",task.arguments,filename) ) {
 		parameters["Filename"]=filename;
-		if(MDBaseEngine::local_rank==0) LOGGER("Filename: "<<filename)
+		if(local_rank==0) LOGGER("Filename: "<<filename)
 
 		//parse the command string
 		std::string rawCmd = initScript;// task.parameters["InitScript"];
@@ -371,7 +372,7 @@ std::function<void(GenericTask&)> file_init_impl = [this](GenericTask &task){
 		std::string cmd;
 		for(int i=0; i<cmdVector.size(); i++) {
 
-			if(MDBaseEngine::local_rank==0) LOGGER(cmdVector[i])
+			if(local_rank==0) LOGGER(cmdVector[i])
 			cmd=cmdVector[i];
 			lammps_command(lmp,(char *)cmd.c_str());
 		}
@@ -457,7 +458,7 @@ void transferSystemFromLammps(System &s){
 	LAMMPSSystem *sys = &s;
 	int triclinic = *((int *) lammps_extract_global(lmp,(char *) "triclinic"));
 	int qflag = *((int *) lammps_extract_global(lmp,(char *) "q_flag"));
-	if(MDBaseEngine::local_rank==0)
+	if(local_rank==0)
 		LOGGER("LAMMPSEngine::transferSystemFromLammps : q_flag="<<qflag)
 	sys->setNTimestep(0);
 	sys->qflag = qflag;
@@ -512,7 +513,7 @@ void transferSystemToLammps(System &sys, std::unordered_map<std::string, std::st
 
 	lammps_create_atoms(lmp,natoms,&sys.id[0],&sys.species[0],&sys.x[0],&sys.v[0],NULL,1);
 	//if(sys.qflag) lammps_scatter_subset(lmp,(char *) "q",LAMMPS_DOUBLE,1,sys.id.size(),&sys.id[0],&sys.q[0]);
-	if(MDBaseEngine::local_rank==0)
+	if(local_rank==0)
 		LOGGER("LAMMPSEngine::transferSystemToLammps : q_flag="<<sys.qflag)
 	if(sys.qflag) lammps_scatter(lmp,(char *) "q",LAMMPS_DOUBLE,1,&sys.q[0]);
 
@@ -522,9 +523,10 @@ void transferSystemToLammps(System &sys, std::unordered_map<std::string, std::st
 	std::vector<std::string> cmdVector=parser.splitLines(parsedCmd);
 
 	//execute the command string
-	std::string cmd;
-	for(int i=0; i<cmdVector.size(); i++) cmd+=cmdVector[i]+"\n";
-	lammps_commands_string(lmp,(char *) cmd.c_str());
+	for(int i=0; i<cmdVector.size(); i++) {
+		if(local_rank==0) LOGGER(cmdVector[i])
+		lammps_commands_string(lmp,(char *) cmdVector[i].c_str());
+	}
 };
 
 void singleForceEnergyCall(System &s, bool noforce=false,bool prepost=true) {
@@ -568,10 +570,10 @@ std::vector<double> calculateCentroSymmetry(System &s,std::string cc="centro") {
 
 
 // LAMMPS specific variables
-int me,nprocs;               // MPI info
+int local_rank,local_size;// MPI info, copied from AbstractEngine for brevity
 LAMMPS *lmp;                  // instance of LAMMPS
 void error(const char *str){
-	if (me == 0) printf("ERROR: %s\n",str);
+	if (local_rank == 0) printf("ERROR: %s\n",str);
 	MPI_Abort(MPI_COMM_WORLD,1);
 };
 

@@ -144,6 +144,9 @@ template <class EngineTaskMapper>
 class AbstractEngine {
 public:
 AbstractEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_){
+	MPI_Comm_rank(localComm_,&local_rank);
+	MPI_Comm_size(localComm_,&local_size);
+	localComm=localComm_;
 	impls["TASK_DIE"] = die_impl;
 	impls["TASK_NOTHING"] = nothing_impl;
 };
@@ -161,9 +164,8 @@ std::function<void(GenericTask&)> nothing_impl = [this](GenericTask &task) {
 virtual void process(GenericTask &task) {
 	std::string str_id = mapper.type(task.type);
 	if(impls.find(str_id)!=impls.end()) {
-		LOGGER("EXECUTING "<<str_id<<", "<<task.type)
+		if(local_rank==0) LOGGER("EXECUTING "<<str_id<<", "<<task.type)
 		impls[str_id](task);
-
 	}
 };
 
@@ -171,8 +173,12 @@ virtual bool failed() {
 	return false;
 };
 
+
 protected:
 EngineTaskMapper mapper;
+int local_rank;
+int local_size;
+MPI_Comm localComm;
 std::map< const std::string, std::function<void(GenericTask&)> > impls;
 #ifdef USE_BOOST_LOG
 boost::log::sources::severity_logger< boost::log::trivial::severity_level > lg;
