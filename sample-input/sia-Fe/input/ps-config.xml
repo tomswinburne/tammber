@@ -213,10 +213,12 @@ In above NiAl example we would therefore specify (1,1), (2,2) and (1,2) cutoffs
     write_data %Filename%
   </WriteScript>
 
-
+  <!-- compute name must agree with that in TASK_CARVE -->
+  <CarveComputeScript>
+    compute centro all centro/atom 8
+  </CarveComputeScript>
 
   <VelocityInitScript>
-
     velocity    all create %InitTemperature%  %RANDU% dist gaussian
   </VelocityInitScript>
 
@@ -226,65 +228,62 @@ In above NiAl example we would therefore specify (1,1), (2,2) and (1,2) cutoffs
 
 
 
-
-
 <TaskParameters>
-
 
 <DefaultFlavor> 0 </DefaultFlavor>
 
 
 <TaskParameter>
-<Task> TASK_INIT_FROM_FILE </Task>
-<Flavor> 0 </Flavor>
+  <Task> TASK_INIT_FROM_FILE </Task>
+  <Flavor> 0 </Flavor>
 </TaskParameter>
 
 <TaskParameter>
-<Task> TASK_SEGMENT </Task>
-<Flavor> 0 </Flavor>
-<!-- Duration of block in MD time units. =1ps for LAMMPS metal units -->
-<BlockTime> 1 </BlockTime>
-<!-- dephasing blocks for segment - should be equal 1ps for energy minima -->
-<PreCorrelationTime> 1 </PreCorrelationTime>
-<!-- If a transition is detected, we "anneal" for AnnealingTime (sub-)blocks at
-a low AnnealingTemperature to check newly found state is stable enough for sampling-->
-<AnnealingTime>0.5</AnnealingTime>
-<AnnealingTemperature>300.0</AnnealingTemperature>
+  <Task> TASK_SEGMENT </Task>
+  <Flavor> 0 </Flavor>
+  <!-- Duration of block in MD time units. =1ps for LAMMPS metal units -->
+  <BlockTime> 1 </BlockTime>
+  <!-- dephasing blocks for segment - should be equal 1ps for energy minima -->
+  <PreCorrelationTime> 1 </PreCorrelationTime>
+  <!-- If a transition is detected, we "anneal" for AnnealingTime (sub-)blocks at
+  a low AnnealingTemperature to check newly found state is stable enough for sampling-->
+  <AnnealingTime>0.5</AnnealingTime>
+  <AnnealingTemperature>300.0</AnnealingTemperature>
 
-<MinimumSegmentLength> 1 </MinimumSegmentLength>
-<MaximumDephasingTrials> 3 </MaximumDephasingTrials>
-<MaximumSegmentLength> 5 </MaximumSegmentLength>
-<ReportIntermediates> 1 </ReportIntermediates>
+  <MinimumSegmentLength> 1 </MinimumSegmentLength>
+  <MaximumDephasingTrials> 3 </MaximumDephasingTrials>
+  <MaximumSegmentLength> 5 </MaximumSegmentLength>
+  <ReportIntermediates> 1 </ReportIntermediates>
 </TaskParameter>
 
 <!-- InitTemperature is typically overwritten but must be specified -->
 <TaskParameter>
-<Task> TASK_INIT_VELOCITIES  </Task>
-<Flavor> 0 </Flavor>
-<InitTemperature> 600 </InitTemperature>
+  <Task> TASK_INIT_VELOCITIES  </Task>
+  <Flavor> 0 </Flavor>
+  <InitTemperature> 600 </InitTemperature>
 </TaskParameter>
 
 <!-- Temperature is typically overwritten but must be specified -->
 <TaskParameter>
-<Task> TASK_MD </Task>
-<Flavor> 0 </Flavor>
-<BlockTime> 1 </BlockTime>
-<Timestep> 0.001 </Timestep>
-<Temperature>300</Temperature>
-<Friction> 0.1 </Friction>
+  <Task> TASK_MD </Task>
+  <Flavor> 0 </Flavor>
+  <BlockTime> 1 </BlockTime>
+  <Timestep> 0.001 </Timestep>
+  <Temperature>300</Temperature>
+  <Friction> 0.1 </Friction>
 </TaskParameter>
 
 
 <TaskParameter>
-<Task> TASK_MIN </Task>
-<Flavor> 0 </Flavor>
-<Tolerance> 1e-13 </Tolerance>
+  <Task> TASK_MIN </Task>
+  <Flavor> 0 </Flavor>
+  <Tolerance> 1e-13 </Tolerance>
 </TaskParameter>
 
 <TaskParameter>
-<Task> TASK_LABEL </Task>
-<Flavor> 0 </Flavor>
-<Type> ConnectivityGraphStateLabeler </Type>
+  <Task> TASK_LABEL </Task>
+  <Flavor> 0 </Flavor>
+  <Type> ConnectivityGraphStateLabeler </Type>
 </TaskParameter>
 
 <!--
@@ -295,7 +294,9 @@ Routine will set entire system as cluster, with center of mass position
 <TaskParameter>
   <Task> TASK_CARVE </Task>
   <Flavor> 0 </Flavor>
-  <CentroNeighbors> 8 </CentroNeighbors>
+  <!-- name in CarveComputeScript. Disabled if NULL-->
+  <CarveCompute>centro</CarveCompute>
+  <!-- Threshold value -->
   <Threshold>0.1</Threshold>
   <!--
   Relative Cutoff for connectivity after removing bulk atoms.
@@ -305,35 +306,31 @@ Routine will set entire system as cluster, with center of mass position
 </TaskParameter>
 
 
-
-
 <TaskParameter>
-<Task> TASK_REMAP </Task>
-<Flavor> 0 </Flavor>
-<Canonical> 1 </Canonical>
+  <Task> TASK_REMAP </Task>
+  <Flavor> 0 </Flavor>
+  <Canonical> 1 </Canonical>
 </TaskParameter>
 
 <TaskParameter>
-<Task> TASK_WRITE_TO_FILE </Task>
-<Flavor> 0 </Flavor>
+  <Task> TASK_WRITE_TO_FILE </Task>
+  <Flavor> 0 </Flavor>
 </TaskParameter>
 
 <TaskParameter>
-<Task> TASK_FILTER_TRANSITION </Task>
-<Flavor> 0 </Flavor>
-<!-- dXTransitionFilter requires a change of state label
-AND an above-threshold change in atomic positions for a transition to be valid
--->
-<Type> dXTransitionFilter </Type>
-<!--
-0: L_2 norm, i.e. magnitude
-1: L_inf norm, i.e. max component. Typically gives less false positives
--->
-<MaxNorm> 1 </MaxNorm>
-
-<!-- Threshold distance threshold (should be < 0.25nn bond to be safe) -->
-<Thresh> 0.6 </Thresh>
-
+  <Task> TASK_FILTER_TRANSITION </Task>
+  <Flavor> 0 </Flavor>
+  <!-- dXTransitionFilter requires a change of state label
+  AND an above-threshold change in atomic positions for a transition to be valid
+  -->
+  <Type> dXTransitionFilter </Type>
+  <!--
+  0: L_2 norm, i.e. magnitude
+  1: L_inf norm, i.e. max component. Typically gives less false positives
+  -->
+  <MaxNorm> 1 </MaxNorm>
+  <!-- Threshold distance threshold (should be < 0.25nn bond to be safe) -->
+  <Thresh> 0.6 </Thresh>
 </TaskParameter>
 
 <!--
@@ -355,34 +352,25 @@ AND an above-threshold change in atomic positions for a transition to be valid
   <UseVF2>0</UseVF2>
 </TaskParameter>
 
-
 <TaskParameter>
   <Task> TASK_NEB </Task>
   <Flavor> 0 </Flavor>
   <Images> 11 </Images> <!-- NEB knots -->
   <Spring> .5 </Spring> <!-- NEB spring constant, in [F]/[X] MD units  -->
-
   <!-- Threshold depth of intermediate minimum to split NEB return result -->
   <WellDepth> 0.2 </WellDepth>
-
   <!-- Maximum element of force vector in MD units -->
   <ForceTolerance> 0.01 </ForceTolerance>
-
   <!-- Maximum number of force calls -->
   <MaxIterations> 1000 </MaxIterations>
-
   <!-- timestep for NEB min, in whatever units the MD engine uses -->
   <NEBTimestep> 0.002 </NEBTimestep>
-
   <!-- Calculate prefactor via Hessian for Bayes prior (expensive, usually=0) -->
   <CalculatePrefactor> 0 </CalculatePrefactor>
-
   <!-- Even when CalculatePrefactor=1, only compute Hessian for large barriers -->
   <ThresholdBarrier> 1.0 </ThresholdBarrier>
   <WriteFiles>0</WriteFiles>
 </TaskParameter>
 
-
 </TaskParameters>
-
 </Configuration>

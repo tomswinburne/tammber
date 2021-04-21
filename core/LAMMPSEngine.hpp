@@ -90,12 +90,14 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 
 	//bootstrapScript=config.get<std::string>("Configuration.LAMMPSEngine.BootstrapScript");
 	mdScript=config.get<std::string>("Configuration.LAMMPSEngine.MDScript");
+	carveScript=config.get<std::string>("Configuration.LAMMPSEngine.CarveComputeScript","");
 	minScript=config.get<std::string>("Configuration.LAMMPSEngine.MinScript","");
 	writeScript=config.get<std::string>("Configuration.LAMMPSEngine.WriteScript","");
 	initScript=config.get<std::string>("Configuration.LAMMPSEngine.InitScript","");
 	postInitScript=config.get<std::string>("Configuration.LAMMPSEngine.PostInitScript","");
 	velocityInitScript=config.get<std::string>("Configuration.LAMMPSEngine.VelocityInitScript","");
 
+	if(carveScript=="") carveScript="compute carve all centro/atom 8";
 	// kill off worker if a fault is produced
 	if(initScript=="" || mdScript=="" || minScript=="") {
 		GenericTask die;
@@ -145,7 +147,7 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 	MDBaseEngine::BaseEngine::impls["TASK_INIT_FROM_FILE"] = LAMMPSEngine::file_init_impl;
 	MDBaseEngine::BaseEngine::impls["TASK_WRITE_TO_FILE"] = LAMMPSEngine::file_write_impl;
 	MDBaseEngine::BaseEngine::impls["TASK_FORCES"] = LAMMPSEngine::forces_impl;
-	MDBaseEngine::BaseEngine::impls["TASK_CENTRO"] = LAMMPSEngine::centro_impl;
+	MDBaseEngine::BaseEngine::impls["TASK_CARVE_COMPUTE"] = LAMMPSEngine::carve_compute_impl;
 };
 
 virtual bool failed() {
@@ -257,20 +259,22 @@ std::function<void(GenericTask&)> forces_impl = [this](GenericTask &task) {
 	task.clearInputs();
 };
 
-std::function<void(GenericTask&)> centro_impl = [this](GenericTask &task) {
+std::function<void(GenericTask&)> carve_compute_impl = [this](GenericTask &task) {
 	std::unordered_map<std::string,std::string> parameters =
 		extractParameters(task.type,task.flavor,MDBaseEngine::defaultFlavor,MDBaseEngine::taskParameters);
-		int nn; if(!extract("CentroNeighbors",task.arguments,nn)) nn = 8;
+		std::string carve_compute;
+		if(!extract("CarveCompute",task.arguments,carve_compute)) carve_compute = "centro";
 
-		if(MDBaseEngine::local_rank==0) LOGGER("CSNN (C): "<<nn)
+		if(MDBaseEngine::local_rank==0)
+			LOGGER("CarveComputeScript: "<<carveScript<<" CarveCompute: "<<carve_compute)
 
 		task.clearOutputs();
 		System s;
 		if (extract("State",task.inputData,s)) {
 			LAMMPSSystem *sys = &s;
 			transferSystemToLammps(*sys, parameters);
-			std::vector<double> csl = calculateCentroSymmetry(s,nn);
-			insert("CentroSymmetry",task.outputData,csl);
+			std::vector<double> csl = calculateCentroSymmetry(s,carve_compute);
+			insert("CarveComputeVector",task.outputData,csl);
 		}
 		task.clearInputs();
 };
@@ -547,17 +551,17 @@ void singleForceEnergyCall(System &s, bool noforce=false,bool prepost=true) {
 };
 
 
-std::vector<double> calculateCentroSymmetry(System &s,int nn=8) {
+std::vector<double> calculateCentroSymmetry(System &s,std::string cc="centro") {
 	//lammps_scatter_subset(lmp,(char *) "x",LAMMPS_DOUBLE,3,s.id.size(),&s.id[0],&s.x[0]);
 	lammps_scatter(lmp,(char *) "x",LAMMPS_DOUBLE,3,&s.x[0]);
-
 	lammps_command(lmp,(char *) "run 0"); // annoying but need to build nlist
-	std::string cc="compute calcCS all centro/atom "+std::to_string(nn);
-	lammps_command(lmp,(char *) cc.c_str());
+	lammps_command(lmp,(char *) carveScript.c_str());
 	lammps_command(lmp,(char *) "run 0");
 	std::vector<double> res(s.id.size(),0.0);
-	lammps_gather(lmp,(char *)"c_calcCS",LAMMPS_DOUBLE,1,&res[0]);
-	lammps_command(lmp, (char *)"uncompute calcCS");
+	std::string c_cc = "c_"+cc;
+	lammps_gather(lmp,(char *)c_cc.c_str(),LAMMPS_DOUBLE,1,&res[0]);
+	c_cc = "uncompute "+cc;
+	lammps_command(lmp, (char *)c_cc.c_str());
 	return res;
 };
 
@@ -579,6 +583,7 @@ std::size_t coordinatesHash;
 bool log_lammps;
 std::string bootstrapScript;
 std::string mdScript;
+std::string carveScript;
 std::string minScript;
 std::string writeScript;
 std::string initScript;

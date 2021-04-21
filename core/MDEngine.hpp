@@ -39,7 +39,7 @@ MDTaskMapper() : AbstractTaskMapper() {
 	AbstractTaskMapper::insert("TASK_MIN");
 	AbstractTaskMapper::insert("TASK_SEGMENT");
 	AbstractTaskMapper::insert("TASK_FORCES");
-	AbstractTaskMapper::insert("TASK_CENTRO");
+	AbstractTaskMapper::insert("TASK_CARVE_COMPUTE");
 	AbstractTaskMapper::insert("TASK_CARVE");
 	AbstractTaskMapper::insert("TASK_SYMMETRY");
 	AbstractTaskMapper::insert("TASK_INIT_FROM_FILE");
@@ -107,7 +107,7 @@ MDEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_) : 
 	BaseEngine::impls["TASK_MIN"] = MDEngine::min_impl; // insert("TASK_MIN");
 	BaseEngine::impls["TASK_SEGMENT"] = MDEngine::segment_impl; // insert("TASK_SEGMENT");
 	BaseEngine::impls["TASK_FORCES"] = MDEngine::forces_impl; // insert("TASK_FORCES");
-	BaseEngine::impls["TASK_CENTRO"] = MDEngine::centro_impl; // insert("TASK_CENTRO");
+	BaseEngine::impls["TASK_CARVE_COMPUTE"] = MDEngine::carve_compute_impl; // insert("TASK_CARVE_COMPUTE");
 	BaseEngine::impls["TASK_CARVE"] = MDEngine::carve_impl; // insert("TASK_CARVE");
 	BaseEngine::impls["TASK_SYMMETRY"] = MDEngine::symmetry_impl; // insert("TASK_SYMMETRY");
 	BaseEngine::impls["TASK_INIT_FROM_FILE"] = MDEngine::file_init_impl; // insert("TASK_INIT_FROM_FILE");
@@ -150,7 +150,7 @@ std::function<void(GenericTask&)> init_velocities_impl = [this](GenericTask &tas
 std::function<void(GenericTask&)> forces_impl = [this](GenericTask &task) {
 	/* to be overwritten (in impls as well) */
 };
-std::function<void(GenericTask&)> centro_impl = [this](GenericTask &task) {
+std::function<void(GenericTask&)> carve_compute_impl = [this](GenericTask &task) {
 	/* to be overwritten (in impls as well) */
 };
 
@@ -956,20 +956,21 @@ std::function<void(GenericTask&)> carve_impl = [this](GenericTask &task) {
 	std::unordered_map<std::string,std::string> parameters=\
 		extractParameters(task.type,task.flavor,defaultFlavor,taskParameters);
 	//read parameters from the task
-	int nn=safe_extractor<int>(parameters,"CentroNeighbors",8);
+	std::string carve_compute=safe_extractor<std::string>(parameters,"CarveCompute","NULL");
 	double thresh=safe_extractor<double>(parameters,"Threshold",5.0);
 	double scale=safe_extractor<double>(parameters,"RelativeCutoff",1.0);
 	std::list<System> sysl;
 
 	GenericTask centro;
-	LOGGER("CSNN: "<<nn);
+	if(local_rank==0) LOGGER("CarveCompute: "<<carve_compute);
 
-	centro.type = BaseEngine::mapper.type("TASK_CENTRO");
-	insert("CentroNeighbors",centro.arguments,nn);
+	centro.type = BaseEngine::mapper.type("TASK_CARVE_COMPUTE");
+	insert("CarveCompute",centro.arguments,carve_compute);
 	extract("State",task.inputData,sysl);
 	task.clearInputs();
 
-	LOGGER("TADEngine::carve_impl : FOUND "<<sysl.size()<<" STATES")
+	if(local_rank==0)
+		LOGGER("TADEngine::carve_impl : FOUND "<<sysl.size()<<" STATES")
 	for(auto &s : sysl) {
 		Cell bc = s.getCell();
 		System thr_s;
@@ -978,8 +979,8 @@ std::function<void(GenericTask&)> carve_impl = [this](GenericTask &task) {
 		double temp_double=0.0;
 		std::vector<double> csl;
 
-		if(nn==0) {
-			LOGGER("TADEngine::carve_impl : CentroNeighbors==0; assigning center of mass position")
+		if(carve_compute=="NULL") {
+			LOGGER("TADEngine::carve_impl : carve_compute==NULL; assigning center of mass position")
 			insert("Clusters",task.returns,clusters);
 			insert("Position",task.returns,position);
 			thr_N = s.getNAtoms();
@@ -989,9 +990,9 @@ std::function<void(GenericTask&)> carve_impl = [this](GenericTask &task) {
 		} else {
 			centro.clearInputs(); centro.clearOutputs();
 			insert("State",centro.inputData,s);
-			insert("CentroNeighbors",centro.arguments,nn);
+			insert("CarveCompute",centro.arguments,carve_compute);
 			BaseEngine::process(centro);
-			extract("CentroSymmetry",centro.outputData,csl);
+			extract("CarveComputeVector",centro.outputData,csl);
 			thr_s.setCell(s.getCell());
 			for(int i=0; i<csl.size();i++) if(csl[i]>thresh) thr_N++;
 			thr_s.setNAtoms(thr_N);
