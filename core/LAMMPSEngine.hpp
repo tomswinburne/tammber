@@ -486,6 +486,7 @@ void transferSystemFromLammps(System &s){
 
 void transferSystemToLammps(System &sys, std::unordered_map<std::string, std::string> &parameters){
 	int natoms = sys.getNAtoms();
+	int lammps_natoms = lammps_get_natoms(lmp);
 	char cmdc[512];
 
 	bool triclinic = *((int *) lammps_extract_global(lmp,(char *) "triclinic"));
@@ -509,18 +510,15 @@ void transferSystemToLammps(System &sys, std::unordered_map<std::string, std::st
 	// NOTE: periodicity is a double within System?
 	// NOTE: what about remapping of atom back into box with image change?
 
-	//lammps_command(lmp,(char *) "delete_atoms group all");
-	//lammps_create_atoms(lmp,natoms,&sys.id[0],&sys.species[0],&sys.x[0],&sys.v[0],NULL,1);
-
-	lammps_scatter(lmp,(char *) "x",LAMMPS_DOUBLE,3,&sys.x[0]);
-	lammps_scatter(lmp,(char *) "v",LAMMPS_DOUBLE,3,&sys.v[0]);
-
-
-
-	//if(sys.qflag) lammps_scatter_subset(lmp,(char *) "q",LAMMPS_DOUBLE,1,sys.id.size(),&sys.id[0],&sys.q[0]);
-	if(local_rank==0)
-		LOGGER("LAMMPSEngine::transferSystemToLammps : q_flag="<<sys.qflag)
-
+	if(natoms!=lammps_natoms) {
+		lammps_command(lmp,(char *) "delete_atoms group all");
+		lammps_create_atoms(lmp,natoms,&sys.id[0],&sys.species[0],&sys.x[0],&sys.v[0],NULL,1);
+	} else {
+		lammps_scatter(lmp,(char *) "x",LAMMPS_DOUBLE,3,&sys.x[0]);
+		lammps_scatter(lmp,(char *) "v",LAMMPS_DOUBLE,3,&sys.v[0]);
+		lammps_scatter(lmp,(char *) "id",LAMMPS_INT,1,&sys.id[0]);
+		lammps_scatter(lmp,(char *) "type",LAMMPS_INT,1,&sys.species[0]);
+	}
 	if(sys.qflag) lammps_scatter(lmp,(char *) "q",LAMMPS_DOUBLE,1,&sys.q[0]);
 
 	//parse the command string
