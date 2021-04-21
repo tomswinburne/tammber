@@ -4,7 +4,7 @@
 ##  [Installation Instructions](INSTALL.md)
 
 ##  [Getting Started](EXAMPLE.md)
-- *If you are using TAMMBER for diffusion studies please read the "Cluster Monitoring" section!*
+- *If you are using TAMMBER for diffusion studies please read the "Cluster Definitions For Diffusion" section!*
 - *It is highly recommended to run the `tammber-md` test routine first!*
 
 
