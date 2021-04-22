@@ -1144,7 +1144,6 @@ bool SelfSymmetries(System &one, std::set<PointShiftSymmetry> &syms,bool return_
 	return bool(amaps.size()<=syms.size());
 };
 
-
 // VF2-free implementation
 
 bool find_transforms_direct(System &one, System two, PointShiftSymmetry &op, std::array<double,NDIM> position, int operation) {
@@ -1152,93 +1151,81 @@ bool find_transforms_direct(System &one, System two, PointShiftSymmetry &op, std
 
 	Cell bc = one.getCell();
 	int natoms = one.getNAtoms();
-	unsigned min_i2;
 
+	bool complete=true;
+	unsigned min_i2;
 	std::array<double,NDIM*NDIM> T;
 	double min_d = 0.0, temp_d=0.0, a_mag=0.0;
-	std::array<double,NDIM> temp,cc={0.,0.,0.},cc2,temp2;
-	for(int j=0;j<NDIM;j++) for(int k=0;k<NDIM;k++) cc[j] += bc.rsp[j][k]/2.0;
-
+	std::array<double,NDIM> temp,cc,cc2,temp2,shift;
 	std::vector<int> count(natoms,0);
+
+	for(int j=0;j<NDIM;j++) {
+		cc[j] = 0.0;
+		for(int k=0;k<NDIM;k++) cc[j] += bc.rsp[j][k]/2.0;
+	}
+
 	if(BaseEngine::local_rank==0) {
 		LOGGER("cell center: "<<cc[0]<<" "<<cc[1]<<" "<<cc[2])
 		LOGGER("cell origin: "<<bc.origin[0]<<" "<<bc.origin[1]<<" "<<bc.origin[2])
 	}
 	// Rotate around position with transform matrix
 	// one : centered_cluster + com
-	// two : T.centered_cluster (no com shift)
+	// two : T.centered_cluster + com
 	op.transform_matrix(T,operation);
-	for(int j=0;j<NDIM;j++) cc[j]=0.0;
-	for(int j=0;j<NDIM;j++) cc2[j]=0.0;
 	for(unsigned i=0; i<natoms; i++) {
 		for(int j=0;j<NDIM;j++) {
 			temp[j] = 0.;
-			cc[j] += ( one.getPosition(i,j) - position[j] ) / natoms;
 			for(int k=0;k<NDIM;k++)
 				temp[j] += T[NDIM*j+k] * (one.getPosition(i,k)-position[k]);
-			two.setPosition(i,j,temp[j]);
-			cc2[j] += two.getPosition(i,j) / natoms;
+			two.setPosition(i,j,temp[j]+position[j]);
 		}
 	}
-	temp_d=0.; for(int j=0;j<NDIM;j++) temp_d += (cc[j]-cc2[j])*(cc[j]-cc2[j]);
 
-	if(BaseEngine::local_rank==0) {
-		LOGGER("one com - position: "<<cc[0]<<" "<<cc[1]<<" "<<cc[2])
-		LOGGER("two com - position: "<<cc2[0]<<" "<<cc2[1]<<" "<<cc2[2])
-		LOGGER("com difference: "<<sqrt(temp_d))
-	}
+	// O(N^2)-O(N^3) closest remapping
+	for(unsigned s_i=0; s_i<natoms; s_i++) {
+		// shift vector
+		for(int j=0;j<NDIM;j++)
+			shift[j] = two.getPosition(s_i,j)-one.getPosition(0,j);
 
-	if(sqrt(temp_d)>1.0) return false; // quit if not identical here
-
-
-	// O(N^2) closest remapping- if a symmetry op the com should be unchanged...
-	for(unsigned i1=0; i1<natoms; i1++) {
-		for(int j=0;j<NDIM;j++) temp[j] = one.getPosition(i1,j)-position[j];
-		min_d = 100000000.0;
-		min_i2 = i1;
-		for(unsigned i2=0; i2<natoms; i2++) {
-			if(one.getSpecies(i1)!=two.getSpecies(i2)) continue;
-			temp_d = 0.0;
-			for(int j=0;j<NDIM;j++)
-				temp_d += (two.getPosition(i2,j)-temp[j])*(two.getPosition(i2,j)-temp[j]);
-			if(temp_d<min_d) {
-				min_i2 = i2;
-				min_d = temp_d;
+		complete=true;
+		for(unsigned i1=0; i1<natoms; i1++) count[i1] = 0;
+		for(unsigned i1=0; i1<natoms; i1++) {
+			min_d = 100000000.0;
+			min_i2 = i1;
+			for(unsigned i2=0; i2<natoms; i2++) {
+				for(int j=0;j<NDIM;j++)
+					temp[j] = two.getPosition(i2,j)-one.getPosition(i1,j)-shift[j];
+				bc.wrapc(temp);
+				temp_d = 0.0; for(int j=0;j<NDIM;j++) temp_d += temp[j]*temp[j];
+				if(temp_d<min_d) {
+					min_i2 = i2;
+					min_d = temp_d;
+				}
 			}
+			if(min_d>0.01) break;
+			else count[min_i2] += 1;
 		}
-		if(min_d>0.05) break;
-		else count[min_i2] += 1;
+		for(unsigned i1=0; i1<natoms; i1++) if(count[i1]!=1) complete=false;
+		if(complete) break;
 	}
-	for(unsigned i1=0; i1<natoms; i1++) if(count[i1]!=1) return false;
-
-
+	if(!complete) return false;
 	/*
 		Match found!
-		r_two = two + com
-		one-com = T.(r_two - com)
-		one + shift = T.r_two
-		shift = T.r_two - one = T.com - com
+		new = T.old + shift
 	*/
-	for(int j=0;j<NDIM;j++) {
-		temp[j] = 0.;
-		for(int k=0;k<NDIM;k++) temp[j] += T[NDIM*j+k] * position[k];
-		temp[j] -= position[j];
-	}
-	bc.wrap(temp);
+	bc.wrap(shift);
 	if(BaseEngine::local_rank==0) {
 		LOGGER("       ["<<T[0]<<" "<<T[1]<<" "<<T[2]<<"]")
 		LOGGER("matrix:["<<T[3]<<" "<<T[4]<<" "<<T[5]<<"]")
 		LOGGER("       ["<<T[6]<<" "<<T[7]<<" "<<T[8]<<"]")
-		LOGGER("shift: ["<<temp[0]<<" "<<temp[1]<<" "<<temp[2]<<"]")
+		LOGGER("shift: ["<<shift[0]<<" "<<shift[1]<<" "<<shift[2]<<"]")
 	}
 	op.operation=operation;
 	op.matrix=T;
-	for(int j=0;j<NDIM;j++) op.shift[j] = temp[j];
+	for(int j=0;j<NDIM;j++) op.shift[j] = shift[j];
 	op.valid = true;
 	return true;
 };
-
-
 
 
 bool SelfSymmetriesCarve(System &one, std::set<PointShiftSymmetry> &syms) {
