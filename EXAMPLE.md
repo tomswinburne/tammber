@@ -158,7 +158,9 @@ To disable this restriction, i.e. sample everything, we set
 
 ###  `TASK_CARVE`
 The 'carving' out of defects in `TAMMBER` is achieved in two steps, which we
-illustrate using [centrosymmetry](https://lammps.sandia.gov/doc/compute_centro_atom.html).
+illustrate using [centrosymmetry](https://lammps.sandia.gov/doc/compute_centro_atom.html). Example values are given below.
+
+
 - In `<Scripts`, define a `LAMMPS` compute which assigns a floating point number to each atom:
 ```xml
 <!-- compute name must agree with that in TASK_CARVE -->
@@ -167,94 +169,86 @@ illustrate using [centrosymmetry](https://lammps.sandia.gov/doc/compute_centro_a
 </CarveComputeScript>
 ```
 Multiple commands are possible, though only one compute can be used in the next step.
+This compute should respect crystal symmetries, so that the carved region has the
+same symmetries as the full system, allowing `TASK_SYMMETRY` to find all possible
+symmetry operations. Most common "descriptors" (CNA etc) satisfy this.
 
-- In `<TaskParameter>` for `TASK_CARVE`,  identify the relevant compute and a threshold
-above which atoms are considered "defective"
-```xml
-<TaskParameter>
-  <Task> TASK_CARVE </Task>
-  <Flavor> 0 </Flavor>
-  <!-- name in CarveComputeScript. Disabled if NULL -->
-  <CarveCompute>centro</CarveCompute>
-  <!-- Threshold value -->
-  <Threshold>0.1</Threshold>
-  <!--
-  Relative Cutoff for connectivity after removing bulk atoms.
-  Here, we set to second neighbor, i.e. a scaling of |[100]|/|[111]/2| = 2/sqrt(3) ~ 1.5
-  -->
-  <RelativeCutoff>1.5</RelativeCutoff>
-</TaskParameter>
-```
-After carving, remaining atoms can be separated further than a nearest neighbor distance, even
-though they are the same cluster. This is most likely for vacancy defects- e.g.
-bcc vacancy leaves a "[100] cube cage" with atoms separated by <100>, not 1/2<111>.
-The `<Bond>` cutoffs are therefore rescaled by a factor `<RelativeCutoff>`, which
-should be approximately equal to (2nd nn bond length) / (1st nn bond length) (~1.5 for bcc)
+- In `<TaskParameter>` for `TASK_CARVE`
+  ```xml
+  <TaskParameter>
+    <Task> TASK_CARVE </Task>
+    <Flavor> 0 </Flavor>
+    <CarveCompute>centro</CarveCompute>
+    <Threshold>0.1</Threshold>
+    <RelativeCutoff>1.5</RelativeCutoff>
+  </TaskParameter>
+  ```
+  - `CarveCompute` : the compute defined in `CarveComputeScript`. Carving is disabled if compute name is `NULL`.
+  - `Threshold` : value of compute above which atoms are considered "defective"
+  - `RelativeCutoff` : After carving, remaining atoms can be separated further than a nearest
+  neighbor distance, even though they are the same cluster. This is most likely for vacancy defects-
+  e.g. bcc vacancy leaves a "[100] cube cage" with atoms separated by <100>, not 1/2<111>.
+  The `<Bond>` cutoffs are therefore rescaled by a factor `<RelativeCutoff>`, which
+  should be approximately equal to (2nd nn bond length) / (1st nn bond length) (~1.5 for bcc)
 
-
-We recommend using a visualization routine e.g. `OVITO` to determine the carving routine
+We recommend using a visualisation program e.g. `OVITO` to determine the carving routine for your system.
 
 Some example values with `LAMMPS` [centrosymmetry](https://lammps.sandia.gov/doc/compute_centro_atom.html)
 parameter for various structures (alloys, surfaces) :
 
-Typically `centro/atom 6/12/8` is a good choice for cubic/fcc/bcc systems.
+- Typically `centro/atom 6/12/8` is a good choice for cubic/fcc/bcc systems.
 
 - No carving :
-```xml
-<TaskParameter>
-  <Task> TASK_CARVE </Task>
-  <Flavor> 0 </Flavor> <!-- Default -->
-  <CentroNeighbors> 0 </CentroNeighbors>
-</TaskParameter>
-```
-
+  ```xml
+  <TaskParameter>
+    <Task> TASK_CARVE </Task>
+    <Flavor> 0 </Flavor> <!-- Default -->
+    <CentroNeighbors> 0 </CentroNeighbors>
+  </TaskParameter>
+  ```
 - MgO interstitial defect studied in [this paper](https://www.nature.com/articles/s41524-020-00463-8) :
-```xml
-<TaskParameter>
-  <Task> TASK_CARVE </Task>
-  <Flavor> 0 </Flavor> <!-- Default -->
-  <!-- bcc:8, fcc: 12, cubic: 6, to disable: 0 -->
-  <CentroNeighbors> 6 </CentroNeighbors>
-  <!-- determined by inspection -->
-  <Threshold>1.0</Threshold>
-  <!-- Typically ratio of 2nd neighbor length to 1st -->
-  <RelativeCutoff>1.5</RelativeCutoff>
-</TaskParameter>
-```
+  ```xml
+  <TaskParameter>
+    <Task> TASK_CARVE </Task>
+    <Flavor> 0 </Flavor> <!-- Default -->
+    <!-- bcc:8, fcc: 12, cubic: 6, to disable: 0 -->
+    <CentroNeighbors> 6 </CentroNeighbors>
+    <!-- determined by inspection -->
+    <Threshold>1.0</Threshold>
+    <!-- Typically ratio of 2nd neighbor length to 1st -->
+    <RelativeCutoff>1.5</RelativeCutoff>
+  </TaskParameter>
+  ```
 - bcc vacancy:
-```xml
-<TaskParameter>
-  <Task> TASK_CARVE </Task>
-  <Flavor> 0 </Flavor> <!-- Default -->
-  <!-- cubic -->
-  <CentroNeighbors> 8 </CentroNeighbors>
-  <Threshold>0.2</Threshold>
-  <!-- Typically ratio of 2nd neighbor length to 1st -->
-  <RelativeCutoff>1.5</RelativeCutoff>
-</TaskParameter>
-```
+  ```xml
+  <TaskParameter>
+    <Task> TASK_CARVE </Task>
+    <Flavor> 0 </Flavor> <!-- Default -->
+    <!-- cubic -->
+    <CentroNeighbors> 8 </CentroNeighbors>
+    <Threshold>0.2</Threshold>
+    <!-- Typically ratio of 2nd neighbor length to 1st -->
+    <RelativeCutoff>1.5</RelativeCutoff>
+  </TaskParameter>
+  ```
 - bcc 110 surface (note higher threshold!):
-```xml
-<TaskParameter>
-  <Task> TASK_CARVE </Task>
-  <Flavor> 0 </Flavor> <!-- Default -->
-  <!-- cubic -->
-  <CentroNeighbors> 8 </CentroNeighbors>
-  <Threshold>5.0</Threshold>
-  <!-- Typically ratio of 2nd neighbor length to 1st -->
-  <RelativeCutoff>1.5</RelativeCutoff>
-</TaskParameter>
-```
+  ```xml
+  <TaskParameter>
+    <Task> TASK_CARVE </Task>
+    <Flavor> 0 </Flavor> <!-- Default -->
+    <!-- cubic -->
+    <CentroNeighbors> 8 </CentroNeighbors>
+    <Threshold>5.0</Threshold>
+    <!-- Typically ratio of 2nd neighbor length to 1st -->
+    <RelativeCutoff>1.5</RelativeCutoff>
+  </TaskParameter>
+  ```
 
 ###  `TASK_SYMMETRY`
 Symmetry Comparisons for NEB pairs and self symmetries. If we do not carve out
-a defective region, the VF2 graph matching routine will be used, which has
-worst case time complexity of O(N!N). Whilst rare, this can cause simulations to
-hang for many minutes when waiting for the VF2 routine to finish.
-
-`SelfCheck` : Directly test for self symmetries. If not set, these symmetries will only be found during MD sampling.
-`ThreshCheck` : Carve out defective region using `TASK_CARVE` (much faster checks)
-`UseVF2` : force use of VF2 matching. Default=1 when `ThreshCheck=0`
+a defective region, the `VF2` graph matching [routine](https://www.boost.org/doc/libs/1_61_0/libs/graph/doc/vf2_sub_graph_iso.html)
+will be used, which has worst case time complexity of O(N!N). Whilst rare, this can cause simulations to
+hang for many minutes when waiting for `VF2` to finish.
 Fastest results are with
 ```xml
 <TaskParameter>
@@ -265,6 +259,11 @@ Fastest results are with
   <UseVF2>0</UseVF2>
 </TaskParameter>
 ```
+- `SelfCheck` : Directly test for self symmetries. If not set, these symmetries will only be found during MD sampling.
+- `ThreshCheck` : Carve out defective region using `TASK_CARVE` (much faster checks)
+- `UseVF2` : force use of `VF2` matching. Default=1 when `ThreshCheck=0`
+
+
 
 ## Configuring the Markov model managing the sampling<a name="5"></a>
 
