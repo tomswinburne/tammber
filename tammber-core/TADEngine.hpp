@@ -887,7 +887,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  		neb_forces(neb_systems,initial,final,energies,false,true,spring,ClimbingImage,Climbing,rcNN); // no reset this time, but projection
 
 
- 		path_analysis(neb_systems,initial,final,energies,MinImage,ClimbingImage,InterMinImages);
+ 		path_analysis(neb_systems,initial,final,energies,MinImage,ClimbingImage,InterMinImages,WellDepth);
 
  		// we have intermediate minima...
  		if ((InterMinImages.size()>0) && ((max_f_at_sq<4.0*ftol*ftol)||(iter==maxiter-1))) {
@@ -1314,7 +1314,7 @@ virtual void interpolate(std::vector<System> &nsv,System &initial,System &final,
 
 /* finds minImage and either one or (if minImage not at an end) two climbing images */
 virtual void path_analysis(std::vector<System> &systems,System &initial,System &final,std::vector<double> &energies,int &MinImage,\
-	 int &ClimbingImage, std::list<int> &InterMinImages, double msd_thresh=0.6, double e_thresh=0.1) {
+	 int &ClimbingImage, std::list<int> &InterMinImages, double e_thresh) {
 
 	// Finds minimia and climbing image of an energy path
 	int lastimg = energies.size()-1;
@@ -1344,8 +1344,8 @@ virtual void path_analysis(std::vector<System> &systems,System &initial,System &
 	for (int l=1;l<lastimg;l++) {
 		relE = energies[l]+e_thresh;
 		if((relE<energies[l+1]) && (relE<energies[l-1])) {
-			if(InterMinImages.size()==0) msdc = bool(initial.msd(systems[l-1],false)>msd_thresh);
-			else msdc = bool(systems[*(std::prev(InterMinImages.end()))-1].msd(systems[l-1],false)>msd_thresh);
+			if(InterMinImages.size()==0) msdc = bool(initial.msd(systems[l-1],false)>MSD_THRESH);
+			else msdc = bool(systems[*(std::prev(InterMinImages.end()))-1].msd(systems[l-1],false)>MSD_THRESH);
 			if(msdc) InterMinImages.push_back(l);
 		}
 	}
