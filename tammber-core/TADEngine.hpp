@@ -896,10 +896,12 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  			if(BaseEngine::local_rank==0) LOGGERA("InterMinImage(s) detected! Profile: E[0]="<<energies[0])
  			double dE = energies[ClimbingImage]-energies[0];
  			// max res: 20 spaces
- 			for(int im=0;im<nImages;im++) {
+			int min_im=0;
+			for(int im=1;im<nImages;im++) if(energies[im]<energies[min_im]) min_im=im;
+			for(int im=0;im<nImages;im++) {
  				std::string res = "\t";
- 				for(int ss=0;ss<int(20.0*(energies[im]-energies[0])/dE);ss++) res+=" ";
- 				res += "| "+std::to_string(energies[im]-energies[0]);
+ 				for(int ss=0;ss<int(20.0*(energies[im]-energies[min_im])/dE);ss++) res+=" ";
+ 				res += "| "+std::to_string(energies[im]-energies[min_im]);
  				for(auto InterMinImage: InterMinImages)	if(im==InterMinImage) res+=" InterMinImage";
  				if(BaseEngine::local_rank==0) LOGGERA(res)
  			}
