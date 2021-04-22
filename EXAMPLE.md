@@ -142,7 +142,6 @@ thus specify a cutoff. For pure Fe, we use the `1/2<111>` bond length:
 ## Cluster Definitions For Diffusion<a name="9"></a>
 
 For diffusion problems we want
-
 - only one migrating object (this also makes sampling *much* more efficient)
 - a position assigned to that object (much simpler post-processing if we can do this at runtime)
 - knowledge of any self-symmetries of the object's structure (*significantly* accelerates sampling, as we don't have to find equivalent structures through unbiased MD)
@@ -158,23 +157,47 @@ To disable this restriction, i.e. sample everything, we set
 ```
 
 ###  `TASK_CARVE`
-The current stable TAMMBER version uses a simple "carving"
-routine using the centrosymmetry parameter as [implemented](https://lammps.sandia.gov/doc/compute_centro_atom.html) in `LAMMMPS`.
-This requires specifying the centrosymmetry parameter `CentroNeighbors`
-(an even integer), and a `Threshold` value above which atoms are considered "defective"
-We recommend using a visualization routine e.g. `OVITO` to determine the values;
-typically `CentroNeighbors=6` is a good choice for cubic systems, 12/8 for fcc/bcc.
+The 'carving' out of defects in `TAMMBER` is achieved in two steps, which we
+illustrate using [centrosymmetry](https://lammps.sandia.gov/doc/compute_centro_atom.html).
+- In `<Scripts`, define a `LAMMPS` compute which assigns a floating point number to each atom:
+```xml
+<!-- compute name must agree with that in TASK_CARVE -->
+<CarveComputeScript>
+  compute centro all centro/atom 8
+</CarveComputeScript>
+```
+Multiple commands are possible, though only one compute can be used in the next step.
 
-After carving, the remaining atoms can be further than a nearest neighbor distance, even
-though they are clearly the same cluster. This is most likely for vacancy defects- e.g.
+- In `<TaskParameter>` for `TASK_CARVE`,  identify the relevant compute and a threshold
+above which atoms are considered "defective"
+```xml
+<TaskParameter>
+  <Task> TASK_CARVE </Task>
+  <Flavor> 0 </Flavor>
+  <!-- name in CarveComputeScript. Disabled if NULL -->
+  <CarveCompute>centro</CarveCompute>
+  <!-- Threshold value -->
+  <Threshold>0.1</Threshold>
+  <!--
+  Relative Cutoff for connectivity after removing bulk atoms.
+  Here, we set to second neighbor, i.e. a scaling of |[100]|/|[111]/2| = 2/sqrt(3) ~ 1.5
+  -->
+  <RelativeCutoff>1.5</RelativeCutoff>
+</TaskParameter>
+```
+After carving, remaining atoms can be separated further than a nearest neighbor distance, even
+though they are the same cluster. This is most likely for vacancy defects- e.g.
 bcc vacancy leaves a "[100] cube cage" with atoms separated by <100>, not 1/2<111>.
-We therefore rescale the `<Bond>` cutoffs by a factor `<RelativeCutoff>`, which
-should be approximately equal to (2nd nn bond length) / (1st nn bond length)
-(~1.5 for bcc)
+The `<Bond>` cutoffs are therefore rescaled by a factor `<RelativeCutoff>`, which
+should be approximately equal to (2nd nn bond length) / (1st nn bond length) (~1.5 for bcc)
 
-*This carving will be generalized in new versions- feel free to fork and rewrite `TASK_CARVE`  yourself!*
 
-Some example values for various structures (alloys, surfaces) :
+We recommend using a visualization routine e.g. `OVITO` to determine the carving routine
+
+Some example values with `LAMMPS` [centrosymmetry](https://lammps.sandia.gov/doc/compute_centro_atom.html)
+parameter for various structures (alloys, surfaces) :
+
+Typically `centro/atom 6/12/8` is a good choice for cubic/fcc/bcc systems.
 
 - No carving :
 ```xml
@@ -242,8 +265,6 @@ Fastest results are with
   <UseVF2>0</UseVF2>
 </TaskParameter>
 ```
-
-
 
 ## Configuring the Markov model managing the sampling<a name="5"></a>
 
