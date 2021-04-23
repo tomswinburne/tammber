@@ -1152,7 +1152,8 @@ bool find_transforms_direct(System &one, System two, PointShiftSymmetry &op, int
 	// two : T.centered_cluster + com
 	op.transform_matrix(T,operation);
 	for(int j=0;j<NDIM;j++) temp2[j] = 0.0;
-	for(unsigned i=0; i<natoms; i++) temp2[j] += one.getPosition(i,j) / natoms;
+	for(unsigned i=0; i<natoms; i++)
+		for(int j=0;j<NDIM;j++) temp2[j] += one.getPosition(i,j) / natoms;
 	for(unsigned i=0; i<natoms; i++) {
 		for(int j=0;j<NDIM;j++) {
 			temp[j] = 0.;
