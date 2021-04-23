@@ -352,13 +352,23 @@ Finally, two extra parameters which can help finish a sampling task.
 
 As we specify a fixed simulation time, there may be incomplete `NEB` calculations
 at the end of a run, meaning the constructed model is incomplete. There is thus
-an option to exeute only  `TAMMBER` j
+an option to execute only `TAMMBER`
 ```xml
   <!--
   0: Normal operation, MD and NEB
   1: Only complete remaining NEBs
   -->
   <OnlyNEBS> 0 </OnlyNEBS>
+```
+
+During sampling, we can also use dynamical information to estimate
+the result of pending NEB calculations, which obviously will be overwritten
+once those calculations are complete.
+```xml
+  <!--
+  Use dynamic information to estimate the result of pending NEB calulations.
+  -->
+  <EstimatePendingNEBS>0</EstimatePendingNEBS>
 ```
 
 ## Test Routines<a name="8"></a>
