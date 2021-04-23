@@ -896,37 +896,14 @@ void TammberModel::write_model(std::string mmfile) {
 	if(LatticeConstant.compare("None")!=0)
 		res<<"  <Lattice>"<<LatticeConstant<<"</Lattice>\n";
 
-	if(PrimitiveUnitCell.compare("None")!=0) {
-		p_xml.clear();
-		boost::split(p_xml,PrimitiveUnitCell,boost::is_any_of(" "));
-		res<<"  <PrimitiveUnitCell>\n";
-		for(int l_xml=0;l_xml<p_xml.size()/3;l_xml++)
-			res<<"    "<<p_xml[l_xml*3+0]<<" "<<p_xml[l_xml*3+1]<<" "<<p_xml[l_xml*3+2]<<"\n";
-		res<<"  </PrimitiveUnitCell>\n";
-	}
+	if(PrimitiveUnitCell.compare("None")!=0)
+		res<<"  <PrimitiveUnitCell>"<<PrimitiveUnitCell<<"  </PrimitiveUnitCell>\n";
 
-	if(UnitCell.compare("None")!=0) {
+	if(UnitCell.compare("None")!=0)
+		res<<"  <UnitCell>"<<UnitCell<<"  </UnitCell>\n";
 
-		//p_xml.clear();
-		//boost::split(p_xml,UnitCell,boost::is_any_of(" "));
-		res<<"  <UnitCell>\n"<<UnitCell<<"\n  </UnitCell>\n";
-		//res<<UnitCell<<"\n";
-		//for(int l_xml=0;l_xml<p_xml.size()/3;l_xml++)
-		//	res<<"    "<<p_xml[l_xml*3+0]<<" "<<p_xml[l_xml*3+1]<<" "<<p_xml[l_xml*3+2]<<"\n";
-		//res<<"  </UnitCell>\n";
-	}
-
-	if(SuperCell.compare("None")!=0) {
-		res<<"  <SuperCell>\n"<<SuperCell<<"\n  </SuperCell>\n";
-		/*
-		p_xml.clear();
-		boost::split(p_xml,SuperCell,boost::is_any_of(" "));
-		res<<"  <SuperCell>\n";
-		for(int l_xml=0;l_xml<p_xml.size()/3;l_xml++)
-			res<<"    "<<p_xml[l_xml*3+0]<<" "<<p_xml[l_xml*3+1]<<" "<<p_xml[l_xml*3+2]<<"\n";
-		res<<"  </SuperCell>\n";
-		*/
-	}
+	if(SuperCell.compare("None")!=0)
+		res<<"  <SuperCell>"<<SuperCell<<"  </SuperCell>\n";
 	res<<"<GlobalMinEnergy>"<<minE<<"</GlobalMinEnergy>\n";
 	res<<"<ResidenceTimeMean>"<<valid_time<<"</ResidenceTimeMean>\n";
 	res<<"<ResidenceTimeStd>"<<sqrt(std::fabs(valid_time_sd))*valid_time<<"</ResidenceTimeStd>\n";
