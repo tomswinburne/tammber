@@ -142,7 +142,6 @@ thus specify a cutoff. For pure Fe, we use the `1/2<111>` bond length:
 ## Cluster Definitions For Diffusion<a name="9"></a>
 
 For diffusion problems we want
-
 - only one migrating object (this also makes sampling *much* more efficient)
 - a position assigned to that object (much simpler post-processing if we can do this at runtime)
 - knowledge of any self-symmetries of the object's structure (*significantly* accelerates sampling, as we don't have to find equivalent structures through unbiased MD)
@@ -158,80 +157,98 @@ To disable this restriction, i.e. sample everything, we set
 ```
 
 ###  `TASK_CARVE`
-The current stable TAMMBER version uses a simple "carving"
-routine using the centrosymmetry parameter as [implemented](https://lammps.sandia.gov/doc/compute_centro_atom.html) in `LAMMMPS`.
-This requires specifying the centrosymmetry parameter `CentroNeighbors`
-(an even integer), and a `Threshold` value above which atoms are considered "defective"
-We recommend using a visualization routine e.g. `OVITO` to determine the values;
-typically `CentroNeighbors=6` is a good choice for cubic systems, 12/8 for fcc/bcc.
+The 'carving' out of defects in `TAMMBER` is achieved in two steps, which we
+illustrate using [centrosymmetry](https://lammps.sandia.gov/doc/compute_centro_atom.html). Example values are given below.
 
-After carving, the remaining atoms can be further than a nearest neighbor distance, even
-though they are clearly the same cluster. This is most likely for vacancy defects- e.g.
-bcc vacancy leaves a "[100] cube cage" with atoms separated by <100>, not 1/2<111>.
-We therefore rescale the `<Bond>` cutoffs by a factor `<RelativeCutoff>`, which
-should be approximately equal to (2nd nn bond length) / (1st nn bond length)
-(~1.5 for bcc)
 
-*This carving will be generalized in new versions- feel free to fork and rewrite `TASK_CARVE`  yourself!*
+- In `<Scripts`, define a `LAMMPS` compute which assigns a floating point number to each atom:
+```xml
+<!-- compute name must agree with that in TASK_CARVE -->
+<CarveComputeScript>
+  compute centro all centro/atom 8
+</CarveComputeScript>
+```
+Multiple commands are possible, though only one compute can be used in the next step.
+This compute should respect crystal symmetries, so that the carved region has the
+same symmetries as the full system, allowing `TASK_SYMMETRY` to find all possible
+symmetry operations. Most common "descriptors" (CNA etc) satisfy this.
 
-Some example values for various structures (alloys, surfaces) :
+- In `<TaskParameter>` for `TASK_CARVE`
+  ```xml
+  <TaskParameter>
+    <Task> TASK_CARVE </Task>
+    <Flavor> 0 </Flavor>
+    <CarveCompute>centro</CarveCompute>
+    <Threshold>0.1</Threshold>
+    <RelativeCutoff>1.5</RelativeCutoff>
+  </TaskParameter>
+  ```
+  - `CarveCompute` : the compute defined in `CarveComputeScript`. Carving is disabled if compute name is `NULL`.
+  - `Threshold` : value of compute above which atoms are considered "defective"
+  - `RelativeCutoff` : After carving, remaining atoms can be separated further than a nearest
+  neighbor distance, even though they are the same cluster. This is most likely for vacancy defects-
+  e.g. bcc vacancy leaves a "[100] cube cage" with atoms separated by <100>, not 1/2<111>.
+  The `<Bond>` cutoffs are therefore rescaled by a factor `<RelativeCutoff>`, which
+  should be approximately equal to (2nd nn bond length) / (1st nn bond length) (~1.5 for bcc)
+
+We recommend using a visualisation program e.g. `OVITO` to determine the carving routine for your system.
+
+Some example values with `LAMMPS` [centrosymmetry](https://lammps.sandia.gov/doc/compute_centro_atom.html)
+parameter for various structures (alloys, surfaces) :
+
+- Typically `centro/atom 6/12/8` is a good choice for cubic/fcc/bcc systems.
 
 - No carving :
-```xml
-<TaskParameter>
-  <Task> TASK_CARVE </Task>
-  <Flavor> 0 </Flavor> <!-- Default -->
-  <CentroNeighbors> 0 </CentroNeighbors>
-</TaskParameter>
-```
-
+  ```xml
+  <TaskParameter>
+    <Task> TASK_CARVE </Task>
+    <Flavor> 0 </Flavor> <!-- Default -->
+    <CentroNeighbors> 0 </CentroNeighbors>
+  </TaskParameter>
+  ```
 - MgO interstitial defect studied in [this paper](https://www.nature.com/articles/s41524-020-00463-8) :
-```xml
-<TaskParameter>
-  <Task> TASK_CARVE </Task>
-  <Flavor> 0 </Flavor> <!-- Default -->
-  <!-- bcc:8, fcc: 12, cubic: 6, to disable: 0 -->
-  <CentroNeighbors> 6 </CentroNeighbors>
-  <!-- determined by inspection -->
-  <Threshold>1.0</Threshold>
-  <!-- Typically ratio of 2nd neighbor length to 1st -->
-  <RelativeCutoff>1.5</RelativeCutoff>
-</TaskParameter>
-```
+  ```xml
+  <TaskParameter>
+    <Task> TASK_CARVE </Task>
+    <Flavor> 0 </Flavor> <!-- Default -->
+    <!-- bcc:8, fcc: 12, cubic: 6, to disable: 0 -->
+    <CentroNeighbors> 6 </CentroNeighbors>
+    <!-- determined by inspection -->
+    <Threshold>1.0</Threshold>
+    <!-- Typically ratio of 2nd neighbor length to 1st -->
+    <RelativeCutoff>1.5</RelativeCutoff>
+  </TaskParameter>
+  ```
 - bcc vacancy:
-```xml
-<TaskParameter>
-  <Task> TASK_CARVE </Task>
-  <Flavor> 0 </Flavor> <!-- Default -->
-  <!-- cubic -->
-  <CentroNeighbors> 8 </CentroNeighbors>
-  <Threshold>0.2</Threshold>
-  <!-- Typically ratio of 2nd neighbor length to 1st -->
-  <RelativeCutoff>1.5</RelativeCutoff>
-</TaskParameter>
-```
+  ```xml
+  <TaskParameter>
+    <Task> TASK_CARVE </Task>
+    <Flavor> 0 </Flavor> <!-- Default -->
+    <!-- cubic -->
+    <CentroNeighbors> 8 </CentroNeighbors>
+    <Threshold>0.2</Threshold>
+    <!-- Typically ratio of 2nd neighbor length to 1st -->
+    <RelativeCutoff>1.5</RelativeCutoff>
+  </TaskParameter>
+  ```
 - bcc 110 surface (note higher threshold!):
-```xml
-<TaskParameter>
-  <Task> TASK_CARVE </Task>
-  <Flavor> 0 </Flavor> <!-- Default -->
-  <!-- cubic -->
-  <CentroNeighbors> 8 </CentroNeighbors>
-  <Threshold>5.0</Threshold>
-  <!-- Typically ratio of 2nd neighbor length to 1st -->
-  <RelativeCutoff>1.5</RelativeCutoff>
-</TaskParameter>
-```
+  ```xml
+  <TaskParameter>
+    <Task> TASK_CARVE </Task>
+    <Flavor> 0 </Flavor> <!-- Default -->
+    <!-- cubic -->
+    <CentroNeighbors> 8 </CentroNeighbors>
+    <Threshold>5.0</Threshold>
+    <!-- Typically ratio of 2nd neighbor length to 1st -->
+    <RelativeCutoff>1.5</RelativeCutoff>
+  </TaskParameter>
+  ```
 
 ###  `TASK_SYMMETRY`
 Symmetry Comparisons for NEB pairs and self symmetries. If we do not carve out
-a defective region, the VF2 graph matching routine will be used, which has
-worst case time complexity of O(N!N). Whilst rare, this can cause simulations to
-hang for many minutes when waiting for the VF2 routine to finish.
-
-`SelfCheck` : Directly test for self symmetries. If not set, these symmetries will only be found during MD sampling.
-`ThreshCheck` : Carve out defective region using `TASK_CARVE` (much faster checks)
-`UseVF2` : force use of VF2 matching. Default=1 when `ThreshCheck=0`
+a defective region, the `VF2` graph matching [routine](https://www.boost.org/doc/libs/1_61_0/libs/graph/doc/vf2_sub_graph_iso.html)
+will be used, which has worst case time complexity of O(N!N). Whilst rare, this can cause simulations to
+hang for many minutes when waiting for `VF2` to finish.
 Fastest results are with
 ```xml
 <TaskParameter>
@@ -242,6 +259,9 @@ Fastest results are with
   <UseVF2>0</UseVF2>
 </TaskParameter>
 ```
+- `SelfCheck` : Directly test for self symmetries. If not set, these symmetries will only be found during MD sampling.
+- `ThreshCheck` : Carve out defective region using `TASK_CARVE` (much faster checks)
+- `UseVF2` : force use of `VF2` matching. Default=1 when `ThreshCheck=0`
 
 
 
@@ -332,7 +352,7 @@ Finally, two extra parameters which can help finish a sampling task.
 
 As we specify a fixed simulation time, there may be incomplete `NEB` calculations
 at the end of a run, meaning the constructed model is incomplete. There is thus
-an option to exeute only  `TAMMBER` j
+an option to execute only `TAMMBER`
 ```xml
   <!--
   0: Normal operation, MD and NEB
@@ -340,6 +360,19 @@ an option to exeute only  `TAMMBER` j
   -->
   <OnlyNEBS> 0 </OnlyNEBS>
 ```
+
+During sampling, we can also use dynamical information to estimate
+the result of pending NEB calculations, which obviously will be overwritten
+once those calculations are complete.
+```xml
+  <!--
+  Use dynamic information to estimate the result of pending NEB calulations.
+  -->
+  <EstimatePendingNEBS>0</EstimatePendingNEBS>
+```
+*If* no completed NEBS are available for a state-to-state connection,
+`tammber-analyze` will use this information in the processed Markov model
+(see the [Analyzing output](#10) section)
 
 ## Test Routines<a name="8"></a>
 We *strongly* recommend building `tammber-md` which will attempt to

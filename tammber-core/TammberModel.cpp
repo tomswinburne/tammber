@@ -213,12 +213,12 @@ std::string StateEdge::info_str(bool seg) {
 		else res += "  counts: "+std::to_string(conn.second.counts.first)+" "+std::to_string(conn.second.counts.second)+"\n";
 
 		if(seg) {
-			double baseE = std::min(initialE,finalE);
+			double baseE = initialE;
+			for(auto eee: conn.second.energies) if(eee<baseE) baseE=eee;
 			res += "     E[]: "+std::to_string(baseE)+" + \n";
-			// max res: 20 spaces
 			for(auto eee: conn.second.energies) {
 				res += "    ";
-				for(int ss=0;ss<int(20.0*(eee-baseE)/(conn.second.saddleE-baseE));ss++) res+=" ";
+				for(int ss=0;ss<int(30.0*(eee-baseE)/(conn.second.saddleE-baseE));ss++) res+=" ";
 				res += "| "+std::to_string(eee-baseE)+"\n";
 			}
 			if(conn.second.self_transitions.size()>0) {
@@ -883,7 +883,6 @@ std::map<Label, std::pair<Label,std::set<Label>>> TammberModel::listStates() {
 void TammberModel::write_model(std::string mmfile) {
 	LOGGER("TammberModel::write_model")
 	std::ofstream res(mmfile.c_str(),std::ofstream::out);
-
 	std::ofstream state_list("StatesToExtract.list",std::ofstream::out);
 	std::ofstream pfn_list("PendingFailedNEBS.list",std::ofstream::out);
 	pfn_list<<"# InitialLabels FinalLabels 1=Pending/0=Failed\n";
@@ -897,32 +896,14 @@ void TammberModel::write_model(std::string mmfile) {
 	if(LatticeConstant.compare("None")!=0)
 		res<<"  <Lattice>"<<LatticeConstant<<"</Lattice>\n";
 
-	if(PrimitiveUnitCell.compare("None")!=0) {
-		p_xml.clear();
-		boost::split(p_xml,PrimitiveUnitCell,boost::is_any_of(" "));
-		res<<"  <PrimitiveUnitCell>\n";
-		for(int l_xml=0;l_xml<p_xml.size()/3;l_xml++)
-			res<<"    "<<p_xml[l_xml*3+0]<<" "<<p_xml[l_xml*3+1]<<" "<<p_xml[l_xml*3+2]<<"\n";
-		res<<"  </PrimitiveUnitCell>\n";
-	}
+	if(PrimitiveUnitCell.compare("None")!=0)
+		res<<"  <PrimitiveUnitCell>"<<PrimitiveUnitCell<<"  </PrimitiveUnitCell>\n";
 
-	if(UnitCell.compare("None")!=0) {
-		p_xml.clear();
-		boost::split(p_xml,UnitCell,boost::is_any_of(" "));
-		res<<"  <UnitCell>\n";
-		for(int l_xml=0;l_xml<p_xml.size()/3;l_xml++)
-			res<<"    "<<p_xml[l_xml*3+0]<<" "<<p_xml[l_xml*3+1]<<" "<<p_xml[l_xml*3+2]<<"\n";
-		res<<"  </UnitCell>\n";
-	}
+	if(UnitCell.compare("None")!=0)
+		res<<"  <UnitCell>"<<UnitCell<<"  </UnitCell>\n";
 
-	if(SuperCell.compare("None")!=0) {
-		p_xml.clear();
-		boost::split(p_xml,SuperCell,boost::is_any_of(" "));
-		res<<"  <SuperCell>\n";
-		for(int l_xml=0;l_xml<p_xml.size()/3;l_xml++)
-			res<<"    "<<p_xml[l_xml*3+0]<<" "<<p_xml[l_xml*3+1]<<" "<<p_xml[l_xml*3+2]<<"\n";
-		res<<"  </SuperCell>\n";
-	}
+	if(SuperCell.compare("None")!=0)
+		res<<"  <SuperCell>"<<SuperCell<<"  </SuperCell>\n";
 	res<<"<GlobalMinEnergy>"<<minE<<"</GlobalMinEnergy>\n";
 	res<<"<ResidenceTimeMean>"<<valid_time<<"</ResidenceTimeMean>\n";
 	res<<"<ResidenceTimeStd>"<<sqrt(std::fabs(valid_time_sd))*valid_time<<"</ResidenceTimeStd>\n";
@@ -963,9 +944,7 @@ void TammberModel::write_model(std::string mmfile) {
 		res<<"  </Vertex>\n";
 	}
 	for(auto &e: StateEdges) {
-		// modelParams- list(SymmLabelPair,([dE_f,dE_b,nu_f,nu_b], PointShiftSymmetry))
-		auto tstp = modelParams(e.first);
-		for(auto &tstc : tstp) {
+		for(auto &tstc : modelEdgeParams(e.first) ) {
 			state_list<<e.first.first<<" "<<tstc.first.first<<"\n";
 			state_list<<e.first.second<<" "<<tstc.first.second<<"\n";
 			res<<"  <Edge>\n";
@@ -980,24 +959,24 @@ void TammberModel::write_model(std::string mmfile) {
 				res<<tstc.second.second.shift[0]<<" "<<tstc.second.second.shift[1]<<" ";
 				res<<tstc.second.second.shift[2]<<"</TransitionSymmetry>\n";
 			}
-			/*
-			for(auto &sem: e.second.self_edge_map) {
-				if (sem.first==sem.second.first) continue;
-				if(sem.second.first==tstc.first) {
-					res<<"    <SeenEquivalents>";
-					res<<sem.first.first<<" "<<sem.first.second<<" ";
-					res<<sem.second.second.operation<<" "<<sem.second.second.shift[0];
-					res<<" "<<sem.second.second.shift[1]<<" "<<sem.second.second.shift[2];
-					res<<"</SeenEquivalents>\n";
-				};
-			}
-			*/
-			for(auto pnl : e.second.pendingNEBS)
-				pfn_list<<e.first.first<<" "<<pnl.first<<" "<<e.first.second<<" "<<pnl.second<<" 1\n";
-			for(auto pnl : e.second.requestedPMS) // TO BE RENAMED!
-				pfn_list<<e.first.first<<" "<<pnl.first<<" "<<e.first.second<<" "<<pnl.second<<" 0\n";
 			res<<"  </Edge>\n";
 		}
+		/*
+		for(auto &sem: e.second.self_edge_map) {
+			if (sem.first==sem.second.first) continue;
+			if(sem.second.first==tstc.first) {
+				res<<"    <SeenEquivalents>";
+				res<<sem.first.first<<" "<<sem.first.second<<" ";
+				res<<sem.second.second.operation<<" "<<sem.second.second.shift[0];
+				res<<" "<<sem.second.second.shift[1]<<" "<<sem.second.second.shift[2];
+				res<<"</SeenEquivalents>\n";
+			};
+		}
+		*/
+		for(auto pnl : e.second.pendingNEBS)
+			pfn_list<<e.first.first<<" "<<pnl.first<<" "<<e.first.second<<" "<<pnl.second<<" 1\n";
+		for(auto pnl : e.second.requestedPMS) // TO BE RENAMED!
+			pfn_list<<e.first.first<<" "<<pnl.first<<" "<<e.first.second<<" "<<pnl.second<<" 0\n";
 	}
 	res<<"</MarkovModel>\n";
 	res.close();
@@ -1186,11 +1165,11 @@ void TammberModel::calculate_rates(SymmLabelPair el, Rate &kf, Rate &kb) {
 
 // this should be abstracted away as large portion used twice...
 
-// modelParams- list(SymmLabelPair,([dE_f,dE_b,nu_f,nu_b], PointShiftSymmetry))
+// modelEdgeParams- list(SymmLabelPair,([dE_f,dE_b,nu_f,nu_b], PointShiftSymmetry))
 std::list<std::pair<SymmLabelPair,std::pair< std::array<double,6>,PointShiftSymmetry >>>
-	TammberModel::modelParams(SymmLabelPair el) {
+	TammberModel::modelEdgeParams(SymmLabelPair el) {
 
-	LOGGER("TammberModel::modelParams")
+	LOGGER("TammberModel::modelEdgeParams")
 
 	std::list<std::pair<SymmLabelPair,std::pair< std::array<double,6>,PointShiftSymmetry >>> res;
 
@@ -1200,7 +1179,11 @@ std::list<std::pair<SymmLabelPair,std::pair< std::array<double,6>,PointShiftSymm
 
 	if(isp==StateVertices.end() || fsp==StateVertices.end() || ep==StateEdges.end()) return res;
 	bool forwards = bool(el.first==ep->first.first);
-	if(ep->second.connections.size()==0) return res;
+	bool return_pending = sim_conn;
+	return_pending *=  (ep->second.pendingNEBS.size()>0);
+	return_pending *= (ep->second.connections.size()==0);
+	if(ep->second.connections.size()==0 and !sim_conn) return res;
+
 	std::array<double,6> sres;
 	LabelPair slab;
 	PointShiftSymmetry op;
@@ -1234,8 +1217,8 @@ std::list<std::pair<SymmLabelPair,std::pair< std::array<double,6>,PointShiftSymm
 		res.push_back(std::make_pair(SymmLabelPair(slab),std::make_pair(sres,op)));
 	}
 
-	// all incomplete transitions
-	if(sim_conn && ep->second.pendingNEBS.size()>1.0) {
+	// return incomplete transitions if no completed NEBS for this edge
+	if(return_pending) {
 		double maxT = tadT[tadT.size()-1];
 		auto pslab = *(ep->second.pendingNEBS.begin());
 		slab.first = (forwards ? pslab.first : pslab.second);

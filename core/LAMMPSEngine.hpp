@@ -50,25 +50,25 @@ typedef LAMMPSSystem System;
 
 LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_) : MDBaseEngine(config,localComm_,seed_) {
 
+	local_rank = MDBaseEngine::BaseEngine::local_rank;
+	local_size = MDBaseEngine::BaseEngine::local_size;
+
 	parser.seed(seed_);
 	// TODO: how to pass command-line args to LAMMPS at some point?
 
-	log_lammps = config.get<bool>("Configuration.LAMMPSEngine.LogLammps");
+	log_lammps = config.get<bool>("Configuration.LAMMPSEngine.LogLammps",false);
 
-	int local_rank;
-	MPI_Comm_rank(localComm_,&local_rank);
 	std::string logfile="none";
 	if(log_lammps) logfile="log_"+std::to_string(local_rank)+"_"+std::to_string(seed_)+".lammps";
 
 	int argc=5;
 	char *lammps_argv[]={(char *)"tammber",(char *)"-screen",(char *)"none",(char *)"-log",(char *)logfile.c_str()};
-
-	LOGGER("Trying to open lammps worker "<<local_rank)
+	if(local_rank==0)
+		LOGGER("Trying to open lammps worker on "<<local_size<<" cores");
 
 	lmp = NULL;
 	lmp = new LAMMPS(argc,lammps_argv,localComm_);
-
-	LOGGER("Opened lammps worker "<<local_rank)
+	if(local_rank==0) LOGGER("Opened lammps worker  "<<local_rank)
 
 
 
@@ -92,11 +92,22 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 
 	//bootstrapScript=config.get<std::string>("Configuration.LAMMPSEngine.BootstrapScript");
 	mdScript=config.get<std::string>("Configuration.LAMMPSEngine.MDScript");
-	minScript=config.get<std::string>("Configuration.LAMMPSEngine.MinScript");
-	writeScript=config.get<std::string>("Configuration.LAMMPSEngine.WriteScript");
-	initScript=config.get<std::string>("Configuration.LAMMPSEngine.InitScript");
-	postInitScript=config.get<std::string>("Configuration.LAMMPSEngine.PostInitScript");
-	velocityInitScript=config.get<std::string>("Configuration.LAMMPSEngine.VelocityInitScript");
+	carveScript=config.get<std::string>("Configuration.LAMMPSEngine.CarveComputeScript","");
+	minScript=config.get<std::string>("Configuration.LAMMPSEngine.MinScript","");
+	writeScript=config.get<std::string>("Configuration.LAMMPSEngine.WriteScript","");
+	initScript=config.get<std::string>("Configuration.LAMMPSEngine.InitScript","");
+	postInitScript=config.get<std::string>("Configuration.LAMMPSEngine.PostInitScript","");
+	velocityInitScript=config.get<std::string>("Configuration.LAMMPSEngine.VelocityInitScript","");
+
+	if(carveScript=="") carveScript="compute carve all centro/atom 8";
+	// kill off worker if a fault is produced
+	if(initScript=="" || mdScript=="" || minScript=="") {
+		GenericTask die;
+		die.type=MDBaseEngine::BaseEngine::mapper.type("TASK_DIE");
+		die.flavor=MDBaseEngine::defaultFlavor;
+		MDBaseEngine::BaseEngine::process(die);
+	}
+
 
 	int nGPU=config.get<int>("Configuration.LAMMPSEngine.NAccelerators",1);
 	int rank;
@@ -117,16 +128,15 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 	for(auto initialConf : initialConfs) {
 		boost::trim(initialConf);
 		if(initialConf.length()>0) {
-			LOGGER("BOOTSTRAP: "<<initialConf)
+			if(local_rank==0) LOGGER("BOOTSTRAP: "<<initialConf)
 			p["Filename"] = initialConf;
 			break;
 		}
 	}
 	bootstrapScript = parser.parse(initScript,p);
 	std::vector<std::string> cmdVector=parser.splitLines(bootstrapScript);
-	std::string cmd;
 	for(int i=0; i<cmdVector.size(); i++) {
-		LOGGER("LAMMPSCommand: "<<cmdVector[i])
+		if(local_rank==0) LOGGER("LAMMPSCommand: "<<cmdVector[i])
 		lammps_commands_string(lmp,(char *) cmdVector[i].c_str());
 	}
 
@@ -138,16 +148,21 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 	MDBaseEngine::BaseEngine::impls["TASK_INIT_FROM_FILE"] = LAMMPSEngine::file_init_impl;
 	MDBaseEngine::BaseEngine::impls["TASK_WRITE_TO_FILE"] = LAMMPSEngine::file_write_impl;
 	MDBaseEngine::BaseEngine::impls["TASK_FORCES"] = LAMMPSEngine::forces_impl;
-	MDBaseEngine::BaseEngine::impls["TASK_CENTRO"] = LAMMPSEngine::centro_impl;
+	MDBaseEngine::BaseEngine::impls["TASK_CARVE_COMPUTE"] = LAMMPSEngine::carve_compute_impl;
 };
 
-virtual bool failed(){
-	if(bool(lammps_has_error(lmp))) {
-		char error_message[2048];
-		int error_type = lammps_get_last_error_message(lmp,error_message,2048);
-		LOGGERA("LAMMPS ERROR! type:"<<error_type<<" msg:"<<error_message)
+virtual bool failed() {
+	try{
+		if(bool(lammps_has_error(lmp))) {
+			char error_message[2048];
+			int error_type = lammps_get_last_error_message(lmp,error_message,2048);
+			if(local_rank==0) LOGGERA("LAMMPS ERROR! type:"<<error_type<<" msg:"<<error_message)
+			return true;
+		} else return false;
+	} catch(...) {
+		if(local_rank==0) LOGGERA("LAMMPS IS CLOSED!")
 		return true;
-	} else return false;
+	}
 };
 
 
@@ -190,7 +205,8 @@ std::unordered_map<std::string,std::string> parameters=extractParameters(task.ty
 
 		int nsteps = static_cast<int> (time / dt);
 		parameters["Nsteps"]=boost::str(boost::format("%1%" ) % nsteps );
-		LOGGER("Setting up MD at temperature of "<<temperature<<"K for "<<nsteps<<" steps")
+		if(local_rank==0)
+			LOGGER("Setting up MD at temperature of "<<temperature<<"K for "<<nsteps<<" steps")
 
 		//parse the command string
 		std::string rawCmd = mdScript; //task.parameters["MDScript"];
@@ -205,7 +221,8 @@ std::unordered_map<std::string,std::string> parameters=extractParameters(task.ty
 		lammps_commands_string(lmp,(char *) cmd.c_str());
 
 		natomsEnd = (int) *((int64_t *) lammps_extract_global(lmp,(char *) "natoms"));
-		if(natomsEnd!=natomsBegin) LOGGERA("ERROR: LAMMPS LOST ATOMS. RESTARTING TASK")
+		if(natomsEnd!=natomsBegin && local_rank==0)
+			LOGGERA("ERROR: LAMMPS LOST ATOMS. RESTARTING TASK")
 	} while(natomsBegin != natomsEnd );
 
 	transferAtomsFromLammps(s);
@@ -243,20 +260,22 @@ std::function<void(GenericTask&)> forces_impl = [this](GenericTask &task) {
 	task.clearInputs();
 };
 
-std::function<void(GenericTask&)> centro_impl = [this](GenericTask &task) {
+std::function<void(GenericTask&)> carve_compute_impl = [this](GenericTask &task) {
 	std::unordered_map<std::string,std::string> parameters =
 		extractParameters(task.type,task.flavor,MDBaseEngine::defaultFlavor,MDBaseEngine::taskParameters);
-		int nn; if(!extract("CentroNeighbors",task.arguments,nn)) nn = 8;
+		std::string carve_compute;
+		if(!extract("CarveCompute",task.arguments,carve_compute)) carve_compute = "centro";
 
-		LOGGER("CSNN (C): "<<nn)
+		if(local_rank==0)
+			LOGGER("CarveComputeScript: "<<carveScript<<" CarveCompute: "<<carve_compute)
 
 		task.clearOutputs();
 		System s;
 		if (extract("State",task.inputData,s)) {
 			LAMMPSSystem *sys = &s;
 			transferSystemToLammps(*sys, parameters);
-			std::vector<double> csl = calculateCentroSymmetry(s,nn);
-			insert("CentroSymmetry",task.outputData,csl);
+			std::vector<double> csl = calculateCentroSymmetry(s,carve_compute);
+			insert("CarveComputeVector",task.outputData,csl);
 		}
 		task.clearInputs();
 };
@@ -341,7 +360,7 @@ std::function<void(GenericTask&)> file_init_impl = [this](GenericTask &task){
 
 	if( extract("Filename",task.arguments,filename) ) {
 		parameters["Filename"]=filename;
-		LOGGER("Filename: "<<filename)
+		if(local_rank==0) LOGGER("Filename: "<<filename)
 
 		//parse the command string
 		std::string rawCmd = initScript;// task.parameters["InitScript"];
@@ -353,7 +372,7 @@ std::function<void(GenericTask&)> file_init_impl = [this](GenericTask &task){
 		std::string cmd;
 		for(int i=0; i<cmdVector.size(); i++) {
 
-			LOGGER(cmdVector[i])
+			if(local_rank==0) LOGGER(cmdVector[i])
 			cmd=cmdVector[i];
 			lammps_command(lmp,(char *)cmd.c_str());
 		}
@@ -416,7 +435,7 @@ std::function<void(GenericTask&)> file_write_impl = [this](GenericTask &task) {
 
 };
 
-void transferAtomsFromLammps(System &s){
+void transferAtomsFromLammps(System &s) {
 	lammps_command(lmp,(char *) "run 0");
 	LAMMPSSystem *sys = &s;
 	lammps_gather(lmp,(char *) "id",LAMMPS_INT,1,&sys->id[0]);
@@ -439,7 +458,8 @@ void transferSystemFromLammps(System &s){
 	LAMMPSSystem *sys = &s;
 	int triclinic = *((int *) lammps_extract_global(lmp,(char *) "triclinic"));
 	int qflag = *((int *) lammps_extract_global(lmp,(char *) "q_flag"));
-	LOGGER("LAMMPSEngine::transferSystemFromLammps : q_flag="<<qflag)
+	if(local_rank==0)
+		LOGGER("LAMMPSEngine::transferSystemFromLammps : q_flag="<<qflag)
 	sys->setNTimestep(0);
 	sys->qflag = qflag;
 	int natoms = (int) *((int64_t *)
@@ -466,8 +486,8 @@ void transferSystemFromLammps(System &s){
 
 void transferSystemToLammps(System &sys, std::unordered_map<std::string, std::string> &parameters){
 	int natoms = sys.getNAtoms();
+	int lammps_natoms = lammps_get_natoms(lmp);
 	char cmdc[512];
-	lammps_command(lmp,(char *) "delete_atoms group all");
 
 	bool triclinic = *((int *) lammps_extract_global(lmp,(char *) "triclinic"));
 	if (triclinic)
@@ -490,10 +510,15 @@ void transferSystemToLammps(System &sys, std::unordered_map<std::string, std::st
 	// NOTE: periodicity is a double within System?
 	// NOTE: what about remapping of atom back into box with image change?
 
-
-	lammps_create_atoms(lmp,natoms,&sys.id[0],&sys.species[0],&sys.x[0],&sys.v[0],NULL,1);
-	//if(sys.qflag) lammps_scatter_subset(lmp,(char *) "q",LAMMPS_DOUBLE,1,sys.id.size(),&sys.id[0],&sys.q[0]);
-	LOGGER("LAMMPSEngine::transferSystemToLammps : q_flag="<<sys.qflag)
+	if(natoms!=lammps_natoms) {
+		lammps_command(lmp,(char *) "delete_atoms group all");
+		lammps_create_atoms(lmp,natoms,&sys.id[0],&sys.species[0],&sys.x[0],&sys.v[0],NULL,1);
+	} else {
+		lammps_scatter(lmp,(char *) "x",LAMMPS_DOUBLE,3,&sys.x[0]);
+		lammps_scatter(lmp,(char *) "v",LAMMPS_DOUBLE,3,&sys.v[0]);
+		lammps_scatter(lmp,(char *) "id",LAMMPS_INT,1,&sys.id[0]);
+		lammps_scatter(lmp,(char *) "type",LAMMPS_INT,1,&sys.species[0]);
+	}
 	if(sys.qflag) lammps_scatter(lmp,(char *) "q",LAMMPS_DOUBLE,1,&sys.q[0]);
 
 	//parse the command string
@@ -502,9 +527,10 @@ void transferSystemToLammps(System &sys, std::unordered_map<std::string, std::st
 	std::vector<std::string> cmdVector=parser.splitLines(parsedCmd);
 
 	//execute the command string
-	std::string cmd;
-	for(int i=0; i<cmdVector.size(); i++) cmd+=cmdVector[i]+"\n";
-	lammps_commands_string(lmp,(char *) cmd.c_str());
+	for(int i=0; i<cmdVector.size(); i++) {
+		if(local_rank==0) LOGGER(cmdVector[i])
+		lammps_commands_string(lmp,(char *) cmdVector[i].c_str());
+	}
 };
 
 void singleForceEnergyCall(System &s, bool noforce=false,bool prepost=true) {
@@ -531,27 +557,27 @@ void singleForceEnergyCall(System &s, bool noforce=false,bool prepost=true) {
 };
 
 
-std::vector<double> calculateCentroSymmetry(System &s,int nn=8) {
+std::vector<double> calculateCentroSymmetry(System &s,std::string cc="centro") {
 	//lammps_scatter_subset(lmp,(char *) "x",LAMMPS_DOUBLE,3,s.id.size(),&s.id[0],&s.x[0]);
 	lammps_scatter(lmp,(char *) "x",LAMMPS_DOUBLE,3,&s.x[0]);
-
 	lammps_command(lmp,(char *) "run 0"); // annoying but need to build nlist
-	std::string cc="compute calcCS all centro/atom "+std::to_string(nn);
-	lammps_command(lmp,(char *) cc.c_str());
+	lammps_command(lmp,(char *) carveScript.c_str());
 	lammps_command(lmp,(char *) "run 0");
 	std::vector<double> res(s.id.size(),0.0);
-	lammps_gather(lmp,(char *)"c_calcCS",LAMMPS_DOUBLE,1,&res[0]);
-	lammps_command(lmp, (char *)"uncompute calcCS");
+	std::string c_cc = "c_"+cc;
+	lammps_gather(lmp,(char *)c_cc.c_str(),LAMMPS_DOUBLE,1,&res[0]);
+	c_cc = "uncompute "+cc;
+	lammps_command(lmp, (char *)c_cc.c_str());
 	return res;
 };
 
 
 
 // LAMMPS specific variables
-int me,nprocs;               // MPI info
+int local_rank,local_size;// MPI info, copied from AbstractEngine for brevity
 LAMMPS *lmp;                  // instance of LAMMPS
 void error(const char *str){
-	if (me == 0) printf("ERROR: %s\n",str);
+	if (local_rank == 0) printf("ERROR: %s\n",str);
 	MPI_Abort(MPI_COMM_WORLD,1);
 };
 
@@ -563,6 +589,7 @@ std::size_t coordinatesHash;
 bool log_lammps;
 std::string bootstrapScript;
 std::string mdScript;
+std::string carveScript;
 std::string minScript;
 std::string writeScript;
 std::string initScript;

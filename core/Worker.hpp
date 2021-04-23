@@ -51,6 +51,8 @@ void worker(MPI_Comm localComm, MPI_Comm interComm, int seed){
 
 	TaskMapperType TaskMapper;
 
+	int local_rank=0;
+	MPI_Comm_rank(localComm,&local_rank);
 
 	// Create empty property tree object
 	boost::property_tree::ptree tree;
@@ -59,11 +61,6 @@ void worker(MPI_Comm localComm, MPI_Comm interComm, int seed){
 
 	std::chrono::high_resolution_clock::time_point start=std::chrono::high_resolution_clock::now();
 	std::chrono::minutes runTime=std::chrono::minutes( tree.get<unsigned>("Configuration.RunTime",1000000)+1 );
-
-
-	std::default_random_engine generator(seed);
-	std::bernoulli_distribution distribution(0.0001);
-
 
 	{
 		DriverTaskManagerType taskManager(interComm,localComm);
@@ -82,30 +79,18 @@ void worker(MPI_Comm localComm, MPI_Comm interComm, int seed){
 				if(std::chrono::high_resolution_clock::now() - start > runTime) {
 					//break;
 				}
-				LOGGERA("WAITING FOR TASK")
+				if(local_rank==0) LOGGERA("WAITING FOR TASK")
 				auto t0 = std::chrono::high_resolution_clock::now();
 				healthy=taskManager.pullTask(t);
 				auto t1 = std::chrono::high_resolution_clock::now();
 				auto d = std::chrono::duration_cast<std::chrono::milliseconds>(t1-t0).count();
-				LOGGERA("PROCESSING TASK "<<t.type<<" ")
+				if(local_rank==0) LOGGERA("PROCESSING TASK "<<t.type<<" ")
 			}
+
 			if(t.type == TaskMapper.type("TASK_DIE") || not healthy ) {
 				//TODO: add cleanup
 				break;
 			}
-
-
-#ifdef INJECT_FAULT
-
-			{
-				if (distribution(generator)) {
-					std::cout<<"SUICIDE!!!"<<std::endl;
-					*(char *)0 = 0;
-					//__builtin_trap();
-				}
-			}
-
-#endif
 
 			//process the task
 			try{
@@ -121,11 +106,11 @@ void worker(MPI_Comm localComm, MPI_Comm interComm, int seed){
 						healthy=taskManager.pushTask(tt);
 						auto t1 = std::chrono::high_resolution_clock::now();
 						auto d = std::chrono::duration_cast<std::chrono::milliseconds>(t1-t0).count();
-						LOGGERA("WORKER:  TASK EXECUTION FAILED")
+						if(local_rank==0) LOGGERA("WORKER:  TASK EXECUTION FAILED")
 						healthy=false;
 					}
 
-					LOGGER("WAITED "<<d<<" ms to process the task "<<t.type)
+					if(local_rank==0) LOGGER("WAITED "<<d<<" ms to process the task "<<t.type)
 				}
 				//send the results back
 				if(healthy) {
@@ -136,11 +121,11 @@ void worker(MPI_Comm localComm, MPI_Comm interComm, int seed){
 					if(!healthy) {
 						break;
 					}
-					LOGGER("WAITED "<<d<<" ms for the push")
+					if(local_rank==0) LOGGER("WAITED "<<d<<" ms for the push")
 				}
 			}
 			catch(...) {
-				LOGGERA("WORKER: ENGINE HAS THROWN EXCEPTION")
+				if(local_rank==0) LOGGERA("WORKER: ENGINE HAS THROWN EXCEPTION")
 
 				if(healthy) {
 					tt.failed=true;
@@ -150,11 +135,11 @@ void worker(MPI_Comm localComm, MPI_Comm interComm, int seed){
 					auto d = std::chrono::duration_cast<std::chrono::milliseconds>(t1-t0).count();
 					//boost::log::sources::severity_logger< boost::log::trivial::severity_level > lg;
 					//BOOST_LOG_SEV(lg, boost::log::trivial::error) <<
-					LOGGERA("WORKER:  TASK EXECUTION FAILED");
+					if(local_rank==0) LOGGERA("WORKER:  TASK EXECUTION FAILED");
 					healthy=false;
 				}
 				else{
-					LOGGERA("WORKER:  BREAKING")
+					if(local_rank==0) LOGGERA("WORKER:  BREAKING")
 					break;
 				}
 				//recreate the engine

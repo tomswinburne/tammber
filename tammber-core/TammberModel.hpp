@@ -340,7 +340,7 @@ public:
 
 	void write_model(std::string mmfile);
 
-	std::list<std::pair<SymmLabelPair,std::pair< std::array<double,6>,PointShiftSymmetry >>> modelParams(SymmLabelPair el);
+	std::list<std::pair<SymmLabelPair,std::pair< std::array<double,6>,PointShiftSymmetry >>> modelEdgeParams(SymmLabelPair el);
 
 	std::map<Label,std::pair<Label,std::set<Label>>> listStates();
 

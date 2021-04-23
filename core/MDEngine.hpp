@@ -39,7 +39,7 @@ MDTaskMapper() : AbstractTaskMapper() {
 	AbstractTaskMapper::insert("TASK_MIN");
 	AbstractTaskMapper::insert("TASK_SEGMENT");
 	AbstractTaskMapper::insert("TASK_FORCES");
-	AbstractTaskMapper::insert("TASK_CENTRO");
+	AbstractTaskMapper::insert("TASK_CARVE_COMPUTE");
 	AbstractTaskMapper::insert("TASK_CARVE");
 	AbstractTaskMapper::insert("TASK_SYMMETRY");
 	AbstractTaskMapper::insert("TASK_INIT_FROM_FILE");
@@ -64,7 +64,6 @@ public:
 typedef AbstractEngine<EngineTaskMapper> BaseEngine;
 
 MDEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_) : BaseEngine(config,localComm_,seed_)  {
-	localComm=localComm_;
 	seed=seed_;
 
 	//move this to the tasks
@@ -104,7 +103,7 @@ MDEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_) : 
 	BaseEngine::impls["TASK_MIN"] = MDEngine::min_impl; // insert("TASK_MIN");
 	BaseEngine::impls["TASK_SEGMENT"] = MDEngine::segment_impl; // insert("TASK_SEGMENT");
 	BaseEngine::impls["TASK_FORCES"] = MDEngine::forces_impl; // insert("TASK_FORCES");
-	BaseEngine::impls["TASK_CENTRO"] = MDEngine::centro_impl; // insert("TASK_CENTRO");
+	BaseEngine::impls["TASK_CARVE_COMPUTE"] = MDEngine::carve_compute_impl; // insert("TASK_CARVE_COMPUTE");
 	BaseEngine::impls["TASK_CARVE"] = MDEngine::carve_impl; // insert("TASK_CARVE");
 	BaseEngine::impls["TASK_SYMMETRY"] = MDEngine::symmetry_impl; // insert("TASK_SYMMETRY");
 	BaseEngine::impls["TASK_INIT_FROM_FILE"] = MDEngine::file_init_impl; // insert("TASK_INIT_FROM_FILE");
@@ -118,6 +117,8 @@ MDEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_) : 
 };
 
 int defaultFlavor;
+
+
 //std::map< std::pair<int,int>, std::map<std::string,std::string> > taskParameters;
 std::unordered_map< std::pair<int,int>, std::unordered_map<std::string,std::string>, boost::hash< std::pair<int,int> > > taskParameters;
 
@@ -128,7 +129,6 @@ std::shared_ptr<AbstractStateLabeler> labeler;
 private:
 
 int seed;
-MPI_Comm localComm;
 std::shared_ptr<AbstractSystemModifier> modifier;
 
 std::function<void(GenericTask&)> md_impl = [this](GenericTask &task) {
@@ -143,7 +143,7 @@ std::function<void(GenericTask&)> init_velocities_impl = [this](GenericTask &tas
 std::function<void(GenericTask&)> forces_impl = [this](GenericTask &task) {
 	/* to be overwritten (in impls as well) */
 };
-std::function<void(GenericTask&)> centro_impl = [this](GenericTask &task) {
+std::function<void(GenericTask&)> carve_compute_impl = [this](GenericTask &task) {
 	/* to be overwritten (in impls as well) */
 };
 
@@ -949,20 +949,21 @@ std::function<void(GenericTask&)> carve_impl = [this](GenericTask &task) {
 	std::unordered_map<std::string,std::string> parameters=\
 		extractParameters(task.type,task.flavor,defaultFlavor,taskParameters);
 	//read parameters from the task
-	int nn=safe_extractor<int>(parameters,"CentroNeighbors",8);
+	std::string carve_compute=safe_extractor<std::string>(parameters,"CarveCompute","NULL");
 	double thresh=safe_extractor<double>(parameters,"Threshold",5.0);
 	double scale=safe_extractor<double>(parameters,"RelativeCutoff",1.0);
 	std::list<System> sysl;
 
 	GenericTask centro;
-	LOGGER("CSNN: "<<nn);
+	if(BaseEngine::local_rank==0) LOGGER("CarveCompute: "<<carve_compute);
 
-	centro.type = BaseEngine::mapper.type("TASK_CENTRO");
-	insert("CentroNeighbors",centro.arguments,nn);
+	centro.type = BaseEngine::mapper.type("TASK_CARVE_COMPUTE");
+	insert("CarveCompute",centro.arguments,carve_compute);
 	extract("State",task.inputData,sysl);
 	task.clearInputs();
 
-	LOGGER("TADEngine::carve_impl : FOUND "<<sysl.size()<<" STATES")
+	if(BaseEngine::local_rank==0)
+		LOGGER("TADEngine::carve_impl : FOUND "<<sysl.size()<<" STATES")
 	for(auto &s : sysl) {
 		Cell bc = s.getCell();
 		System thr_s;
@@ -971,8 +972,8 @@ std::function<void(GenericTask&)> carve_impl = [this](GenericTask &task) {
 		double temp_double=0.0;
 		std::vector<double> csl;
 
-		if(nn==0) {
-			LOGGER("TADEngine::carve_impl : CentroNeighbors==0; assigning center of mass position")
+		if(carve_compute=="NULL") {
+			LOGGER("TADEngine::carve_impl : carve_compute==NULL; assigning center of mass position")
 			insert("Clusters",task.returns,clusters);
 			insert("Position",task.returns,position);
 			thr_N = s.getNAtoms();
@@ -982,13 +983,14 @@ std::function<void(GenericTask&)> carve_impl = [this](GenericTask &task) {
 		} else {
 			centro.clearInputs(); centro.clearOutputs();
 			insert("State",centro.inputData,s);
-			insert("CentroNeighbors",centro.arguments,nn);
+			insert("CarveCompute",centro.arguments,carve_compute);
 			BaseEngine::process(centro);
-			extract("CentroSymmetry",centro.outputData,csl);
+			extract("CarveComputeVector",centro.outputData,csl);
 			thr_s.setCell(s.getCell());
 			for(int i=0; i<csl.size();i++) if(csl[i]>thresh) thr_N++;
 			thr_s.setNAtoms(thr_N);
-			if(thr_N==0) LOGGERA("TADEngine::carve_impl : No atoms above threshold!")
+			if(thr_N==0&&BaseEngine::local_rank==0)
+				LOGGERA("TADEngine::carve_impl : No atoms above threshold!")
 		}
 
 
@@ -996,10 +998,12 @@ std::function<void(GenericTask&)> carve_impl = [this](GenericTask &task) {
 			insert("ThreshState",task.outputData,s);
 		} else {
 			thr_N=0;
-			LOGGER("TADEngine::carve_impl : Thresholding:")
+			if(BaseEngine::local_rank==0)
+				LOGGER("TADEngine::carve_impl : Thresholding:")
 			// Build new system from above-threshold atoms, scaled by RelativeCutoff
 			for(int i=0; i<csl.size();i++) if(csl[i]>thresh) {
-				LOGGER(s.getUniqueID(i)<<" "<<s.getPosition(i,0)<<" "<<s.getPosition(i,1)<<" "<<s.getPosition(i,2)<<" "<<csl[i]<<" "<<thresh)
+				if(BaseEngine::local_rank==0)
+					LOGGER(s.getUniqueID(i)<<" "<<s.getPosition(i,0)<<" "<<s.getPosition(i,1)<<" "<<s.getPosition(i,2)<<" "<<csl[i]<<" "<<thresh)
 				// new ID
 				thr_s.setUniqueID(thr_N,s.getUniqueID(i));
 				// snap to first position
@@ -1034,14 +1038,17 @@ std::function<void(GenericTask&)> carve_impl = [this](GenericTask &task) {
 			int max_cl=0;
 			for(int i=0;i<clusters;i++) {
 				if(rocc[i]>0) for(int j=0;j<3;j++) rocp[i][j] /= float(rocc[i]);
-				LOGGER("Cluster "<<i+1<<" : "<<rocc[i]<<" atoms, position :"<<rocp[i][0]<<" "<<rocp[i][1]<<" "<<rocp[i][2])
+				if(BaseEngine::local_rank==0)
+					LOGGER("Cluster "<<i+1<<" : "<<rocc[i]<<" atoms, position :"<<rocp[i][0]<<" "<<rocp[i][1]<<" "<<rocp[i][2])
 				if(rocc[i]>rocc[max_cl]) max_cl = i;
 			}
 			for(int j=0;j<3;j++) position[j] = rocp[max_cl][j];
 
 		}
-		LOGGER("TADEngine::carve_impl : NClusters = "<<clusters);
-		LOGGER("TADEngine::carve_impl : Position = ["<<position[0]<<" "<<position[1]<<" "<<position[2]<<"]")
+		if(BaseEngine::local_rank==0)
+			LOGGER("TADEngine::carve_impl : NClusters = "<<clusters);
+		if(BaseEngine::local_rank==0)
+			LOGGER("TADEngine::carve_impl : Position = ["<<position[0]<<" "<<position[1]<<" "<<position[2]<<"]")
 		insert("Position",task.returns,position);
 		insert("Clusters",task.returns,clusters);
 	}
@@ -1052,7 +1059,8 @@ std::function<void(GenericTask&)> carve_impl = [this](GenericTask &task) {
 
 // two is not passed by reference due to remap. finds mapping T,d such that T(y)+d = x  for  y,x == two,one
 std::set<PointShiftSymmetry> find_transforms(System &one, System two, std::map<int,int> &map) {
-	LOGGER("MDEngine::find_transforms");
+	if(BaseEngine::local_rank==0)
+		LOGGER("MDEngine::find_transforms");
 
 	Cell bc = one.getCell();
 
@@ -1065,9 +1073,11 @@ std::set<PointShiftSymmetry> find_transforms(System &one, System two, std::map<i
 	for(int j=0;j<NDIM;j++) for(int k=0;k<NDIM;k++) cc[j] += bc.rsp[j][k]/2.0;
 
 	two.remap(map);
+	if(BaseEngine::local_rank==0){
+		LOGGER("cell center: "<<cc[0]<<" "<<cc[1]<<" "<<cc[2])
+		LOGGER("cell origin: "<<bc.origin[0]<<" "<<bc.origin[1]<<" "<<bc.origin[2])
+	}
 
-	LOGGER("cell center: "<<cc[0]<<" "<<cc[1]<<" "<<cc[2])
-	LOGGER("cell origin: "<<bc.origin[0]<<" "<<bc.origin[1]<<" "<<bc.origin[2])
 	// Rotate around, then shift: X-c = G.(X-c) + d_i
 
 	for(int operation=0; operation<48; operation++) {
@@ -1096,10 +1106,12 @@ std::set<PointShiftSymmetry> find_transforms(System &one, System two, std::map<i
 		}
 		if(complete) {
 			bc.wrap(shift);
-			LOGGER("       ["<<T[0]<<" "<<T[1]<<" "<<T[2]<<"]")
-			LOGGER("matrix:["<<T[3]<<" "<<T[4]<<" "<<T[5]<<"]")
-			LOGGER("       ["<<T[6]<<" "<<T[7]<<" "<<T[8]<<"]")
-			LOGGER("shift: ["<<shift[0]<<" "<<shift[1]<<" "<<shift[2]<<"]")
+			if(BaseEngine::local_rank==0){
+				LOGGER("       ["<<T[0]<<" "<<T[1]<<" "<<T[2]<<"]")
+				LOGGER("matrix:["<<T[3]<<" "<<T[4]<<" "<<T[5]<<"]")
+				LOGGER("       ["<<T[6]<<" "<<T[7]<<" "<<T[8]<<"]")
+				LOGGER("shift: ["<<shift[0]<<" "<<shift[1]<<" "<<shift[2]<<"]")
+			}
 			op.operation=operation;
 			op.matrix=T;
 			for(int j=0;j<NDIM;j++) op.shift[j] = shift[j];
@@ -1111,11 +1123,11 @@ std::set<PointShiftSymmetry> find_transforms(System &one, System two, std::map<i
 };
 
 bool SelfSymmetries(System &one, std::set<PointShiftSymmetry> &syms,bool return_maps=false) {
-	LOGGER("MDEngine::SelfSymmetries");
+	if(BaseEngine::local_rank==0) LOGGER("MDEngine::SelfSymmetries");
 	std::list<std::map<int,int>> amaps;
 	syms.clear();
 	labeler->isomorphicSelfMaps(one,amaps);
-	LOGGER("FOUND "<<amaps.size()<<" SELF MAPS");
+	if(BaseEngine::local_rank==0) LOGGER("FOUND "<<amaps.size()<<" SELF MAPS");
 	int count = 0;
 	for (auto &map: amaps) {
 		auto ops = find_transforms(one, one, map);
@@ -1125,107 +1137,99 @@ bool SelfSymmetries(System &one, std::set<PointShiftSymmetry> &syms,bool return_
 		}
 		count++;
 		if(count>48) {
-			LOGGER("TRIED 96 SELF MAPS, FOUND "<<syms.size()<<" OPERATIONS. EXITING")
+			if(BaseEngine::local_rank==0) LOGGER("TRIED 96 SELF MAPS, FOUND "<<syms.size()<<" OPERATIONS. EXITING")
 			break;
 		}
 	}
 	return bool(amaps.size()<=syms.size());
 };
 
-
 // VF2-free implementation
 
 bool find_transforms_direct(System &one, System two, PointShiftSymmetry &op, std::array<double,NDIM> position, int operation) {
-	LOGGER("MDEngine::find_transforms_direct");
+	if(BaseEngine::local_rank==0) LOGGER("MDEngine::find_transforms_direct");
 
 	Cell bc = one.getCell();
 	int natoms = one.getNAtoms();
-	unsigned min_i2;
 
+	bool complete=true;
+	unsigned min_i2;
 	std::array<double,NDIM*NDIM> T;
 	double min_d = 0.0, temp_d=0.0, a_mag=0.0;
-	std::array<double,NDIM> temp,cc={0.,0.,0.},cc2,temp2;
-	for(int j=0;j<NDIM;j++) for(int k=0;k<NDIM;k++) cc[j] += bc.rsp[j][k]/2.0;
-
+	std::array<double,NDIM> temp,cc,cc2,temp2,shift;
 	std::vector<int> count(natoms,0);
 
-	LOGGER("cell center: "<<cc[0]<<" "<<cc[1]<<" "<<cc[2])
-	LOGGER("cell origin: "<<bc.origin[0]<<" "<<bc.origin[1]<<" "<<bc.origin[2])
+	for(int j=0;j<NDIM;j++) {
+		cc[j] = 0.0;
+		for(int k=0;k<NDIM;k++) cc[j] += bc.rsp[j][k]/2.0;
+	}
 
+	if(BaseEngine::local_rank==0) {
+		LOGGER("cell center: "<<cc[0]<<" "<<cc[1]<<" "<<cc[2])
+		LOGGER("cell origin: "<<bc.origin[0]<<" "<<bc.origin[1]<<" "<<bc.origin[2])
+	}
 	// Rotate around position with transform matrix
 	// one : centered_cluster + com
-	// two : T.centered_cluster (no com shift)
+	// two : T.centered_cluster + com
 	op.transform_matrix(T,operation);
-	for(int j=0;j<NDIM;j++) cc[j]=0.0;
-	for(int j=0;j<NDIM;j++) cc2[j]=0.0;
 	for(unsigned i=0; i<natoms; i++) {
 		for(int j=0;j<NDIM;j++) {
 			temp[j] = 0.;
-			cc[j] += ( one.getPosition(i,j) - position[j] ) / natoms;
 			for(int k=0;k<NDIM;k++)
 				temp[j] += T[NDIM*j+k] * (one.getPosition(i,k)-position[k]);
-			two.setPosition(i,j,temp[j]);
-			cc2[j] += two.getPosition(i,j) / natoms;
+			two.setPosition(i,j,temp[j]+position[j]);
 		}
 	}
-	LOGGER("one com - position: "<<cc[0]<<" "<<cc[1]<<" "<<cc[2])
-	LOGGER("two com - position: "<<cc2[0]<<" "<<cc2[1]<<" "<<cc2[2])
 
-	temp_d=0.; for(int j=0;j<NDIM;j++) temp_d += (cc[j]-cc2[j])*(cc[j]-cc2[j]);
-	LOGGER("com difference: "<<sqrt(temp_d))
-	if(sqrt(temp_d)>1.0) return false; // quit if not identical here
+	// O(N^2)-O(N^3) closest remapping
+	for(unsigned s_i=0; s_i<natoms; s_i++) {
+		// shift vector
+		for(int j=0;j<NDIM;j++)
+			shift[j] = two.getPosition(s_i,j)-one.getPosition(0,j);
 
-
-	// O(N^2) closest remapping- if a symmetry op the com should be unchanged...
-	for(unsigned i1=0; i1<natoms; i1++) {
-		for(int j=0;j<NDIM;j++) temp[j] = one.getPosition(i1,j)-position[j];
-		min_d = 100000000.0;
-		min_i2 = i1;
-		for(unsigned i2=0; i2<natoms; i2++) {
-			if(one.getSpecies(i1)!=two.getSpecies(i2)) continue;
-			temp_d = 0.0;
-			for(int j=0;j<NDIM;j++)
-				temp_d += (two.getPosition(i2,j)-temp[j])*(two.getPosition(i2,j)-temp[j]);
-			if(temp_d<min_d) {
-				min_i2 = i2;
-				min_d = temp_d;
+		complete=true;
+		for(unsigned i1=0; i1<natoms; i1++) count[i1] = 0;
+		for(unsigned i1=0; i1<natoms; i1++) {
+			min_d = 100000000.0;
+			min_i2 = i1;
+			for(unsigned i2=0; i2<natoms; i2++) {
+				for(int j=0;j<NDIM;j++)
+					temp[j] = two.getPosition(i2,j)-one.getPosition(i1,j)-shift[j];
+				bc.wrapc(temp);
+				temp_d = 0.0; for(int j=0;j<NDIM;j++) temp_d += temp[j]*temp[j];
+				if(temp_d<min_d) {
+					min_i2 = i2;
+					min_d = temp_d;
+				}
 			}
+			if(min_d>0.01) break;
+			else count[min_i2] += 1;
 		}
-		if(min_d>0.05) break;
-		else count[min_i2] += 1;
+		for(unsigned i1=0; i1<natoms; i1++) if(count[i1]!=1) complete=false;
+		if(complete) break;
 	}
-	for(unsigned i1=0; i1<natoms; i1++) if(count[i1]!=1) return false;
-
-
+	if(!complete) return false;
 	/*
 		Match found!
-		r_two = two + com
-		one-com = T.(r_two - com)
-		one + shift = T.r_two
-		shift = T.r_two - one = T.com - com
+		new = T.old + shift
 	*/
-	for(int j=0;j<NDIM;j++) {
-		temp[j] = 0.;
-		for(int k=0;k<NDIM;k++) temp[j] += T[NDIM*j+k] * position[k];
-		temp[j] -= position[j];
+	bc.wrap(shift);
+	if(BaseEngine::local_rank==0) {
+		LOGGER("       ["<<T[0]<<" "<<T[1]<<" "<<T[2]<<"]")
+		LOGGER("matrix:["<<T[3]<<" "<<T[4]<<" "<<T[5]<<"]")
+		LOGGER("       ["<<T[6]<<" "<<T[7]<<" "<<T[8]<<"]")
+		LOGGER("shift: ["<<shift[0]<<" "<<shift[1]<<" "<<shift[2]<<"]")
 	}
-	bc.wrap(temp);
-	LOGGER("       ["<<T[0]<<" "<<T[1]<<" "<<T[2]<<"]")
-	LOGGER("matrix:["<<T[3]<<" "<<T[4]<<" "<<T[5]<<"]")
-	LOGGER("       ["<<T[6]<<" "<<T[7]<<" "<<T[8]<<"]")
-	LOGGER("shift: ["<<temp[0]<<" "<<temp[1]<<" "<<temp[2]<<"]")
 	op.operation=operation;
 	op.matrix=T;
-	for(int j=0;j<NDIM;j++) op.shift[j] = temp[j];
+	for(int j=0;j<NDIM;j++) op.shift[j] = shift[j];
 	op.valid = true;
 	return true;
 };
 
 
-
-
 bool SelfSymmetriesCarve(System &one, std::set<PointShiftSymmetry> &syms) {
-	LOGGER("MDEngine::SelfSymmetriesCarve");
+	if(BaseEngine::local_rank==0) LOGGER("MDEngine::SelfSymmetriesCarve");
 	GenericTask t;
 	System carved;
 	int clusters=1;
@@ -1248,7 +1252,8 @@ bool SelfSymmetriesCarve(System &one, std::set<PointShiftSymmetry> &syms) {
 	for(int operation=0; operation<48; operation++)
 		if(find_transforms_direct(carved,carved,op,position,operation))
 			syms.insert(op);
-	LOGGER("TRIED 48 SELF MAPS, FOUND "<<syms.size()<<" OPERATIONS. EXITING")
+  if(BaseEngine::local_rank==0)
+		LOGGER("TRIED 48 SELF MAPS, FOUND "<<syms.size()<<" OPERATIONS. EXITING")
 	return true;
 };
 
