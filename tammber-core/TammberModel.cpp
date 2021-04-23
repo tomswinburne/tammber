@@ -214,7 +214,7 @@ std::string StateEdge::info_str(bool seg) {
 
 		if(seg) {
 			double baseE = initialE;
-			for(auto eee: conn.second.energies) if(eee<base_E) base_E=eee;
+			for(auto eee: conn.second.energies) if(eee<baseE) baseE=eee;
 			res += "     E[]: "+std::to_string(baseE)+" + \n";
 			for(auto eee: conn.second.energies) {
 				res += "    ";
