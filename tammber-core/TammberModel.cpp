@@ -1795,7 +1795,7 @@ void TammberModel::predict(std::map<Label,std::pair<double,double>> &weights,boo
 	for(auto &v: StateVertices)
 		vt += exp(-targetB*(v.second.energy-minE))/rho_norm/std::max(1.0,v.second.target_state_time);
 	valid_time = 1.0/vt;
-	valid_time_sd = 1.0/vt;
+	valid_time_sd = 1.0;
 	if(screen) LOGGERA("APPROXIMATE VALIDITY TIME: "<<1.0/vt<<"ps")
 
 	Label lab;
