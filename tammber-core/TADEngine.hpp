@@ -644,6 +644,10 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  			if(BaseEngine::local_rank==0) LOGGER("FINAL LABEL MATCH: "<<pathway.FinalLabels.first<<","<<pathway.FinalLabels.second<<" == "<<FinalLabels.first<<","<<FinalLabels.second)
  		}
 
+		InitialLabels = pathway.InitialLabels;
+		FinalLabels = pathway.FinalLabels;
+
+
  		if((pathway.InitialLabels==FinalLabels) and (pathway.FinalLabels==InitialLabels)) {
  			if(BaseEngine::local_rank==0) LOGGER("STRANGE SWAPPING BUG IN std::list<System>. SWAPPING BACK")
  			System temp_S = initial;
@@ -660,8 +664,8 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  			pathway.MMFinalLabels = FinalLabels;
  			if(BaseEngine::local_rank==0) LOGGER("STRANGE MISMATCH BUG IN DB. EXITING AND TRYING AGAIN....")
  			pathway.valid=false;
- 			pathway.saddleE = MAX_BARRIER;
- 			insert("NEBPathway",task.returns,pathway);
+ 			pathway.saddleE = MAX_BARRIER + std::max(pathway.initialE,pathway.finalE);
+			insert("NEBPathway",task.returns,pathway);
  			return;
  		}
  	}
@@ -680,16 +684,6 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 
  	// add initial and final states to symmetry
  	symmetry.clearInputs();
-
- 	// THIS MAKES vf2_graph_iso VERY SLOW
- 	/*
- 	std::map<int,int> c_map;
- 	BaseMDEngine::labeler->canonicalMap(initial,c_map,InitialLabels.second);
- 	initial.remap(c_map);
- 	InitialLabels.first = BaseMDEngine::labeler->hash(initial,false);
- 	final.remap(c_map);
- 	FinalLabels.first = BaseMDEngine::labeler->hash(final,false);
- 	*/
 
  	#ifdef ISOMORPHIC
 
@@ -967,13 +961,13 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  		if(iter%10==0 && BaseEngine::local_rank==0)
 			LOGGERA("NEB "<<iter<<": "<<MinImage<<" "<<ClimbingImage<<" "<<bool(InterMinImages.size()>0)<<" "<<energies[ClimbingImage]-energies[0]<<" "<<energies[MinImage]-energies[0]<<" "<<sqrt(max_f_at_sq)<<" "<<sqrt(max_x_c_disp))
 
-
-
  		max_f_at_sq = 0.0; vdotf=0.0; f_n=0.0; v_n=0.0; f_ratio=1.0;
- 		for(int l=0;l<nImages-2;l++) for(int i=0;i<nAtoms*NDIM;i++) {
- 			f_at = neb_systems[l].getForce(i/NDIM,i%NDIM);
+		//for(int l=0;l<nImages-2;l++)
+		for(int i=0;i<nAtoms*NDIM;i++) {
+ 			f_at = neb_systems[std::max(ClimbingImage-1,0)].getForce(i/NDIM,i%NDIM);
  			if(f_at*f_at>max_f_at_sq) max_f_at_sq = f_at*f_at;
  		}
+
 
  		// conditioning for minimization
  		if(max_f_at_sq > 2.0*2.0) f_ratio = 2.0/sqrt(max_f_at_sq);
