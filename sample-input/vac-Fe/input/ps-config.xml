@@ -111,6 +111,12 @@
   <!-- Only sample in states which have Prob(dephase) > DephaseThresh Disabled if DephaseThresh<=0 -->
   <DephaseThresh>0.2</DephaseThresh>
 
+  <!--
+  Use dynamic information to estimate the result of pending NEB calulations.
+  Experimental feature
+  -->
+  <EstimatePendingNEBS>0</EstimatePendingNEBS>
+
 </MarkovModel>
 
 

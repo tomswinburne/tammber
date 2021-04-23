@@ -1197,7 +1197,11 @@ std::list<std::pair<SymmLabelPair,std::pair< std::array<double,6>,PointShiftSymm
 
 	if(isp==StateVertices.end() || fsp==StateVertices.end() || ep==StateEdges.end()) return res;
 	bool forwards = bool(el.first==ep->first.first);
-	if(ep->second.connections.size()==0) return res;
+	bool return_pending = sim_conn;
+	return_pending *=  (ep->second.pendingNEBS.size()>0);
+	return_pending *= (ep->second.connections.size()==0);
+	if(ep->second.connections.size()==0 and !sim_conn) return res;
+
 	std::array<double,6> sres;
 	LabelPair slab;
 	PointShiftSymmetry op;
@@ -1231,8 +1235,8 @@ std::list<std::pair<SymmLabelPair,std::pair< std::array<double,6>,PointShiftSymm
 		res.push_back(std::make_pair(SymmLabelPair(slab),std::make_pair(sres,op)));
 	}
 
-	// all incomplete transitions
-	if(sim_conn && ep->second.pendingNEBS.size()>0) {
+	// return incomplete transitions if no completed NEBS for this edge
+	if(return_pending) {
 		double maxT = tadT[tadT.size()-1];
 		auto pslab = *(ep->second.pendingNEBS.begin());
 		slab.first = (forwards ? pslab.first : pslab.second);
