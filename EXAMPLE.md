@@ -161,7 +161,7 @@ The 'carving' out of defects in `TAMMBER` is achieved in two steps, which we
 illustrate using [centrosymmetry](https://lammps.sandia.gov/doc/compute_centro_atom.html). Example values are given below.
 
 
-- In `<Scripts`, define a `LAMMPS` compute which assigns a floating point number to each atom:
+- In `<Scripts>`, define a `LAMMPS` compute which assigns a floating point number to each atom:
 ```xml
 <!-- compute name must agree with that in TASK_CARVE -->
 <CarveComputeScript>
@@ -200,19 +200,31 @@ parameter for various structures (alloys, surfaces) :
 
 - No carving :
   ```xml
+  <!-- compute name must agree with that in TASK_CARVE -->
+  <CarveComputeScript></CarveComputeScript>
+  ```
+  ```xml
   <TaskParameter>
     <Task> TASK_CARVE </Task>
-    <Flavor> 0 </Flavor> <!-- Default -->
-    <CentroNeighbors> 0 </CentroNeighbors>
+    <Flavor> 0 </Flavor>
+    <CarveCompute>NULL</CarveCompute>
+    <Threshold></Threshold>
+    <RelativeCutoff></RelativeCutoff>
   </TaskParameter>
   ```
+
 - MgO interstitial defect studied in [this paper](https://www.nature.com/articles/s41524-020-00463-8) :
+  ```xml
+  <!-- compute name must agree with that in TASK_CARVE -->
+  <CarveComputeScript>
+    compute centro all centro/atom 6
+  </CarveComputeScript>
+  ```
   ```xml
   <TaskParameter>
     <Task> TASK_CARVE </Task>
     <Flavor> 0 </Flavor> <!-- Default -->
-    <!-- bcc:8, fcc: 12, cubic: 6, to disable: 0 -->
-    <CentroNeighbors> 6 </CentroNeighbors>
+    <CarveCompute>centro</CarveCompute>
     <!-- determined by inspection -->
     <Threshold>1.0</Threshold>
     <!-- Typically ratio of 2nd neighbor length to 1st -->
@@ -221,28 +233,61 @@ parameter for various structures (alloys, surfaces) :
   ```
 - bcc vacancy:
   ```xml
+  <!-- compute name must agree with that in TASK_CARVE -->
+  <CarveComputeScript>
+    compute centro all centro/atom 8
+  </CarveComputeScript>
+  ```
+  ```xml
   <TaskParameter>
     <Task> TASK_CARVE </Task>
     <Flavor> 0 </Flavor> <!-- Default -->
-    <!-- cubic -->
-    <CentroNeighbors> 8 </CentroNeighbors>
+    <CarveCompute>centro</CarveCompute>
+    <!-- determined by inspection -->
     <Threshold>0.2</Threshold>
     <!-- Typically ratio of 2nd neighbor length to 1st -->
     <RelativeCutoff>1.5</RelativeCutoff>
   </TaskParameter>
   ```
+
 - bcc 110 surface (note higher threshold!):
+  ```xml
+  <!-- compute name must agree with that in TASK_CARVE -->
+  <CarveComputeScript>
+    compute centro all centro/atom 8
+  </CarveComputeScript>
+  ```
   ```xml
   <TaskParameter>
     <Task> TASK_CARVE </Task>
     <Flavor> 0 </Flavor> <!-- Default -->
-    <!-- cubic -->
-    <CentroNeighbors> 8 </CentroNeighbors>
+    <CarveCompute>centro</CarveCompute>
+    <!-- determined by inspection -->
     <Threshold>5.0</Threshold>
     <!-- Typically ratio of 2nd neighbor length to 1st -->
     <RelativeCutoff>1.5</RelativeCutoff>
   </TaskParameter>
   ```
+
+- bcc dislocation with fixed surfaces:
+```xml
+<!-- compute name must agree with that in TASK_CARVE -->
+<CarveComputeScript>
+  compute centro mobile_atoms centro/atom 8
+</CarveComputeScript>
+```
+which assigns a value of zero for all atoms not in the group `mobile_atoms`, i.e. the surfaces
+```xml
+<TaskParameter>
+  <Task> TASK_CARVE </Task>
+  <Flavor> 0 </Flavor> <!-- Default -->
+  <CarveCompute>centro</CarveCompute>
+  <!-- determined by inspection -->
+  <Threshold>1.0</Threshold>
+  <!-- Typically ratio of 2nd neighbor length to 1st -->
+  <RelativeCutoff>1.5</RelativeCutoff>
+</TaskParameter>
+```
 
 ###  `TASK_SYMMETRY`
 Symmetry Comparisons for NEB pairs and self symmetries. If we do not carve out
