@@ -120,22 +120,67 @@ of `input/ps-config.xml`
     velocity    all create %InitTemperature%  %RANDU% dist gaussian
   </VelocityInitScript>
 
+  <!-- compute name must agree with that in TASK_CARVE -->
+  <CarveComputeScript>
+    compute centro all centro/atom 8
+  </CarveComputeScript>
+
 </LAMMPSEngine>
 ```
 
 ## State identification<a name="4"></a>
 `TAMMBER` identifies states by first minimizing then creating a graph of bonds
 between atoms that are closer than some cutoff. For each species pair, we
-thus specify a cutoff. For pure Fe, we use the `1/2<111>` bond length:
+thus specify a cutoff. As some alloy potentials often have multiple "types"
+for a single element (e.g. [eam/alloy](https://lammps.sandia.gov/doc/pair_eam.html))
+We also define a mapping from types to species index using a tag `<TypeMap>`.
+
+For pure Fe, we use the `1/2<111>` bond length:
 ```xml
 <!-- Criteria for connectivity graph -->
-<Type> ConnectivityGraphStateLabeler </Type>
-<Bonds>
-    <Bond>
-        <Between> 1 1 </Between>
-        <Cutoff> 2.664 </Cutoff>
-    </Bond>
-</Bonds>
+<StateLabeler>
+  <Type> ConnectivityGraphStateLabeler </Type>
+  <!-- Mapping between LAMMPS types and specie index -->
+  <TypeMaps>
+    <TypeMap>1 1</TypeMap>
+  </TypeMaps>
+  <!-- Cutoff criteria for graph -->
+
+  <Bonds>
+      <Bond>
+          <Between> 1 1 </Between>
+          <Cutoff> 2.664 </Cutoff>
+      </Bond>
+  </Bonds>  
+</StateLabeler>
+```
+Whilst for NiAl, where Ni = type 1, Al = type 2,3, we have
+
+```xml
+<StateLabeler>
+  <Type> ConnectivityGraphStateLabeler </Type>
+  <!-- Mapping between LAMMPS types and specie index -->
+  <TypeMaps>
+    <TypeMap>1 1</TypeMap>
+    <TypeMap>2 2</TypeMap>
+    <TypeMap>3 2</TypeMap>
+  </TypeMaps>
+  <!-- Cutoff criteria for graph -->
+  <Bonds>
+      <Bond>
+          <Between> 1 1 </Between>
+          <Cutoff> 3.00 </Cutoff>
+      </Bond>
+      <Bond>
+          <Between> 1 2 </Between>
+          <Cutoff> 3.00 </Cutoff>
+      </Bond>
+      <Bond>
+          <Between> 2 2 </Between>
+          <Cutoff> 3.00 </Cutoff>
+      </Bond>
+  </Bonds>
+</StateLabeler>
 ```
 
 
