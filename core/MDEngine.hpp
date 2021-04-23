@@ -190,28 +190,30 @@ std::function<void(GenericTask&)> symmetry_impl = [this](GenericTask &task) {
 		for(auto &target: targets) {
 			c_lab = labeler->hash(target,true);
 			if(self_symmetries.find(c_lab)==self_symmetries.end()) {
-				LOGGER("Self isomorphism search for "<<c_lab)
-
+				LOGGER("MDEngine::symmetry_impl: Self isomorphism search for "<<c_lab)
 				if(thresh_check) {
-					if(vf2_check) {
-						LOGGER("Using carved configuration + VF2 UseVF2")
-						GenericTask t; t.clear();
-						t.type=BaseEngine::mapper.type("TASK_CARVE");
-						insert("State",t.inputData,target);
-						BaseEngine::process(t);
-						extract("ThreshState",t.outputData,carved);
-						cover = SelfSymmetries(carved,self_symmetry);
-					} else {
-						LOGGER("Using carved configuration + brute id map")
-						cover = SelfSymmetriesCarve(target,self_symmetry);
-					}
-				} else cover = SelfSymmetries(target,self_symmetry);
+					LOGGER("MDEngine::symmetry_impl: Carving out defective region")
+					GenericTask t; t.clear();
+					t.type=BaseEngine::mapper.type("TASK_CARVE");
+					insert("State",t.inputData,target);
+					BaseEngine::process(t);
+					extract("ThreshState",t.outputData,carved);
+
+					if(vf2_check) cover = SelfSymmetriesVF2(carved,self_symmetry);
+					else cover = SelfSymmetriesDirect(carved,self_symmetry);
+				} else {
+					LOGGER("MDEngine::symmetry_impl: No carving for symmetry analysis")
+					if(vf2_check) cover = SelfSymmetriesVF2(target,self_symmetry);
+					else cover = SelfSymmetriesDirect(target,self_symmetry);
+				}
 				LOGGER("Found "<<self_symmetry.size()<<" symmetries. Covering set: "<<cover)
-				self_symmetries[c_lab] = self_symmetry;
 				for(auto &ss : self_symmetry) LOGGER(ss.info_str())
+				// add to
+				self_symmetries[c_lab] = self_symmetry;
 			}
 		}
 	} else {
+		LOGGER("MDEngine::symmetry_impl: OMITTING self isomorphism search for "<<c_lab)
 		// add identity just in case...
 		PointShiftSymmetry null;
 		self_symmetry.insert(null);
@@ -220,7 +222,6 @@ std::function<void(GenericTask&)> symmetry_impl = [this](GenericTask &task) {
 		} else {
 			self_symmetries[c_lab].insert(null);
 		}
-		LOGGER("OMITTING self isomorphism searches, replacing with NULL")
 	}
 
 	insert("SelfSymmetries",task.returns,self_symmetries);
@@ -1122,31 +1123,9 @@ std::set<PointShiftSymmetry> find_transforms(System &one, System two, std::map<i
 	return ops;
 };
 
-bool SelfSymmetries(System &one, std::set<PointShiftSymmetry> &syms,bool return_maps=false) {
-	if(BaseEngine::local_rank==0) LOGGER("MDEngine::SelfSymmetries");
-	std::list<std::map<int,int>> amaps;
-	syms.clear();
-	labeler->isomorphicSelfMaps(one,amaps);
-	if(BaseEngine::local_rank==0) LOGGER("FOUND "<<amaps.size()<<" SELF MAPS");
-	int count = 0;
-	for (auto &map: amaps) {
-		auto ops = find_transforms(one, one, map);
-		for(auto op: ops) {
-			if(return_maps) op.map = map;
-			syms.insert(op);
-		}
-		count++;
-		if(count>48) {
-			if(BaseEngine::local_rank==0) LOGGER("TRIED 96 SELF MAPS, FOUND "<<syms.size()<<" OPERATIONS. EXITING")
-			break;
-		}
-	}
-	return bool(amaps.size()<=syms.size());
-};
-
 // VF2-free implementation
 
-bool find_transforms_direct(System &one, System two, PointShiftSymmetry &op, std::array<double,NDIM> position, int operation) {
+bool find_transforms_direct(System &one, System two, PointShiftSymmetry &op, int operation) {
 	if(BaseEngine::local_rank==0) LOGGER("MDEngine::find_transforms_direct");
 
 	Cell bc = one.getCell();
@@ -1172,12 +1151,15 @@ bool find_transforms_direct(System &one, System two, PointShiftSymmetry &op, std
 	// one : centered_cluster + com
 	// two : T.centered_cluster + com
 	op.transform_matrix(T,operation);
+	for(int j=0;j<NDIM;j++) temp2[j] = 0.0;
+	for(unsigned i=0; i<natoms; i++)
+		for(int j=0;j<NDIM;j++) temp2[j] += one.getPosition(i,j) / natoms;
 	for(unsigned i=0; i<natoms; i++) {
 		for(int j=0;j<NDIM;j++) {
 			temp[j] = 0.;
 			for(int k=0;k<NDIM;k++)
-				temp[j] += T[NDIM*j+k] * (one.getPosition(i,k)-position[k]);
-			two.setPosition(i,j,temp[j]+position[j]);
+				temp[j] += T[NDIM*j+k] * (one.getPosition(i,k)-temp2[k]);
+			two.setPosition(i,j,temp[j]+temp2[j]);
 		}
 	}
 
@@ -1228,30 +1210,34 @@ bool find_transforms_direct(System &one, System two, PointShiftSymmetry &op, std
 };
 
 
-bool SelfSymmetriesCarve(System &one, std::set<PointShiftSymmetry> &syms) {
-	if(BaseEngine::local_rank==0) LOGGER("MDEngine::SelfSymmetriesCarve");
-	GenericTask t;
-	System carved;
-	int clusters=1;
-	std::array<double,NDIM> position;
+bool SelfSymmetriesVF2(System &one, std::set<PointShiftSymmetry> &syms,bool return_maps=false) {
+	if(BaseEngine::local_rank==0) LOGGER("MDEngine::SelfSymmetriesVF2");
+	std::list<std::map<int,int>> amaps;
+	syms.clear();
+	labeler->isomorphicSelfMaps(one,amaps);
+	if(BaseEngine::local_rank==0) LOGGER("FOUND "<<amaps.size()<<" SELF MAPS");
+	int count = 0;
+	for (auto &map: amaps) {
+		auto ops = find_transforms(one, one, map);
+		for(auto op: ops) {
+			if(return_maps) op.map = map;
+			syms.insert(op);
+		}
+		count++;
+		if(count>48) {
+			if(BaseEngine::local_rank==0) LOGGER("TRIED 96 SELF MAPS, FOUND "<<syms.size()<<" OPERATIONS. EXITING")
+			break;
+		}
+	}
+	return bool(amaps.size()<=syms.size());
+};
+
+bool SelfSymmetriesDirect(System &one, std::set<PointShiftSymmetry> &syms) {
+	if(BaseEngine::local_rank==0) LOGGER("MDEngine::SelfSymmetriesDirect");
 	bool found_transform;
 	PointShiftSymmetry op;
-
-	t.clear();
-	t.type=BaseEngine::mapper.type("TASK_CARVE");
-	insert("State",t.inputData,one);
-	BaseEngine::process(t);
-
-	extract("ThreshState",t.outputData,carved);
-	extract("Clusters",t.returns,clusters);
-	extract("Position",t.returns,position);
-
-	if(clusters>1) return false;
-
-	// Rotate around, then shift: X-c = G.(X-c) + d_i
 	for(int operation=0; operation<48; operation++)
-		if(find_transforms_direct(carved,carved,op,position,operation))
-			syms.insert(op);
+		if(find_transforms_direct(one,one,op,operation)) syms.insert(op);
   if(BaseEngine::local_rank==0)
 		LOGGER("TRIED 48 SELF MAPS, FOUND "<<syms.size()<<" OPERATIONS. EXITING")
 	return true;

@@ -335,23 +335,25 @@ which assigns a value of zero for all atoms not in the group `mobile_atoms`, i.e
 ```
 
 ###  `TASK_SYMMETRY`
-Symmetry Comparisons for NEB pairs and self symmetries. If we do not carve out
-a defective region, the `VF2` graph matching [routine](https://www.boost.org/doc/libs/1_61_0/libs/graph/doc/vf2_sub_graph_iso.html)
-will be used, which has worst case time complexity of O(N!N). Whilst rare, this can cause simulations to
-hang for many minutes when waiting for `VF2` to finish.
-Fastest results are with
+Symmetry Comparisons for NEB pairs and self symmetries. One option is to use
+the `VF2` graph matching [routine](https://www.boost.org/doc/libs/1_61_0/libs/graph/doc/vf2_sub_graph_iso.html)
+will be used, which has best case time complexity of O(N^2) but worst case O(N!N).
+Whilst rare, this can cause simulations to hang for many minutes when waiting for `VF2` to finish.
+Alternative is O(N^3) "brute force" remapping, which can be slower but has better worst case.
+Carving out defects as described in the previous section therefore gives the best results-
 ```xml
 <TaskParameter>
   <Task> TASK_SYMMETRY </Task>
   <Flavor> 0 </Flavor>
   <SelfCheck>1</SelfCheck>
   <ThreshCheck>1</ThreshCheck>
+  <!-- use "brute force" remapping -->
   <UseVF2>0</UseVF2>
 </TaskParameter>
 ```
 - `SelfCheck` : Directly test for self symmetries. If not set, these symmetries will only be found during MD sampling.
 - `ThreshCheck` : Carve out defective region using `TASK_CARVE` (much faster checks)
-- `UseVF2` : force use of `VF2` matching. Default=1 when `ThreshCheck=0`
+- `UseVF2` : force use of `VF2` matching
 
 
 
