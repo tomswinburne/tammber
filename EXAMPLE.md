@@ -370,6 +370,9 @@ once those calculations are complete.
   -->
   <EstimatePendingNEBS>0</EstimatePendingNEBS>
 ```
+*If* no completed NEBS are available for a state-to-state connection,
+`tammber-analyze` will use this information in the processed Markov model
+(see the [Analyzing output](#10) section)
 
 ## Test Routines<a name="8"></a>
 We *strongly* recommend building `tammber-md` which will attempt to
