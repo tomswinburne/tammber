@@ -906,21 +906,26 @@ void TammberModel::write_model(std::string mmfile) {
 	}
 
 	if(UnitCell.compare("None")!=0) {
-		p_xml.clear();
-		boost::split(p_xml,UnitCell,boost::is_any_of(" "));
-		res<<"  <UnitCell>\n";
-		for(int l_xml=0;l_xml<p_xml.size()/3;l_xml++)
-			res<<"    "<<p_xml[l_xml*3+0]<<" "<<p_xml[l_xml*3+1]<<" "<<p_xml[l_xml*3+2]<<"\n";
-		res<<"  </UnitCell>\n";
+
+		//p_xml.clear();
+		//boost::split(p_xml,UnitCell,boost::is_any_of(" "));
+		res<<"  <UnitCell>\n"<<UnitCell<<"\n  </UnitCell>\n";
+		//res<<UnitCell<<"\n";
+		//for(int l_xml=0;l_xml<p_xml.size()/3;l_xml++)
+		//	res<<"    "<<p_xml[l_xml*3+0]<<" "<<p_xml[l_xml*3+1]<<" "<<p_xml[l_xml*3+2]<<"\n";
+		//res<<"  </UnitCell>\n";
 	}
 
 	if(SuperCell.compare("None")!=0) {
+		res<<"  <SuperCell>\n"<<SuperCell<<"\n  </SuperCell>\n";
+		/*
 		p_xml.clear();
 		boost::split(p_xml,SuperCell,boost::is_any_of(" "));
 		res<<"  <SuperCell>\n";
 		for(int l_xml=0;l_xml<p_xml.size()/3;l_xml++)
 			res<<"    "<<p_xml[l_xml*3+0]<<" "<<p_xml[l_xml*3+1]<<" "<<p_xml[l_xml*3+2]<<"\n";
 		res<<"  </SuperCell>\n";
+		*/
 	}
 	res<<"<GlobalMinEnergy>"<<minE<<"</GlobalMinEnergy>\n";
 	res<<"<ResidenceTimeMean>"<<valid_time<<"</ResidenceTimeMean>\n";
