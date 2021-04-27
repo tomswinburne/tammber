@@ -275,12 +275,9 @@ bool processSend(){
 					timer.stop("Send-Mesg");
 					//break;
 				}
-				if(deleteRequest){
-					it=taskRequests.erase(it);
-				}
-				else{
-					it++;
-				}
+				
+				if(deleteRequest) it=taskRequests.erase(it);
+				else it++;
 			}
 		}
 	}
