@@ -189,6 +189,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 	bool BasinTransition = false;
 	bool NewBasinTransition = false;
 	bool Transition = false;
+	bool Annealed = false;
 
 	// set labels
 	CurrentLabels=InitialLabels;
@@ -392,23 +393,22 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 		if(BaseEngine::local_rank==0) LOGGER("CURRENT LABEL: "<<CurrentLabels.first<<" , "<<CurrentLabels.second)
 
 		if(annealing) {
-			// transition check
-			// BasinTransition = bool(segment.BasinLabels.find(CurrentLabels)!=segment.BasinLabels.end());
+
+			// check that annealing did not change the minima
 			filter.clearInputs(); filter.clearOutputs();
 			insert("ReferenceState",filter.inputData,annealingMin);
 			insert("State",filter.inputData,currentMin);
 			BaseEngine::process(filter);
 			extract("Valid",filter.returns,Transition);
-			bool Annealed = !Transition;
+			Annealed = !Transition;
 
+			// check that the minima is not the initial minima
 			filter.clearInputs(); filter.clearOutputs();
 			insert("ReferenceState",filter.inputData,reference);
 			insert("State",filter.inputData,currentMin);
 			BaseEngine::process(filter);
 			extract("Valid",filter.returns,Transition);
-
-
-
+			
 			if(Annealed and Transition) { // no transition after annealing == exit
 				if(!ProductionRun) if(BaseEngine::local_rank==0) LOGGERA("ANNEALED! VALID TRANSITION MADE!");
 				if(BaseEngine::local_rank==0) LOGGER("ANNEALED! VALID TRANSITION MADE!");
