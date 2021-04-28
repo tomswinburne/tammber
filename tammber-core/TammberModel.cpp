@@ -1188,15 +1188,12 @@ std::list<std::pair<SymmLabelPair,std::pair< std::array<double,6>,PointShiftSymm
 	LabelPair slab;
 	PointShiftSymmetry op;
 	std::pair<double,double> dE;
-	double maxE = std::max(isp->second.energy,fsp->second.energy);
+	double maxE = std::max(isp->second.energy,fsp->second.energy) + 0.05;
 	for(auto &conn: ep->second.connections) { // all Connections
 		double sE = std::min(maxE+MAX_BARRIER,conn.second.saddleE);
-		if (conn.second.dX<MSD_THRESH) {
-			sE = maxE + 0.05;
-		} else {
-			dE.first = sE -  isp->second.energy;
-			dE.second = sE - fsp->second.energy;
-		}
+		for(auto EE : conn.second.energies) sE = std::max(sE,EE);
+		dE.first = sE -  isp->second.energy;
+		dE.second = sE - fsp->second.energy;
 		sres[int(!forwards)]=dE.first;
 		sres[int(forwards)] =dE.second;
 		sres[2+int(!forwards)] = conn.second.nu.first < 1.0e-4 ? PRIOR_NU : conn.second.nu.first;

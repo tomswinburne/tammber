@@ -164,8 +164,9 @@ int main(int argc, char * argv[]) {
 				extract("NEBPathway",neb.returns,pathway);
 
 				mmbuilder.add_pathway(pathway);
+				// save each time
+				mmbuilder.save();
 			}
-			mmbuilder.save();
 		} else {
 			std::cout<<"RedoNEBS.list not found!"<<std::endl;
 		}
