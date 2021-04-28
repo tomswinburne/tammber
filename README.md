@@ -15,12 +15,15 @@
 Questions? swinburne "at" cinam "dot" univ-mrs "dot" fr
 --------------------------------------------------------------------------------
 
+
 TAMMBER is a heavily modified variant of the [ParSplice](https://gitlab.com/exaalt/parsplice.git) code (see below). Whilst ParSplice constructs a single long trajectory by splicing many short MD segments, TAMMBER uses TAD-MD and barrier calculations to build rate matrices with a novel measure of the "missing" rate from seen to unseen regions of configuration space.
 
-The work management is controlled through an absorbing Markov chain; the goal is to maximize the time to absorption from a given starting distribution, with statewise absorption rates calculated through Bayesian analysis of the trajectory segments
+Treating as-yet-unseen configuration space as an absorbing sink, TAMMBER optimizes the management of thousands of sampling workers to maximise the time-to-absorbtion. 
 
+This produces, at scale, large, uncertainty-controlled kMC models of a given sample system.
+
+Publications:
 [1] Thomas D Swinburne and Danny Perez, *Self-optimized construction of transition rate matrices from accelerated atomistic simulations with Bayesian uncertainty quantification*, Physical Review Materials 2018, [preprint](https://arxiv.org/abs/1803.05273)
-
 
 New code incorporates crystal symmetries using graph isomorphisms to efficiently and autonomously calculate diffusion matricies
 
