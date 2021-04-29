@@ -31,6 +31,7 @@ Questions / bugs ? Raise a github issue or email swinburne "at" cinam "dot" univ
 ## Publications:
 [1] Thomas D Swinburne and Danny Perez, *Self-optimized construction of transition rate matrices from accelerated atomistic simulations with Bayesian uncertainty quantification*, Physical Review Materials 2018, [preprint](https://arxiv.org/abs/1803.05273)
    *Original publication detailing the optimal worker management and Bayesian uncertainty quantification*
+   
 [2] Thomas D Swinburne and Danny Perez, *Automated Calculation of Defect Transport Tensors*, NPJ Computational Materials, 2020. [article](https://www.nature.com/articles/s41524-020-00463-8)
    *Incorporation of crystal symmetries to efficiently and autonomously calculate diffusion tensors. See the [Getting Started](EXAMPLE.md) section*
 
