@@ -1,16 +1,19 @@
 # TAMMBER
 ### Temperature Accelerated Markov Model construction with Bayesian Estimation of Rates
 
-##  [Installation Instructions](INSTALL.md)
-
-##  [Getting Started](EXAMPLE.md)
-- *If you are using TAMMBER for diffusion studies please read the "Cluster Definitions For Diffusion" section!*
-- *It is highly recommended to run the `tammber-md` test routine first!*
-
-
-## [Output Analysis](process/Diffusion_Model_Example.ipynb) :  Run online with Binder: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/tomswinburne/tammber/HEAD?filepath=process%2FDiffusion_Model_Example.ipynb)
+##  User Guide
+### - [Installation Instructions](INSTALL.md)
+### - [Getting Started](EXAMPLE.md)
+      - *If you are using TAMMBER for diffusion studies please read the "Cluster Definitions For Diffusion" section!*
+      - *It is highly recommended to run the `tammber-md` test routine first!*
+### - [Output Analysis](process/Diffusion_Model_Example.ipynb) :  Run online with Binder: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/tomswinburne/tammber/HEAD?filepath=process%2FDiffusion_Model_Example.ipynb)
 
 *If the Binder server is slow the notebook can be viewed [here](process/Diffusion_Model_Example.ipynb), or run the notebook locally after downloading this repository.*
+
+## Coming Soon
+  - Updated analysis scripts
+  - More detailed on-the-fly analysis of NEB trajectories
+  - and more....
 
 Questions? swinburne "at" cinam "dot" univ-mrs "dot" fr
 --------------------------------------------------------------------------------
@@ -23,8 +26,6 @@ Treating as-yet-unseen configuration space as an absorbing sink, TAMMBER optimiz
 This produces uncertainty-controlled kMC models of a given target system.
 As TAMMBER is designed for deployment on many thousands of cores in parallel,
 complex systems can be rapidly characterised with minimal end-user involvement.
-
-
 
 Publications:
 [1] Thomas D Swinburne and Danny Perez, *Self-optimized construction of transition rate matrices from accelerated atomistic simulations with Bayesian uncertainty quantification*, Physical Review Materials 2018, [preprint](https://arxiv.org/abs/1803.05273)
