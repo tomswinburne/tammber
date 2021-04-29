@@ -4,8 +4,8 @@
 ##  User Guide
 ### - [Installation Instructions](INSTALL.md)
 ### - [Getting Started](EXAMPLE.md)
-      *If you are using TAMMBER for diffusion studies please read the "Cluster Definitions For Diffusion" section!*
-      *It is highly recommended to run the `tammber-md` test routine first!*
+   *If you are using TAMMBER for diffusion studies please read the "Cluster Definitions For Diffusion" section!*
+   *It is highly recommended to run the `tammber-md` test routine first!*
 ### - [Output Analysis](process/Diffusion_Model_Example.ipynb) :  Run online with Binder: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/tomswinburne/tammber/HEAD?filepath=process%2FDiffusion_Model_Example.ipynb)
 
 *If the Binder server is slow the notebook can be viewed [here](process/Diffusion_Model_Example.ipynb), or run the notebook locally after downloading this repository.*
