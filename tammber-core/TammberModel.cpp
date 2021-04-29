@@ -1268,9 +1268,9 @@ void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 
 	auto v = &(StateVertices.find(lab)->second);
 
-	double dephase_ratio = (double)(v->duration)/std::max(1.0,(double)(v->duration+v->overhead));
-	if(dephase_ratio < DephaseThresh and v->overhead>10) {
-		LOGGER("TammberModel::unknown_rate "<<lab<<" DEPHASE LIMIT")
+	if(!allow_allocation(lab) or (double)(v->duration+v->overhead)< 5.0 ) {
+		LOGGER("TammberModel::unknown_rate "<<lab<<" NOT CALCULATING"
+		" DUE TO DEPHASE, CLUSTER, OR INSUFFICIENT DATA LIMIT")
 		ku.observed_rate = 10.0;
 		ku.unknown_rate = TINY;
 		ku.unknown_variance = 2.0*TINY;
