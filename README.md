@@ -2,9 +2,9 @@
 ### Temperature Accelerated Markov Model construction with Bayesian Estimation of Rates
 TAMMBER is a heavily modified variant of the [ParSplice](https://gitlab.com/exaalt/parsplice.git) code (see below).
 
-Designed for massively parallel deployment, TAMMBER optimally manages hundreds to thousands of workerso 
+Designed for massively parallel deployment, TAMMBER optimally manages thousands of workers 
 performing accelerated molecular dynamics (TAD) and minimum energy path routines (NEB). 
-This sampling data is processed using Bayesian techniques to yeild uncertainty-controlled kMC/Markov models
+This sampling data is constantly collated and processed using Bayesian techniques to yeild uncertainty-controlled kMC/Markov models
 of complex atomistic target systems, with minimal end-user involvement. [Recent](https://www.nature.com/articles/s41524-020-00463-8) 
 developements allow for the autonomous construction and convergence of arbitrarily complex diffusion tensors.
 
