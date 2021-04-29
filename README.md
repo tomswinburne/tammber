@@ -12,7 +12,7 @@ To be efficient at the peta- or exa-scale requires optimal worker management. TA
 by treating as-yet-unseen configuration space as an absorbing sink, then calculating (given the current information)
 where additional sampling effort will maximally increase the time-to-absorbtion through discovery or reduction of uncertainty.
 
-TAMMBER can efficiently scale to 100,000+ cores, though can be profitibly employed on 200+. See the publications below for more detail.
+TAMMBER efficiently scales to 100,000+ cores, though can be profitibly employed on a few hundred. See the publications below for more detail.
 
 Questions / bugs ? Raise a github issue or email swinburne "at" cinam "dot" univ-mrs "dot" fr
 
