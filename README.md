@@ -1,5 +1,21 @@
 # TAMMBER
 ### Temperature Accelerated Markov Model construction with Bayesian Estimation of Rates
+TAMMBER is a heavily modified variant of the [ParSplice](https://gitlab.com/exaalt/parsplice.git) code (see below).
+
+Designed for massively parallel deployment, TAMMBER deplots hundreds to thousands of workers to 
+perform accelerated molecular dynamics (TAD) and minimum energy path routines (NEB). 
+
+This sampling data is processed using Bayesian techniques to yeild uncertainty-controlled kMC/Markov models
+of complex atomistic target systems, with minimal end-user involvement. [Recent](https://www.nature.com/articles/s41524-020-00463-8) 
+developements allow for the autonomous construction and convergence of arbitrarily complex diffusion tensors.
+
+To be efficient at the peta- or exa-scale requires optimal worker management. TAMMBER achieves this 
+by treating as-yet-unseen configuration space as an absorbing sink, then calculating (given the current information)
+where additional sampling effort will maximally increase the time-to-absorbtion through discovery or reduction of uncertainty.
+
+TAMMBER can efficiently scale to 100,000+ cores, though can be profitibly employed on 200+. See the publications below for more detail.
+
+Questions / bugs ? Raise a github issue or email swinburne "at" cinam "dot" univ-mrs "dot" fr
 
 ##  User Guide
 ### - [Installation Instructions](INSTALL.md)
@@ -13,25 +29,14 @@
   - Updated analysis scripts with custom point groups and disconnectivity graphs
   - More detailed analysis of NEB simulations "on-the-fly" (specifically for multiple minima)
 
-Questions? swinburne "at" cinam "dot" univ-mrs "dot" fr
---------------------------------------------------------------------------------
-
-
-TAMMBER is a heavily modified variant of the [ParSplice](https://gitlab.com/exaalt/parsplice.git) code (see below). Whilst ParSplice constructs a single long trajectory by splicing many short MD segments, TAMMBER uses TAD-MD and barrier calculations to build rate matrices with a novel measure of the "missing" rate from seen to unseen regions of configuration space.
-
-Treating as-yet-unseen configuration space as an absorbing sink, TAMMBER optimizes the management of thousands of sampling workers to maximise the time-to-absorbtion.
-
-This produces uncertainty-controlled kMC models of a given target system.
-As TAMMBER is designed for deployment on many thousands of cores in parallel,
-complex systems can be rapidly characterised with minimal end-user involvement.
-
-Publications:
+## Publications:
 [1] Thomas D Swinburne and Danny Perez, *Self-optimized construction of transition rate matrices from accelerated atomistic simulations with Bayesian uncertainty quantification*, Physical Review Materials 2018, [preprint](https://arxiv.org/abs/1803.05273)
-
-New code incorporates crystal symmetries using graph isomorphisms to efficiently and autonomously calculate diffusion tensors. For complete automation this requires
-the definition of a routine to assign defect positions- see the [Getting Started](EXAMPLE.md) section.
-
+   *Original publication detailing the optimal worker management and Bayesian uncertainty quantification*
 [2] Thomas D Swinburne and Danny Perez, *Automated Calculation of Defect Transport Tensors*, NPJ Computational Materials, 2020. [article](https://www.nature.com/articles/s41524-020-00463-8)
+   *Incorporation of crystal symmetries to efficiently and autonomously calculate diffusion tensors. See the [Getting Started](EXAMPLE.md) section*
+
+
+
 
 --------------------------------------------------------------------------------
 
