@@ -64,7 +64,7 @@ LAMMPSEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_
 	int argc=5;
 	char *lammps_argv[]={(char *)"tammber",(char *)"-screen",(char *)"none",(char *)"-log",(char *)logfile.c_str()};
 	if(local_rank==0)
-		LOGGER("Trying to open lammps worker on "<<local_size<<" cores");
+		LOGGERA("Trying to open lammps worker on "<<local_size<<" cores.. logfile"<<logfile);
 
 	lmp = NULL;
 	lmp = new LAMMPS(argc,lammps_argv,localComm_);
