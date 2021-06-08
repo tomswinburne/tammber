@@ -133,7 +133,7 @@ int main(int argc, char * argv[]) {
 			handle.assign(task_seg);
 			while(not handle.probe(task_seg)) {};
 
-			extract("TADSegment",task.returns,segment);
+			extract("TADSegment",task_seg.returns,segment);
 			LOGGERA("TAMMBER-md: OUTPUT SEGMENT "<<segment.info_str())
 		}
 
