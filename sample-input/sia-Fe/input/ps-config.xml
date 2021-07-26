@@ -375,6 +375,8 @@ Routine will set entire system as cluster, with center of mass position
   <CalculatePrefactor> 0 </CalculatePrefactor>
   <!-- Even when CalculatePrefactor=1, only compute Hessian for large barriers -->
   <ThresholdBarrier> 1.0 </ThresholdBarrier>
+  <!-- Check for intermediate minimia in NEB calculation. -->
+  <IntermediateMinima> 0 </IntermediateMinima>
   <WriteFiles>0</WriteFiles>
 </TaskParameter>
 

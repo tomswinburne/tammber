@@ -408,7 +408,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
 			insert("State",filter.inputData,currentMin);
 			BaseEngine::process(filter);
 			extract("Valid",filter.returns,Transition);
-			
+
 			if(Annealed and Transition) { // no transition after annealing == exit
 				if(!ProductionRun) if(BaseEngine::local_rank==0) LOGGERA("ANNEALED! VALID TRANSITION MADE!");
 				if(BaseEngine::local_rank==0) LOGGER("ANNEALED! VALID TRANSITION MADE!");
@@ -525,6 +525,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  	bool writeFiles=safe_extractor<bool>(parameters,"WriteFiles",false);
 	int clust_thresh=safe_extractor<int>(parameters,"NEBClusterThresh",-1);
 	bool CalculatePrefactor=safe_extractor<bool>(parameters,"CalculatePrefactor",false);
+	bool IntermediateMinima=safe_extractor<bool>(parameters,"IntermediateMinima",false);
 	double ThresholdBarrier=safe_extractor<double>(parameters,"ThresholdBarrier",1.0);
 
  	// GenericTasks
@@ -881,7 +882,7 @@ std::function<void(GenericTask&)> segment_impl = [this](GenericTask &task) {
  		neb_forces(neb_systems,initial,final,energies,false,true,spring,ClimbingImage,Climbing,rcNN); // no reset this time, but projection
 
 
- 		path_analysis(neb_systems,initial,final,energies,MinImage,ClimbingImage,InterMinImages,WellDepth);
+ 		path_analysis(neb_systems,initial,final,energies,MinImage,ClimbingImage,InterMinImages,WellDepth,IntermediateMinima);
 
  		// we have intermediate minima...
  		if ((InterMinImages.size()>0) && ((max_f_at_sq<4.0*ftol*ftol)||(iter==maxiter-1))) {
@@ -1310,7 +1311,7 @@ virtual void interpolate(std::vector<System> &nsv,System &initial,System &final,
 
 /* finds minImage and either one or (if minImage not at an end) two climbing images */
 virtual void path_analysis(std::vector<System> &systems,System &initial,System &final,std::vector<double> &energies,int &MinImage,\
-	 int &ClimbingImage, std::list<int> &InterMinImages, double e_thresh) {
+	 int &ClimbingImage, std::list<int> &InterMinImages, double e_thresh, bool IntermediateMinima) {
 
 	// Finds minimia and climbing image of an energy path
 	int lastimg = energies.size()-1;
@@ -1335,14 +1336,16 @@ virtual void path_analysis(std::vector<System> &systems,System &initial,System &
 	// InterMinImages
 	InterMinImages.clear();
 	// intermediate minima at least e_thresh deep
-	double relE;
-	bool msdc;
-	for (int l=1;l<lastimg;l++) {
-		relE = energies[l]+e_thresh;
-		if((relE<energies[l+1]) && (relE<energies[l-1])) {
-			if(InterMinImages.size()==0) msdc = bool(initial.msd(systems[l-1],false)>MSD_THRESH);
-			else msdc = bool(systems[*(std::prev(InterMinImages.end()))-1].msd(systems[l-1],false)>MSD_THRESH);
-			if(msdc) InterMinImages.push_back(l);
+	if(IntermediateMinima) {
+		double relE;
+		bool msdc;
+		for (int l=1;l<lastimg;l++) {
+			relE = energies[l]+e_thresh;
+			if((relE<energies[l+1]) && (relE<energies[l-1])) {
+				if(InterMinImages.size()==0) msdc = bool(initial.msd(systems[l-1],false)>MSD_THRESH);
+				else msdc = bool(systems[*(std::prev(InterMinImages.end()))-1].msd(systems[l-1],false)>MSD_THRESH);
+				if(msdc) InterMinImages.push_back(l);
+			}
 		}
 	}
 };
