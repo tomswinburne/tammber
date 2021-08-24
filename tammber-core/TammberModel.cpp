@@ -1267,17 +1267,16 @@ void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
         std::vector<double> benefit;
 
 	auto v = &(StateVertices.find(lab)->second);
-
+	ku.observed_rate = 10.0;
+	ku.unknown_rate = TINY;
+	ku.unknown_variance = 2.0*TINY;
+	ku.optimal_temperature = tadT[0];
+	ku.optimal_temperature_index = 0;
+	ku.optimal_rate = TINY;
+	ku.min_rate = TINY;
 	if(!allow_allocation(lab)) {
 		LOGGER("TammberModel::unknown_rate "<<lab<<" NOT CALCULATING"
 		" DUE TO DEPHASE OR CLUSTER LIMIT")
-		ku.observed_rate = 10.0;
-		ku.unknown_rate = TINY;
-		ku.unknown_variance = 2.0*TINY;
-		ku.optimal_temperature = tadT[0];
-		ku.optimal_temperature_index = 0;
-		ku.optimal_rate = TINY;
-		ku.min_rate = TINY;
 		return;
 	}
 
@@ -1345,18 +1344,18 @@ void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 			if(_kc > max_benefit) max_benefit = _kc;
 		}
 
-		int optimal_temperature_index=0;
+		ku.optimal_temperature_index=0;
 
 		// only run at higher temperature if *some* sampling has been accumulated
 		if((double)(v->duration+v->overhead)>= 5.0) {
 			for(int ii=0;ii<tadT.size();ii++) {
 				if(benefit[ii]>=0.99*max_benefit) {
-					optimal_temperature_index = ii;
+					ku.optimal_temperature_index = ii;
 					break;
 				}
 			}
 		}
-		
+
 		// Now refill without SelfRates....
 		k_fp.clear();
 		if(rcm!=Rates.end()) for(auto &lr: rcm->second) k_fp.push_back(lr.second.tad_k_fp[ku.optimal_temperature_index]);
