@@ -1275,7 +1275,7 @@ void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 	ku.optimal_rate = TINY;
 	ku.min_rate = TINY;
 	if(!allow_allocation(lab)) {
-		LOGGER("TammberModel::unknown_rate "<<lab<<" NOT CALCULATING"
+		LOGGERA("TammberModel::unknown_rate "<<lab<<" NOT CALCULATING"
 		" DUE TO DEPHASE OR CLUSTER LIMIT")
 		return;
 	}
