@@ -399,7 +399,7 @@ void TammberModel::initialize(boost::property_tree::ptree &config,bool restart){
 	pNEB_Prior = config.get<double>("Configuration.MarkovModel.PendingNEBSPrior",1.0);
 
 	// include "dead" saddles, produced by erroneous high temperature minimization
-	print_dead_states = config.get<bool>("Configuration.MarkovModel.IncludeShallowStates",false);
+	include_shallow_states = config.get<bool>("Configuration.MarkovModel.IncludeShallowStates",false);
 
 	// Only for postprocessing
 	LatticeConstant = config.get<std::string>("Configuration.MarkovModel.Lattice","None");
@@ -831,7 +831,7 @@ std::string TammberModel::info_str(bool seg){
 	res += "Minimum Energy State : "+std::to_string(minL)+" ("+std::to_string(minE)+")\n\nVerticies:\n";
 
 	for (auto &v: StateVertices) {
-		if(!allow_allocation(v.first) and !print_dead_states) continue;
+		if(!allow_allocation(v.first) and !include_shallow_states) continue;
 		UnknownRate ku;
 		unknown_rate(v.first,ku);
 		res += v.second.info_str(targetT,minE,ku.unknown_rate);
@@ -845,8 +845,8 @@ std::string TammberModel::info_str(bool seg){
 	}
 	res += "Edges:\n";
 	for(auto &e: StateEdges) {
-		if(!allow_allocation(e.first.first) and !print_dead_states) continue;
-		if(!allow_allocation(e.first.second) and !print_dead_states) continue;
+		if(!allow_allocation(e.first.first) and !include_shallow_states) continue;
+		if(!allow_allocation(e.first.second) and !include_shallow_states) continue;
 		res+=e.second.info_str(seg);
 		nebc += e.second.connections.size();
 		jc += e.second.self_edge_map.size();
@@ -915,7 +915,7 @@ void TammberModel::write_model(std::string mmfile) {
 	res<<"<ResidenceTimeStd>"<<sqrt(std::fabs(valid_time_sd))*valid_time<<"</ResidenceTimeStd>\n";
 
 	for (auto &v: StateVertices) {
-		if(!allow_allocation(v.first) and !print_dead_states) continue;
+		if(!allow_allocation(v.first) and !include_shallow_states) continue;
 		state_list<<v.second.reference_label.first<<" "<<v.second.reference_label.second<<"\n";
 		UnknownRate ku;
 		unknown_rate(v.first,ku);
@@ -951,8 +951,8 @@ void TammberModel::write_model(std::string mmfile) {
 		res<<"  </Vertex>\n";
 	}
 	for(auto &e: StateEdges) {
-		if(!allow_allocation(e.first.first) and !print_dead_states) continue;
-		if(!allow_allocation(e.first.second) and !print_dead_states) continue;
+		if(!allow_allocation(e.first.first) and !include_shallow_states) continue;
+		if(!allow_allocation(e.first.second) and !include_shallow_states) continue;
 		for(auto &tstc : modelEdgeParams(e.first) ) {
 			state_list<<e.first.first<<" "<<tstc.first.first<<"\n";
 			state_list<<e.first.second<<" "<<tstc.first.second<<"\n";
