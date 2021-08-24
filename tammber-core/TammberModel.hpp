@@ -401,7 +401,7 @@ protected:
 	int ClusterThresh;
   std::vector<double> tadT;
 	LabelPair InitialLabels;
-	bool safe_opt,sim_conn;
+	bool safe_opt,sim_conn,print_dead_states;
 	std::string LatticeConstant, PrimitiveUnitCell, UnitCell, SuperCell;
 
 	std::map<Transition,Transition> transitionMap; // not symmetric ?
