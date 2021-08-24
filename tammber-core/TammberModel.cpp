@@ -1265,12 +1265,12 @@ bool TammberModel::allow_allocation(Label lab) {
 void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 	LOGGER("TammberModel::unknown_rate")
 
-	double emin, htt, htmr, ht_kuvar,_kc;
-	double var_correction,opt_rate, tar_rate, max_benefit=-10.,Tr;
-	std::vector< std::pair<double,double> > ht_ku_tot_k,k_fp;
-        std::vector<double> benefit;
+	double emin, TAD_time, TAD_min_rate, TAD_kuvar, TAD_gradient;
+	double var_correction,opt_rate, tar_rate, max_TAD_gradient=-10.,Tr;
+	std::vector< std::pair<double,double> > TAD_ku_kt, k_fp;
+	std::vector<double> TAD_gradients;
 
-	auto v = &(StateVertices.find(lab)->second);
+	// default values- assume small residence time with high certainty
 	ku.observed_rate = 10.0;
 	ku.unknown_rate = TINY;
 	ku.unknown_variance = 2.0*TINY;
@@ -1278,24 +1278,39 @@ void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 	ku.optimal_temperature_index = 0;
 	ku.optimal_rate = TINY;
 	ku.min_rate = TINY;
+
+	if(StateVertices.find(lab)==StateVertices.end()) {
+		LOGGER("TammberModel::unknown_rate "<<lab<<" NOT CALCULATING"
+		" AS STATE DOESNT HAVE VERTEX! ERROR!")
+		return;
+	}
+	// we know this exists
+	auto v = &(StateVertices.find(lab)->second);
+
 	if(!allow_allocation(lab)) {
 		LOGGERA("TammberModel::unknown_rate "<<lab<<" NOT CALCULATING"
 		" DUE TO DEPHASE OR CLUSTER LIMIT")
 		return;
 	}
-
+	// low temperature time
 	v->target_state_time = v->state_time(targetT);
 
+	// TAD barrier
 	emin = log(std::max(v->target_state_time,1.0))+LOG_NU_MIN;
 
-	auto rcm = Rates.find(lab); // pointer to std::map<Label,Rate>
-	k_fp.clear();
+	auto exit_label_rate_map = Rates.find(lab);
+	auto self_label_rate_map = SelfRates.find(lab);
+	bool have_exit_rates = bool(exit_label_rate_map!=Rates.end());
+	bool have_self_rates = bool(self_label_rate_map!=SelfRates.end());
 
-	if(rcm!=Rates.end()) for(auto &lr: rcm->second) k_fp.push_back(lr.second.target_k_fp);
-	auto srcm = SelfRates.find(lab); // pointer to std::map<Label,Rate>
-	if(srcm!=SelfRates.end()) for(auto &lr: srcm->second) k_fp.push_back(lr.second.target_k_fp);
+	size_t total_rate_count=0;
+	if(have_exit_rates) total_rate_count += exit_label_rate_map->second.size();
+	if(have_self_rates) total_rate_count += self_label_rate_map->second.size();
 
-	if (rcm==Rates.end() || k_fp.size()==0) {
+
+	// If we have no rates at all use analytic solution
+	if (total_rate_count == 0) {
+
 		tar_rate = std::min(1.0/std::max(1.0,v->target_state_time),max_ku);
 		ku.observed_rate = 0.0;
 		ku.unknown_rate = tar_rate;
@@ -1303,98 +1318,89 @@ void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 		ku.optimal_temperature = tadT[tadT.size()-1];
 		ku.optimal_temperature_index = tadT.size()-1;
 		Tr = targetT/tadT[tadT.size()-1];
-		htt = v->target_state_time * exp( emin * (Tr-1.0) );
-		opt_rate = std::min(1.0/std::max(1.0,htt),max_ku);
+		TAD_time = v->target_state_time * exp( emin * (Tr-1.0) );
+		opt_rate = std::min(1.0/std::max(1.0,TAD_time),max_ku);
 		ku.optimal_rate = opt_rate;
 		ku.min_rate = tar_rate;
-	} else {
 
-		for(auto &tt:tadT) ht_ku_tot_k.push_back(std::make_pair(0.0,0.0)); // ku, tot_k
-		// push back all rates and fptimes, sum total rate and find minimum observed rate
-		// target T
-		k_fp.clear(); for(auto &lr: rcm->second) k_fp.push_back(lr.second.target_k_fp);
+	} else {
+		// target T from just the exit rates
+		k_fp.clear();
+		if(have_exit_rates) for(auto &label_rate : exit_label_rate_map->second)
+			k_fp.push_back(label_rate.second.target_k_fp);
 		bayes_ku_kuvar(k_fp, ku.unknown_rate, ku.unknown_variance, ku.min_rate, ku.observed_rate, v->target_state_time);
 
-		// TAD Ti
+		// TAD optimization using exit and self rates
+		TAD_ku_kt.clear();
 		for(int ii=0;ii<tadT.size();ii++) {
 			k_fp.clear();
-			if(rcm!=Rates.end()) for(auto &lr: rcm->second) k_fp.push_back(lr.second.tad_k_fp[ii]);
-			if(srcm!=SelfRates.end()) for(auto &lr: srcm->second) k_fp.push_back(lr.second.tad_k_fp[ii]);
-			htt = v->target_state_time * exp( emin * (targetT/tadT[ii]-1.0) );
-			htmr=0.0; ht_kuvar=0.0; // not used...
-			bayes_ku_kuvar(k_fp, ht_ku_tot_k[ii].first, ht_kuvar, htmr, ht_ku_tot_k[ii].second, htt);
+			if(have_exit_rates) for(auto &label_rate : exit_label_rate_map->second)
+				k_fp.push_back(label_rate.second.tad_k_fp[ii]);
+			if(have_self_rates) for(auto &label_rate : self_label_rate_map->second)
+				k_fp.push_back(label_rate.second.tad_k_fp[ii]);
+
+			TAD_ku_kt.push_back(std::make_pair(0.0,0.0));
+
+			TAD_time = v->target_state_time * exp( emin * (targetT/tadT[ii]-1.0) );
+
+			TAD_min_rate=0.0; TAD_kuvar=0.0; // not used...
+
+			bayes_ku_kuvar(k_fp, TAD_ku_kt[ii].first, TAD_kuvar, TAD_min_rate, TAD_ku_kt[ii].second, TAD_time);
 		}
-		benefit.clear();
+
 		// now find best temperature
-		max_benefit = -1.0;
+		TAD_gradients.clear();
 		for(int ii=0;ii<tadT.size();ii++) {
 
-			// dku/dc = P(dephase) * dku/dt / (dc/dt)
+			// target quantity : P(dephase in 1 ps) * dku/dt / (dc/dt)
 
 			// dku/dt = min_k_lt * ku_ht + (tau_lt/tau_ht * T_h/T_l - ku_ht/ku_lt)*ku_var_lt
-			_kc = ku.min_rate * ht_ku_tot_k[ii].first;
+			TAD_gradient = ku.min_rate * TAD_ku_kt[ii].first;
 			var_correction = (tadT[ii]/targetT) * exp( emin * (1.0-targetT/tadT[ii]) ) * ku.unknown_variance;
-			var_correction += ht_ku_tot_k[ii].first / ku.unknown_rate * ku.unknown_variance;
-			if(var_correction>0.0 && !safe_opt) _kc += var_correction;
-			// 1 / (dc/dt)
-			_kc /= 1. + HashCost * ht_ku_tot_k[ii].second + (HashCost+NEBCost) * ht_ku_tot_k[ii].first;
-			// * P(dephase in 1 ps)
-			_kc *= exp(- (ht_ku_tot_k[ii].first + ht_ku_tot_k[ii].second) );
+			var_correction += TAD_ku_kt[ii].first / ku.unknown_rate * ku.unknown_variance;
+			if(var_correction>0.0 && !safe_opt) TAD_gradient += var_correction;
 
-			if(boost::math::isnan(_kc)) {
-				_kc = 1.0/v->target_state_time/v->target_state_time;
-				LOGGER("Cost return is NaN! state,time,T = "<<lab<<", "<<v->target_state_time<<", "<<tadT[ii]<<" new kc:"<<_kc)
+			// /= (dc/dt)
+			TAD_gradient /= 1. + HashCost * TAD_ku_kt[ii].second + (HashCost + NEBCost) * TAD_ku_kt[ii].first;
+
+			// *= P(dephase in 1 ps)
+			TAD_gradient *= exp(- (TAD_ku_kt[ii].first + TAD_ku_kt[ii].second) );
+
+			// error catching (typically float overflow)
+			if(boost::math::isnan(TAD_gradient)) {
+				TAD_gradient = 1.0/v->target_state_time/v->target_state_time;
+				LOGGER("Cost return is NaN! state,time,T = "<<lab<<", "<<v->target_state_time<<", "<<tadT[ii]<<" new kc:"<<TAD_gradient)
 			}
-			benefit.push_back(_kc);
-			if(_kc > max_benefit) max_benefit = _kc;
-		}
 
-		ku.optimal_temperature_index=0;
-		ku.optimal_temperature = tadT[0];
+			TAD_gradients.push_back(TAD_gradient);
+
+			if(TAD_gradient > max_TAD_gradient) max_TAD_gradient = TAD_gradient;
+		}
 
 		// only run at higher temperature if *some* sampling has been accumulated
-		if((double)(v->duration+v->overhead)>= 5.0) {
+		int optimal_temperature_index=0;
+		if((double)(v->duration+v->overhead) >= 5.0) {
 			for(int ii=1;ii<tadT.size();ii++) {
-				LOGGER("T,Benefit : "<<tadT[ii]<<" "<<benefit[ii]<<" "<<max_benefit)
-				ku.optimal_temperature_index = ii;
-				ku.optimal_temperature = tadT[ii];
-				if(benefit[ii]>=0.95*max_benefit) break;
+				optimal_temperature_index = ii;
+				if(TAD_gradients[ii] >= 0.95*max_TAD_gradient) break; // avoid plateaus
 			}
 		}
+		// use unknown rate estimate accounting for self rates
+		ku.optimal_temperature = tadT[optimal_temperature_index];
+		ku.optimal_temperature_index = optimal_temperature_index;
+		ku.optimal_rate = TAD_ku_kt[optimal_temperature_index].first;
+		ku.optimal_gradient = TAD_gradients[optimal_temperature_index];
 
-		// Now refill without SelfRates....
-		k_fp.clear();
-		if(rcm!=Rates.end()) for(auto &lr: rcm->second) k_fp.push_back(lr.second.tad_k_fp[ku.optimal_temperature_index]);
-		if(k_fp.size()>0) {
-			htt = v->target_state_time * exp( emin * (targetT/tadT[ku.optimal_temperature_index]-1.0) );
-			htmr=0.0; ht_kuvar=0.0; // not used...
-			bayes_ku_kuvar(k_fp, ht_ku_tot_k[ku.optimal_temperature_index].first, ht_kuvar, htmr, ht_ku_tot_k[ku.optimal_temperature_index].second, htt);
-
-			//---
-			_kc = ku.min_rate * ht_ku_tot_k[ku.optimal_temperature_index].first;
-			var_correction = tadT[ku.optimal_temperature_index]/targetT * exp( emin * (1.0-targetT/tadT[ku.optimal_temperature_index]) ) * ku.unknown_variance;
-			var_correction -= ht_ku_tot_k[ku.optimal_temperature_index].first / ku.unknown_rate * ku.unknown_variance;
-			if(var_correction > 0. && !safe_opt) _kc += var_correction;
-			_kc /= 1. + HashCost * ht_ku_tot_k[ku.optimal_temperature_index].second + (HashCost+NEBCost) * ht_ku_tot_k[ku.optimal_temperature_index].first;
-			_kc *= exp(-(ht_ku_tot_k[ku.optimal_temperature_index].first + ht_ku_tot_k[ku.optimal_temperature_index].second));
-			//----
-			ku.optimal_rate = ht_ku_tot_k[ku.optimal_temperature_index].first;
-			ku.optimal_gradient = _kc;
-		} else {
-			htt = v->target_state_time * exp( emin * (targetT/tadT[ku.optimal_temperature_index]-1.0) );
-			opt_rate = std::min(1.0/std::max(1.0,htt),max_ku);
-			ku.optimal_rate = opt_rate;
-			ku.optimal_gradient = opt_rate;
-		 }
-
-		if(ku.optimal_gradient<0.0) {
-			LOGGER("-VE Max Benefit! "<<lab)
+		// final overide check...
+		if(ku.optimal_gradient<0.0) { // default to low temperature
+			LOGGER("TammberModel::unknown_rate : -VE Max TAD_gradients! "<<lab)
 			ku.optimal_temperature = tadT[0];
 			ku.optimal_temperature_index = 0;
 			ku.optimal_rate = 1.0/v->target_state_time;
 			ku.optimal_gradient = 1.0/v->target_state_time;
 		}
 	}
+	if(ku.unknown_rate<0.0) ku.unknown_rate = TINY;
 };
 
 void TammberModel::bayes_ku_kuvar(std::vector<std::pair<double,double>> &k_fp,double &ku, double &kuvar, double &min_k, double &tot_k, double _time){
