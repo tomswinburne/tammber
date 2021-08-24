@@ -1253,23 +1253,32 @@ std::list<std::pair<SymmLabelPair,std::pair< std::array<double,6>,PointShiftSymm
 
 bool TammberModel::allow_allocation(Label lab) {
 
-	if(StateVertices.find(lab)==StateVertices.end()) return false;
-
-	auto v = &(StateVertices.find(lab)->second);
-
-	bool cancel_dephase = false;
-	if(DephaseThresh>0.0) {
-		double dephase_ratio = (double)(v->duration)/std::max(1.0,(double)(v->duration+v->overhead));
-		if(dephase_ratio < DephaseThresh and v->overhead>10) cancel_dephase = true;
-	}
-
-	bool cancel_cluster = false;
-	if(ClusterThresh>0.0 and v->clusters>ClusterThresh) cancel_cluster = true;
-
-	if(cancel_dephase or cancel_cluster) {
-		LOGGERA("SUPPRESSING ALLOCATION TO "<<lab<<" : ClusterThresh:"<<cancel_cluster<<" DephaseThresh:"<<cancel_dephase)
+	if(StateVertices.find(lab)==StateVertices.end()) {
+		LOGGER("SUPPRESSING ALLOCATION TO "<<lab<<" : NOT FOUND")
 		return false;
 	}
+
+	auto v = &(StateVertices.find(lab)->second);
+	
+	// false if ClusterThresh==0
+	if(int(ClusterThresh)>0 and v->clusters>ClusterThresh) {
+		LOGGER("SUPPRESSING ALLOCATION TO "<<lab<<" : TOO MANY CLUSTERS")
+		return false;
+	}
+
+	/*
+		if duration / (duration+overhead) < DephaseThresh : cancel
+		rearrange: duration < alpha * overhead
+		where alpha = DephaseThresh/(1-DephaseThresh)
+	*/
+	if (DephaseThresh>0.0) {
+		double alpha = DephaseThresh/std::max(TINY,1.0-DephaseThresh);
+		if( bool(v->overhead>=5) && bool(v->duration < alpha*v->overhead ) ) {
+			LOGGER("SUPPRESSING ALLOCATION TO "<<lab<<" : FAILED DEPHASING THRESHOLD")
+			return false;
+		}
+	}
+
 	return true;
 };
 
