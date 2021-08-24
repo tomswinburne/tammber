@@ -1354,7 +1354,7 @@ void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 				LOGGER("T,Benefit : "<<tadT[ii]<<" "<<benefit[ii]<<" "<<max_benefit)
 				ku.optimal_temperature_index = ii;
 				ku.optimal_temperature = tadT[ii];
-				if(benefit[ii]>=0.9*max_benefit) break;
+				if(benefit[ii]>=0.95*max_benefit) break;
 			}
 		}
 
