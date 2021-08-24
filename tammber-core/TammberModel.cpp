@@ -933,14 +933,14 @@ void TammberModel::write_model(std::string mmfile) {
 				res<<"      "<<ss.operation<<" "<<ss.shift[0]<<" "<<ss.shift[1]<<" "<<ss.shift[2]<<"\n";
 			res<<"    </SelfSymmetries>\n";
 		}
-		if(v.second.state_isomorphisms.size()>0) {
-			res<<"    <SeenEquivalents>\n";
-			for(auto &ss: v.second.state_isomorphisms) {
-				res<<"      "<<ss.first<<" "<<ss.second.operation<<" ";
-				res<<ss.second.shift[0]<<" "<<ss.second.shift[1]<<" "<<ss.second.shift[2]<<"\n";
-			}
-			res<<"    </SeenEquivalents>\n";
+		res<<"    <SeenEquivalents>\n";
+		res<<"      "<<v.second.reference_label.second<<" 0 0 0 0\n";
+		for(auto &ss: v.second.state_isomorphisms) {
+			if(ss.first==v.second.reference_label.second) continue;
+			res<<"      "<<ss.first<<" "<<ss.second.operation<<" ";
+			res<<ss.second.shift[0]<<" "<<ss.second.shift[1]<<" "<<ss.second.shift[2]<<"\n";
 		}
+		res<<"    </SeenEquivalents>\n";
 		res<<"  </Vertex>\n";
 	}
 	for(auto &e: StateEdges) {
@@ -952,6 +952,10 @@ void TammberModel::write_model(std::string mmfile) {
 			res<<"    <ReferenceLabels>"<<tstc.first.first<<" "<<tstc.first.second<<"</ReferenceLabels>\n";
 			res<<"    <Barriers>"<<tstc.second.first[0]<<" "<<tstc.second.first[1]<<"</Barriers>\n";
 			res<<"    <PreFactors>"<<tstc.second.first[2]<<" "<<tstc.second.first[3]<<"</PreFactors>\n";
+			int dynamic_estimate=0;
+			if(tstc.second.first[2]<0.0 and tstc.second.first[3]<0.0) dynamic_estimate=1;
+			if(!sim_conn) dynamic_estimate=0;
+			res<<"    <DynamicEstimate>"<<dynamic_estimate<<"</DynamicEstimate>\n";
 			res<<"    <dX>"<<tstc.second.first[4]<<"</dX>\n";
 			res<<"    <Ftol>"<<tstc.second.first[5]<<"</Ftol>\n";
 			if(tstc.second.second.valid) {
