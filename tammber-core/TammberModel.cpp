@@ -1032,10 +1032,12 @@ void TammberModel::calculate_rates(SymmLabelPair el, Rate &kf, Rate &kb) {
 	kf.reset(tadT.size());
 	kb.reset(tadT.size());
 
+	if(!allow_allocation(el.first) || !allow_allocation(el.second)) continue;
+
 	auto isp = StateVertices.find(el.first);
 	auto fsp = StateVertices.find(el.second);
 	auto ep = StateEdges.find(el);
-	if(isp==StateVertices.end() || fsp==StateVertices.end() || ep==StateEdges.end()) return;
+	if(ep==StateEdges.end()) return;
 
 	bool forwards = bool(el.first==ep->first.first);
 	auto kfp = (forwards ? &kf : &kb);
