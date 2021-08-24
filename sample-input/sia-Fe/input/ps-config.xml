@@ -117,6 +117,14 @@
   -->
   <EstimatePendingNEBS>0</EstimatePendingNEBS>
 
+  <!--
+    If states are considered too shallow (from DephaseThresh),
+    remove them from the *active* Markov model, as the pathways on which they lie
+    will be discovered by another worker. All states are stored so this
+    definition is flexible. Experimental feature
+  -->
+  <IncludeShallowStates>0</IncludeShallowStates>
+
 </MarkovModel>
 
 
