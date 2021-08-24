@@ -399,7 +399,7 @@ void TammberModel::initialize(boost::property_tree::ptree &config,bool restart){
 	pNEB_Prior = config.get<double>("Configuration.MarkovModel.PendingNEBSPrior",1.0);
 
 	// include "dead" saddles, produced by erroneous high temperature minimization
-	print_dead_states = config.get<bool>("Configuration.MarkovModel.PrintDeadStates",false);
+	print_dead_states = config.get<bool>("Configuration.MarkovModel.IncludeShallowStates",false);
 
 	// Only for postprocessing
 	LatticeConstant = config.get<std::string>("Configuration.MarkovModel.Lattice","None");
@@ -1259,7 +1259,7 @@ bool TammberModel::allow_allocation(Label lab) {
 	}
 
 	auto v = &(StateVertices.find(lab)->second);
-	
+
 	// false if ClusterThresh==0
 	if(int(ClusterThresh)>0 and v->clusters>ClusterThresh) {
 		LOGGER("SUPPRESSING ALLOCATION TO "<<lab<<" : TOO MANY CLUSTERS")
