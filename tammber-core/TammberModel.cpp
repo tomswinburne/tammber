@@ -1349,12 +1349,10 @@ void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 
 		// only run at higher temperature if *some* sampling has been accumulated
 		if((double)(v->duration+v->overhead)>= 5.0) {
-			for(int ii=0;ii<tadT.size();ii++) {
+			for(int ii=1;ii<tadT.size();ii++) {
 				LOGGER("T,Benefit : "<<tadT[ii]<<" "<<benefit[ii]<<" "<<max_benefit)
-				if(benefit[ii]>=0.9*max_benefit) {
-					ku.optimal_temperature_index = ii;
-					break;
-				}
+				ku.optimal_temperature_index = ii;
+				if(benefit[ii]>=0.9*max_benefit) break;
 			}
 		}
 
