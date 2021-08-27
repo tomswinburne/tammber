@@ -362,18 +362,19 @@ class DiffusionModel:
 
 
 		for ee in self.transitions:
-
-			icl = self.cmap[ee.iclabel][0]
-			il  = self.cmap[ee.iclabel][1][ee.ilabel][0]
-			p   = self.cmap[ee.iclabel][1][ee.ilabel][1]
-			fcl = self.cmap[ee.fclabel][0]
-			fl  = self.cmap[ee.fclabel][1][ee.flabel][0]
-			fp  = self.cmap[ee.fclabel][1][ee.flabel][1]
-			dp  = self.pbc(fp-p,c=1.0)
-			rdp = C.dot(np.round(2.0*iC.dot(dp)))/2.0
-			kf = ee.fnu*np.exp(-ee.fbar*beta)
-			kb = ee.bnu*np.exp(-ee.bbar*beta)
-
+			try:
+				icl = self.cmap[ee.iclabel][0]
+				il  = self.cmap[ee.iclabel][1][ee.ilabel][0]
+				p   = self.cmap[ee.iclabel][1][ee.ilabel][1]
+				fcl = self.cmap[ee.fclabel][0]
+				fl  = self.cmap[ee.fclabel][1][ee.flabel][0]
+				fp  = self.cmap[ee.fclabel][1][ee.flabel][1]
+				dp  = self.pbc(fp-p,c=1.0)
+				rdp = C.dot(np.round(2.0*iC.dot(dp)))/2.0
+				kf = ee.fnu*np.exp(-ee.fbar*beta)
+				kb = ee.bnu*np.exp(-ee.bbar*beta)
+			except:
+				continue
 			for sop in self.PointGroup:
 				i = self.index[icl][self.transform_index(icl,opMult(sop,il))]
 				f = self.index[fcl][self.transform_index(fcl,opMult(sop,fl))]
@@ -466,8 +467,9 @@ class DiffusionModel:
 		K,Kd,Kdd,Ku,pi = self.fill_rates(evalT)
 
 		if pure: # simulate ku->0 limit
-			Ku *= 1.0e-10
+			Ku *= 4.0e-3
 		Duc,Dc,tau = self.calcD(K,Kd,Kdd,Ku,pi,ls=True)
+
 		if ev:
 			return np.linalg.eigvalsh(Duc+Dc),tau
 		else:
@@ -488,11 +490,14 @@ class DiffusionModel:
 		tau_mmm = np.zeros(3) # mean max min
 		D_mmm = np.zeros((3,3)) # mean max min\s
 
-		Dsamarr = np.zeros((Nsample,DIM+1))
+		Dsamarr = np.zeros((Nsample+1,DIM+1))
 
 		K,Kd,Kdd,Ku,pi = self.fill_rates(evalT)
 		Duc,Dc,tau_mmm[0] = self.calcD(K,Kd,Kdd,Ku,pi,ls=True)
 		D_mmm[0],Dvec = np.linalg.eigh(Duc+Dc)
+
+		Dsamarr[-1][:3] = D_mmm[0]
+		Dsamarr[-1][-1] = tau_mmm[0]
 		if has_tqdm:
 			pbar = tqdm(total=Nsample,leave=False,desc="MC-UQ, T=%dK" % evalT)
 		for i in range(Nsample):
