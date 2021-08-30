@@ -190,7 +190,6 @@ class DiffusionModel:
 					elif ele.tag == 'SeenEquivalents':
 						sid = np.genfromtxt(ele.text.splitlines(),dtype=np.uint64)
 						dd = np.genfromtxt(ele.text.splitlines())
-
 						if dd.size==dd.shape[0]:
 							dd = dd.reshape((1,-1))
 							sid = sid.reshape((1,-1))
@@ -198,11 +197,9 @@ class DiffusionModel:
 						#,dtype=(np.uint64,np.int,np.float,np.float,np.float))#,np.float,np.float,np.float))
 						for _dd in zip(sid,dd):
 							ss.equivalents.append([_dd[0][0].astype(np.uint64),_dd[0][1].astype(np.int),_dd[1][2],_dd[1][3],_dd[1][4]])
-							#list(_dd))
-				if len(ss.selfsyms)==0:
-					ss.selfsyms.append(np.genfromtxt("0 0 0 0".splitlines(),dtype=(np.int,np.float,np.float,np.float)))
-				ss.conjugate =  self.conjugate_set(ss).copy()
-				self.states.append(ss)
+				if len(ss.selfsyms)>0:
+					ss.conjugate =  self.conjugate_set(ss).copy()
+					self.states.append(ss)
 			elif child.tag=='Edge':
 				ee = Edge()
 				for ele in child:
@@ -363,6 +360,7 @@ class DiffusionModel:
 
 		for ee in self.transitions:
 			try:
+				# Catching undefined states due to unfinished NEBs in output
 				icl = self.cmap[ee.iclabel][0]
 				il  = self.cmap[ee.iclabel][1][ee.ilabel][0]
 				p   = self.cmap[ee.iclabel][1][ee.ilabel][1]
@@ -373,8 +371,12 @@ class DiffusionModel:
 				rdp = C.dot(np.round(2.0*iC.dot(dp)))/2.0
 				kf = ee.fnu*np.exp(-ee.fbar*beta)
 				kb = ee.bnu*np.exp(-ee.bbar*beta)
+				for sop in self.PointGroup:
+					i = self.index[icl][self.transform_index(icl,opMult(sop,il))]
+					f = self.index[fcl][self.transform_index(fcl,opMult(sop,fl))]
 			except:
 				continue
+
 			for sop in self.PointGroup:
 				i = self.index[icl][self.transform_index(icl,opMult(sop,il))]
 				f = self.index[fcl][self.transform_index(fcl,opMult(sop,fl))]
