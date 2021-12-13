@@ -162,14 +162,13 @@ int main(int argc, char * argv[]) {
 					out<<initial.canonical_label<<" "<<initial.label<<" "<<final.label<<" ";
 					for(int j=0;j<NDIM*NDIM;j++) out<<matrix[j]<<" ";
 					for(int j=0;j<NDIM;j++) out<<shift[j]<<" ";
-					out::<<std::endl;
+					out<<std::endl;
 				}
 			}
 			out.close();
 		} else {
 			std::cout<<"Unwrap.list not found!"<<std::endl;
 		}
-
 		label.type=mapper.type("TASK_DIE");
 		label.flavor=1;
 		handle.assign(label);
