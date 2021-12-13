@@ -415,8 +415,8 @@ std::function<void(GenericTask&)> unwrap_impl = [this](GenericTask &task) {
 		insert("Valid",task.returns,null.valid);
 		return;
 	}
-	labeler->isomorphicMap(intial,final,c_map); // 2 -> C -> 1
-	ops = find_transforms(intial,final,c_map);
+	labeler->isomorphicMap(initial,final,c_map); // 2 -> C -> 1
+	ops = find_transforms(initial,final,c_map);
 	if(ops.size()>0) {
 		for(auto op: ops) if(op.valid) {
 			LOGGER("Found!\n"<<op.info_str())

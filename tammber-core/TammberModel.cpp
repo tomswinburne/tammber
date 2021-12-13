@@ -633,7 +633,7 @@ void TammberModel::add_symmetries(NEBPathway &path) {
 bool TammberModel::add_transitionMaps(NEBPathway &path) {
 	LOGGER("TammberModel::add_transitionMaps")
 	if (path.FoundTransitions.size()==0) return false;
-	LOGGER("TammberModel::add_transitionMaps segment intial -> final :")
+	LOGGER("TammberModel::add_transitionMaps segment initial -> final :")
 	LOGGER(path.InitialLabels.first<<","<<path.InitialLabels.second<<") -> "<<path.FinalLabels.first<<","<<path.FinalLabels.second)
 	LOGGER("TammberModel::add_transitionMaps Going through FoundTransitions:")
 
