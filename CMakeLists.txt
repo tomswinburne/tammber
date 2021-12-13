@@ -112,7 +112,7 @@ if(EXTRA_LINK_FLAGS)
 endif()
 
 set(MY_DEPENDENCIES ${CMAKE_THREAD_LIBS_INIT}
-                    ${LAMMPS_LIBRARIES}
+										${LAMMPS_LIBRARIES}
 		    						${DB_LIBRARIES}
 		    						${NAUTY_LIBRARIES}
 		    						${BOOST_LIBRARIES}

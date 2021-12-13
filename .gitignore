@@ -3,6 +3,9 @@ buld/*
 sample-input/*
 !sample-input/vac-Fe/
 !sample-input/sia-Fe/
+*process
+!process/*ipynb
+!process/MarkovModel_vacFe_[0-9][0-9]min.xml
 process/.ipynb_checkpoints/*
 process/__pycache__/*
 .DS_Store
