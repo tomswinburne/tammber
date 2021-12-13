@@ -84,10 +84,10 @@ int main(int argc, char * argv[]) {
 
 		if(found_list) {
 			std::ifstream infile("./Unwrap.list");
-			while(infile>>canon1>>label1>>label2) {
-				t.first.first=canon1;
+			while(infile>>canon>>label1>>label2) {
+				t.first.first=canon;
 				t.first.second=label1;
-				t.second.first=canon1;
+				t.second.first=canon;
 				t.second.second=label2;
 				trans.insert(t);
 			}
@@ -100,7 +100,6 @@ int main(int argc, char * argv[]) {
 
 				RawDataVector data;
 				SystemType initial,final;
-				Transition
 
 				std::array<double,NDIM*NDIM> matrix;
 				std::array<double,NDIM> shift;
