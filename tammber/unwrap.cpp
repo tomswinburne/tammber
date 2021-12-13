@@ -79,7 +79,7 @@ int main(int argc, char * argv[]) {
 		uint64_t canon,label1,label2;
 		Transition t;
 		std::set<Transition> trans;
-		LabelPair labels;
+		LabelPair initial_labels,final_labels;
 		trans.clear();
 
 		if(found_list) {
@@ -120,14 +120,11 @@ int main(int argc, char * argv[]) {
 				insert("State",label.inputData,initial);
 				handle.assign(label);
 				while(not handle.probe(label)) {};
-				extract("Labels",label.returns,labels);
-				if(labels!=tran.first) {
+				extract("Labels",label.returns,initial_labels);
+				if(initial_labels!=tran.first) {
 					LOGGERA("COULDN'T MATCH "<<tran.first.first<<" "<<trans.first.second)
 					continue;
 				}
-				initial.canonical_label = labels.first;
-				initial.label = labels.second;
-
 
 				minimaStore.get(LOCATION_SYSTEM_MIN,tran.second.second,data);
 				if(data.size()==0) {
@@ -139,18 +136,19 @@ int main(int argc, char * argv[]) {
 				insert("State",label.inputData,final);
 				handle.assign(label);
 				while(not handle.probe(label)) {};
-				extract("Labels",label.returns,labels);
-				if(labels!=tran.second) {
+				extract("Labels",label.returns,final_labels);
+				if(final_labels!=tran.second) {
 					LOGGERA("COULDN'T MATCH "<<tran.second.first<<" "<<trans.second.second)
 					continue;
 				}
-				final.canonical_label = labels.first;
-				final.label = labels.second;
+
 
 				LOGGERA("SUBMITTING PATHWAY FOR UNWRAP ")
 				unwrap.clearInputs(); unwrap.clearOutputs();
-				insert("Initial",unwrap.inputData,initial);
-				insert("Final",unwrap.inputData,final);
+				insert("InitialState",unwrap.inputData,initial);
+				insert("FinalState",unwrap.inputData,final);
+				insert("InitialLabels",unwrap.inputData,initial_labels);
+				insert("FinalLabels",unwrap.inputData,final_labels);
 				handle.assign(unwrap);
 				while(not handle.probe(unwrap)) {};
 
@@ -159,7 +157,7 @@ int main(int argc, char * argv[]) {
 				extract("Shift",unwrap.returns,shift);
 				extract("Valid",unwrap.returns,valid);
 				if(valid) {
-					out<<initial.canonical_label<<" "<<initial.label<<" "<<final.label<<" ";
+					out<<initial_labels.first<<" "<<initial_labels.second<<" "<<final_labels.second<<" ";
 					for(int j=0;j<NDIM*NDIM;j++) out<<matrix[j]<<" ";
 					for(int j=0;j<NDIM;j++) out<<shift[j]<<" ";
 					out<<std::endl;

@@ -404,10 +404,13 @@ std::function<void(GenericTask&)> unwrap_impl = [this](GenericTask &task) {
 	std::map<int,int> c_map;
 
 	System initial, final;
+	LabelPair initial_labels,final_labels;
 	bool success=true;
 	success=extract("InitialState",task.inputData,initial);
 	success=extract("FinalState",task.inputData,final);
-	success=bool(initial.canonical_label==final.canonical_label);
+	success=extract("InitialLabels",task.inputData,initial_labels);
+	success=extract("FinalLabels",task.inputData,final_labels);
+	success=bool(initial_labels.first==final_labels.first);
 	if(!success) {
 		LOGGERA("FAIL!")
 		insert("Matrix",task.returns,null.matrix);
@@ -423,6 +426,7 @@ std::function<void(GenericTask&)> unwrap_impl = [this](GenericTask &task) {
 			insert("Matrix",task.returns,op.matrix);
 			insert("Shift",task.returns,op.shift);
 			insert("Valid",task.returns,op.valid);
+			return;
 		}
 	} else {
 		insert("Matrix",task.returns,null.matrix);
