@@ -85,10 +85,6 @@ int main(int argc, char * argv[]) {
 		if(found_list) {
 			std::ifstream infile("./Unwrap.list");
 			while(infile>>canon1>>label1>>label2) {
-				if(canon1!=canon2) {
-					LOGGERA("NON-SELF TRANSITION! "<<canon1<<" != "<<canon2<<" SKIPPING")
-					continue;
-				}
 				t.first.first=canon1;
 				t.first.second=label1;
 				t.second.first=canon1;
@@ -122,7 +118,7 @@ int main(int argc, char * argv[]) {
 				while(not handle.probe(label)) {};
 				extract("Labels",label.returns,initial_labels);
 				if(initial_labels!=tran.first) {
-					LOGGERA("COULDN'T MATCH "<<tran.first.first<<" "<<trans.first.second)
+					LOGGERA("COULDN'T MATCH "<<tran.first.first<<" "<<tran.first.second)
 					continue;
 				}
 
@@ -138,7 +134,7 @@ int main(int argc, char * argv[]) {
 				while(not handle.probe(label)) {};
 				extract("Labels",label.returns,final_labels);
 				if(final_labels!=tran.second) {
-					LOGGERA("COULDN'T MATCH "<<tran.second.first<<" "<<trans.second.second)
+					LOGGERA("COULDN'T MATCH "<<tran.second.first<<" "<<tran.second.second)
 					continue;
 				}
 
