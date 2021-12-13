@@ -50,6 +50,7 @@ MDTaskMapper() : AbstractTaskMapper() {
 	AbstractTaskMapper::insert("TASK_INIT_MIN");
 	AbstractTaskMapper::insert("TASK_MODIFY");
 	AbstractTaskMapper::insert("TASK_FILTER_TRANSITION");
+	AbstractTaskMapper::insert("TASK_UNWRAP");
 };
 };
 
