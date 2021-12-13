@@ -114,6 +114,8 @@ MDEngine(boost::property_tree::ptree &config, MPI_Comm localComm_, int seed_) : 
 	BaseEngine::impls["TASK_INIT_MIN"] = MDEngine::init_min_impl; // insert("TASK_INIT_MIN");
 	BaseEngine::impls["TASK_MODIFY"] = MDEngine::modify_impl; // insert("TASK_MODIFY");
 	BaseEngine::impls["TASK_FILTER_TRANSITION"] = MDEngine::filter_transition_impl; // insert("TASK_FILTER_TRANSITION");
+	BaseEngine::impls["TASK_UNWRAP"] = MDEngine::unwrap_impl; // insert("TASK_FILTER_TRANSITION");
+
 };
 
 int defaultFlavor;
@@ -255,8 +257,6 @@ std::function<void(GenericTask&)> symmetry_impl = [this](GenericTask &task) {
 		}
 	}
 
-
-
 	if(candidates.size()==0) return;
 
 	// now go through candidate list
@@ -390,6 +390,48 @@ std::function<void(GenericTask&)> symmetry_impl = [this](GenericTask &task) {
 	}
 	return;
 };
+
+
+std::function<void(GenericTask&)> unwrap_impl = [this](GenericTask &task) {
+	/*
+		- Currently has redundancy with symmetry_impl
+	*/
+	std::unordered_map<std::string,std::string> parameters=\
+		extractParameters(task.type,task.flavor,defaultFlavor,taskParameters);
+
+	PointShiftSymmetry null;
+	std::set<PointShiftSymmetry> ops;
+	std::map<int,int> c_map;
+
+	System initial, final;
+	bool success=true;
+	success=extract("InitialState",task.inputData,initial);
+	success=extract("FinalState",task.inputData,final);
+	success=bool(initial.canonical_label==final.canonical_label);
+	if(!success) {
+		LOGGERA("FAIL!")
+		insert("Matrix",task.returns,null.matrix);
+		insert("Shift",task.returns,null.shift);
+		insert("Valid",task.returns,null.valid);
+		return;
+	}
+	labeler->isomorphicMap(intial,final,c_map); // 2 -> C -> 1
+	ops = find_transforms(intial,final,c_map);
+	if(ops.size()>0) {
+		for(auto op: ops) if(op.valid) {
+			LOGGER("Found!\n"<<op.info_str())
+			insert("Matrix",task.returns,op.matrix);
+			insert("Shift",task.returns,op.shift);
+			insert("Valid",task.returns,op.valid);
+		}
+	} else {
+		insert("Matrix",task.returns,null.matrix);
+		insert("Shift",task.returns,null.shift);
+		insert("Valid",task.returns,null.valid);
+	}
+};
+
+
 
 
 std::function<void(GenericTask&)> file_init_impl = [this](GenericTask &task) {

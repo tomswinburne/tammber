@@ -77,7 +77,7 @@ file(GLOB TAMMBER_CORE_FILES "tammber-core/*")
 set(EXTRA_FLAGS -g -DLAMMPS_EXCEPTIONS -DLAMMPS_LIB_MPI -DISOMORPHIC -DBOOST_BIND_GLOBAL_PLACEHOLDERS)
 set(EXTRA_LINK_FLAGS pthread lammps_mpi)
 
-set(TAMMBER_TARGETS tammber tammber-dbextract tammber-analyze tammber-neb tammber-md)
+set(TAMMBER_TARGETS tammber tammber-dbextract tammber-analyze tammber-neb tammber-md tammber-unwrap)
 # must be subset of TAMMBER_TARGETS
 set(FORCED_VERBOSE_TARGETS tammber-md tammber-neb)
 
@@ -86,6 +86,7 @@ add_executable(tammber-dbextract ${CORE_FILES} ${TAMMBER_CORE_FILES} tammber/dbe
 add_executable(tammber-analyze ${CORE_FILES} ${TAMMBER_CORE_FILES} tammber/analyze.cpp)
 add_executable(tammber-neb ${CORE_FILES} ${TAMMBER_CORE_FILES} tammber/neb.cpp)
 add_executable(tammber-md ${CORE_FILES} ${TAMMBER_CORE_FILES} tammber/md.cpp)
+add_executable(tammber-unwrap ${CORE_FILES} ${TAMMBER_CORE_FILES} tammber/unwrap.cpp)
 
 
 
