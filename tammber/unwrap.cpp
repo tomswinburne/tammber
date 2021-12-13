@@ -67,7 +67,7 @@ int main(int argc, char * argv[]) {
 		label.type=mapper.type("TASK_LABEL");
 		label.flavor=1;
 
-		unwrap.type=mapper.type("TASK_UNWRP");
+		unwrap.type=mapper.type("TASK_UNWRAP");
 		unwrap.flavor=1;
 
 		PersistentLocalStore minimaStore;
