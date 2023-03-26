@@ -14,7 +14,7 @@ where additional sampling effort will maximally increase the time-to-absorbtion 
 
 TAMMBER efficiently scales to 100,000+ cores, though can be profitibly employed on a few hundred. See the publications below for more detail.
 
-Questions / bugs ? Raise a github issue or email swinburne "at" cinam "dot" univ-mrs "dot" fr
+Questions / bugs ? Raise a github issue or email thomas "dot" swinburne "at" cnrs "dot" fr
 
 ##  User Guide
 ### - [Installation Instructions](INSTALL.md)
