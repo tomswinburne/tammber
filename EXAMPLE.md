@@ -442,6 +442,9 @@ Scheme used to allocate workers:
 
 Finally, two extra parameters which can help finish a sampling task.
 
+For testing, we have a `NEBPolicy` to determine if we run MD and NEB, 
+only NEBS, or only MD
+
 As we specify a fixed simulation time, there may be incomplete `NEB` calculations
 at the end of a run, meaning the constructed model is incomplete. There is thus
 an option to execute only `TAMMBER`
@@ -449,8 +452,9 @@ an option to execute only `TAMMBER`
   <!--
   0: Normal operation, MD and NEB
   1: Only complete remaining NEBs
+  2: Only run MD, no NEBS
   -->
-  <OnlyNEBS> 0 </OnlyNEBS>
+  <NEBPolicy> 0 </NEBPolicy>
 ```
 
 During sampling, we can also use dynamical information to estimate

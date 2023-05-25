@@ -101,10 +101,10 @@ AbstractPullWorkProducer(comm_,sharedStore_,children_,config){
 	checkpointDelay=std::chrono::milliseconds( config.get<unsigned>("Configuration.MarkovModel.CheckpointDelay",100000) );
 	initialConfigurationString=config.get<std::string>("Configuration.InitialConfigurations");
 	defaultFlavor=config.get<int>("Configuration.TaskParameters.DefaultFlavor", 0);
-	nebonly = config.get<int>("Configuration.MarkovModel.OnlyNEBS",false);
-  deleteVertex = config.get<uint64_t>("Configuration.MarkovModel.DeleteVertex",0);
-	//nstd::cout<<"NEBONLY: "<<nebonly<<std::endl;
+	neb_policy = config.get<int>("Configuration.MarkovModel.NEBPolicy",0);
 
+  	deleteVertex = config.get<uint64_t>("Configuration.MarkovModel.DeleteVertex",0);
+	
 	// initialConfigurations
 	boost::split(initialConfigurations,initialConfigurationString,boost::is_any_of(" "));
 
@@ -310,10 +310,10 @@ virtual TaskDescriptorBundle generateTasks(int consumerID, int nTasks){
 
 	LOGGER("PullMMbuilder::generateTasks : initialized && batchSize<=nTasks")
 
-
 	std::list<NEBjob> nebs;
-	markovModel.generateNEBs(nebs,nTasks-batchSize);
-	for(auto neb=nebs.begin(); neb!=nebs.end();) {
+	if(neb_policy==0||neb_policy==1) {
+		markovModel.generateNEBs(nebs,nTasks-batchSize);
+		for(auto neb=nebs.begin(); neb!=nebs.end();) {
 		task.type=mapper.type("TASK_NEB");
 
 		task.imposeOrdering=false;
@@ -355,18 +355,17 @@ virtual TaskDescriptorBundle generateTasks(int consumerID, int nTasks){
 		batchSize++;
 		if (batchSize>=nTasks) return tasks;
 	}
-
-	if(nebonly) return tasks;
-
-	//taskQueue.transferTo(tasks,nTasks-batchSize);
-	//batchSize=tasks.count();
+	}
+	if(neb_policy==1) return tasks;
 
 	std::list<TADjob> tads;
+	
 	#ifdef VERBOSE
 	markovModel.generateTADs(tads,nTasks-batchSize,true);
 	#else
 	markovModel.generateTADs(tads,nTasks-batchSize,false);
 	#endif
+	
 	task.type=mapper.type("TASK_SEGMENT");
 	task.imposeOrdering=true;
 	task.optional=true;
@@ -416,12 +415,11 @@ std::vector<std::string> initialConfigurations;
 unsigned long carryOverTime;
 unsigned long jobcount;
 unsigned batchSize;
-int defaultFlavor;
-bool nebonly;
+int defaultFlavor,neb_policy;
 Label deleteVertex;
 std::map< std::pair<int,int>, std::map<std::string,std::string> > taskParameters;
 //std::ofstream outTime;
-bool initialized, OnlyNEBS;
+bool initialized;
 
 
 };

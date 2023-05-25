@@ -99,11 +99,11 @@
   <HashCost> 2 </HashCost>
 
   <!--
-  Only perform NEBS, useful to complete remaining NEBS after a timeout
   0: Normal operation, MD and NEB
   1: Only complete remaining NEBs
+  2: Only run MD, no NEBS
   -->
-  <OnlyNEBS> 0 </OnlyNEBS>
+  <NEBPolicy> 0 </NEBPolicy>
 
   <!-- Only sample in states with ClusterThresh clusters or less. Disabled if ClusterThresh<=0 -->
   <ClusterThresh>0</ClusterThresh>
@@ -115,7 +115,7 @@
   Use dynamic information to estimate the result of pending NEB calulations.
   Experimental feature
   -->
-  <EstimatePendingNEBS>0</EstimatePendingNEBS>
+  <EstimatePendingNEBS>1</EstimatePendingNEBS>
 
   <!--
     If states are considered too shallow (from DephaseThresh),
