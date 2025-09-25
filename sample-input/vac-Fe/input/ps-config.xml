@@ -191,6 +191,7 @@ In above NiAl example we would therefore specify (1,1), (2,2) and (1,2) cutoffs
     pair_coeff * * input/Fe.eam.fs Fe
     neighbor 2.0 bin
     neigh_modify every 1 delay 0 check yes
+    compute pe all pe
     run 0
   </InitScript>
 
@@ -202,7 +203,7 @@ In above NiAl example we would therefore specify (1,1), (2,2) and (1,2) cutoffs
     timestep %Timestep%
 
     fix NVE all nve
-    fix T all langevin %Temperature% %Temperature% %Friction% %RANDU% gjf no
+    fix T all langevin %Temperature% %Temperature% %Friction% %RANDU%
 
     thermo 10
     fix fixcom all recenter INIT INIT INIT

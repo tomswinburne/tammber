@@ -454,7 +454,9 @@ There is thus the following option:
   -->
   <JobProtocol> 0 </JobProtocol>
 ```
-This variable replaces the `OnlyNEBS` parameter. If present, this defaults
+**This variable replaces the `OnlyNEBS` parameter.**
+**If `JobProtocol=2` then you should have `EstimatePendingNEBS=1`**
+
 
 During sampling, we can also use dynamical information to estimate
 the result of pending NEB calculations, which obviously will be overwritten
