@@ -38,6 +38,7 @@ set(CMAKE_CXX_EXTENSIONS ON) #...without compiler extensions like gnu++11
 
 # Find python for testing
 find_package(PythonInterp 2 REQUIRED)
+find_package(OpenMP REQUIRED)
 
 # Boost: Identify components we need to load from Boost and load them
 if(USE_BOOST_LOG)
@@ -74,8 +75,8 @@ link_directories(${CMAKE_LIBRARY_PATH})
 file(GLOB CORE_FILES "core/*")
 file(GLOB TAMMBER_CORE_FILES "tammber-core/*")
 
-set(EXTRA_FLAGS -g -DLAMMPS_EXCEPTIONS -DLAMMPS_LIB_MPI -DISOMORPHIC -DBOOST_BIND_GLOBAL_PLACEHOLDERS)
-set(EXTRA_LINK_FLAGS pthread lammps_mpi)
+set(EXTRA_FLAGS -g -DLAMMPS_EXCEPTIONS -DLAMMPS_LIB_MPI -DISOMORPHIC -DBOOST_BIND_GLOBAL_PLACEHOLDERS -fopenmp)
+set(EXTRA_LINK_FLAGS pthread lammps)
 
 set(TAMMBER_TARGETS tammber tammber-dbextract tammber-analyze tammber-neb tammber-md)
 # must be subset of TAMMBER_TARGETS
@@ -86,8 +87,6 @@ add_executable(tammber-dbextract ${CORE_FILES} ${TAMMBER_CORE_FILES} tammber/dbe
 add_executable(tammber-analyze ${CORE_FILES} ${TAMMBER_CORE_FILES} tammber/analyze.cpp)
 add_executable(tammber-neb ${CORE_FILES} ${TAMMBER_CORE_FILES} tammber/neb.cpp)
 add_executable(tammber-md ${CORE_FILES} ${TAMMBER_CORE_FILES} tammber/md.cpp)
-
-
 
 if(VERBOSE)
 	message("VERBOSE OUTPUT ON FOR ALL TARGETS")
@@ -112,12 +111,13 @@ if(EXTRA_LINK_FLAGS)
 endif()
 
 set(MY_DEPENDENCIES ${CMAKE_THREAD_LIBS_INIT}
-										${LAMMPS_LIBRARIES}
-		    						${DB_LIBRARIES}
-		    						${NAUTY_LIBRARIES}
-		    						${BOOST_LIBRARIES}
-		    						${MPI_CXX_LIBRARIES}
-		    						${EXTRA_LINK_FLAGS}
+			${LAMMPS_LIBRARIES}
+		  	${DB_LIBRARIES}
+		    	${NAUTY_LIBRARIES}
+		    	${BOOST_LIBRARIES}
+		    	${MPI_CXX_LIBRARIES}
+		    	${EXTRA_LINK_FLAGS}
+			OpenMP::OpenMP_CXX					
 )
 
 # add dependencies for all targets
