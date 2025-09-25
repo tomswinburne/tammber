@@ -111,15 +111,20 @@ AbstractPullWorkProducer(comm_,sharedStore_,children_,config){
 	1: Only calculate NEBs (i.e. complete pending requests)
    	2: Only calculate MD (i.e. just stock pending NEBs)
 	*/
-	JobProtocol = static_cast<int>(config.get<int>("Configuration.MarkovModel.JobProtocol", PROTOCOL_NORMAL));
+	JobProtocol = config.get<int>("Configuration.MarkovModel.JobProtocol", -1);
+	// Use OnlyNEBS for backwards compatibility
 	
-	int OnlyNEBS = config.get<int>("Configuration.MarkovModel.OnlyNEBS", -1);
-	if(OnlyNEBS>=0) {
-		LOGGERA("WARNING: Configuration.MarkovModel.OnlyNEBS is deprecated, please use Configuration.MarkovModel.JobProtocol")
-		if(OnlyNEBS==0) JobProtocol=PROTOCOL_NORMAL;
-		else JobProtocol=PROTOCOL_ONLY_NEB;
+	// If both are given, use JobProtocol
+	if(JobProtocol<0) JobProtocol = config.get<int>("Configuration.MarkovModel.OnlyNEBS", -1);
+	
+	// Warn if OnlyNEBS is used
+	if(JobProtocol>=0) {
+		LOGGERA("WARNING:OnlyNEBS is deprecated, please use JobProtocol")
+	} else {
+		LOGGERA("WARNING:JobProtocol must be in 0,1,2; reverting to 0")
+		JobProtocol=0;
 	}
-
+	
 	// remove vertex (experimental feature)	
 	deleteVertex = config.get<uint64_t>("Configuration.MarkovModel.DeleteVertex", 0);
 
@@ -444,7 +449,7 @@ unsigned long carryOverTime;
 unsigned long jobcount;
 unsigned batchSize;
 int defaultFlavor;
-enum JobProtocolState JobProtocol;
+int JobProtocol;
 Label deleteVertex;
 std::map< std::pair<int,int>, std::map<std::string,std::string> > taskParameters;
 bool initialized;
