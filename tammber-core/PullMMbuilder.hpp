@@ -329,7 +329,7 @@ virtual TaskDescriptorBundle generateTasks(int consumerID, int nTasks){
 
 
 	// unless we are only doing MD, generate some NEBs
-	if (JobProtocol!=PROTOCOL_ONLY_MD) {
+	if (JobProtocol != 2) {
 		LOGGER("PullMMbuilder::generateTasks : GENERATING NEBS")
 		std::list<NEBjob> nebs;
 		markovModel.generateNEBs(nebs,nTasks-batchSize);
@@ -380,7 +380,7 @@ virtual TaskDescriptorBundle generateTasks(int consumerID, int nTasks){
 	}
 
 	// unless we are only doing NEBs, generate some MD segments
-	if (AllowedJobs!=PROTOCOL_ONLY_NEB) {
+	if (AllowedJobs != 1) {
 		LOGGER("PullMMbuilder::generateTasks : GENERATING MD SEGMENTS")
 		std::list<TADjob> tads;
 		
