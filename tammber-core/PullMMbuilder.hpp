@@ -75,12 +75,6 @@
 #include "PullWorkProducer.hpp"
 #include "Log.hpp"
 
-enum JobProtocolState {
-  PROTOCOL_NORMAL = 0,
-  PROTOCOL_ONLY_NEB = 1,
-  PROTOCOL_ONLY_MD = 2 
-}; 
-
 class TammberModelBuilder : public AbstractPullWorkProducer {
 public:
 TammberModelBuilder(MPI_Comm comm_,AbstractDDS *sharedStore_, std::set<int> children_, boost::property_tree::ptree &config) :
