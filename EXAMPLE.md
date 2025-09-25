@@ -443,15 +443,18 @@ Scheme used to allocate workers:
 Finally, two extra parameters which can help finish a sampling task.
 
 As we specify a fixed simulation time, there may be incomplete `NEB` calculations
-at the end of a run, meaning the constructed model is incomplete. There is thus
-an option to execute only `TAMMBER`
+at the end of a run, meaning the constructed model is incomplete. Alternatively, 
+we may wish to only perform MD and decide which NEBs to perform later. 
+There is thus the following option:
 ```xml
   <!--
-  0: Normal operation, MD and NEB
-  1: Only complete remaining NEBs
+   0: Normal operation, calculate MDs and NEBs when requested
+   1: Only calculate NEBs (i.e. complete pending requests)
+   2: Only calculate MD (i.e. just stock pending NEBs)
   -->
-  <OnlyNEBS> 0 </OnlyNEBS>
+  <JobProtocol> 0 </JobProtocol>
 ```
+This variable replaces the `OnlyNEBS` parameter. If present, this defaults
 
 During sampling, we can also use dynamical information to estimate
 the result of pending NEB calculations, which obviously will be overwritten

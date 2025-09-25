@@ -75,6 +75,11 @@
 #include "PullWorkProducer.hpp"
 #include "Log.hpp"
 
+enum JobProtocolState {
+  PROTOCOL_NORMAL = 0,
+  PROTOCOL_ONLY_NEB = 1,
+  PROTOCOL_ONLY_MD = 2 
+}; 
 
 class TammberModelBuilder : public AbstractPullWorkProducer {
 public:
@@ -94,22 +99,35 @@ AbstractPullWorkProducer(comm_,sharedStore_,children_,config){
 		ia >> *this;
 	}
 
-	//initialize from config data
-	//batchSize=config.get<unsigned>("Configuration.MarkovModel.PredictionSize",nWorkers_);
+	// Initialize from config data
 	maxTaskMesgSize=config.get<int>("Configuration.MaximumTaskMesgSize",1000000);
 	reportDelay=std::chrono::milliseconds( config.get<unsigned>("Configuration.MarkovModel.ReportDelay",10000) );
-	checkpointDelay=std::chrono::milliseconds( config.get<unsigned>("Configuration.MarkovModel.CheckpointDelay",100000) );
-	initialConfigurationString=config.get<std::string>("Configuration.InitialConfigurations");
-	defaultFlavor=config.get<int>("Configuration.TaskParameters.DefaultFlavor", 0);
-	nebonly = config.get<int>("Configuration.MarkovModel.OnlyNEBS",false);
-  deleteVertex = config.get<uint64_t>("Configuration.MarkovModel.DeleteVertex",0);
-	//nstd::cout<<"NEBONLY: "<<nebonly<<std::endl;
+	checkpointDelay = std::chrono::milliseconds(config.get<unsigned>("Configuration.MarkovModel.CheckpointDelay", 100000));
+	initialConfigurationString = config.get<std::string>("Configuration.InitialConfigurations");
+	defaultFlavor = config.get<int>("Configuration.TaskParameters.DefaultFlavor", 0);
+	
+	/* 
+	0: Normal operation, calculate MDs and NEBs when requested
+	1: Only calculate NEBs (i.e. complete pending requests)
+   	2: Only calculate MD (i.e. just stock pending NEBs)
+	*/
+	JobProtocol = static_cast<int>(config.get<int>("Configuration.MarkovModel.JobProtocol", PROTOCOL_NORMAL));
+	
+	int OnlyNEBS = config.get<int>("Configuration.MarkovModel.OnlyNEBS", -1);
+	if(OnlyNEBS>=0) {
+		LOGGERA("WARNING: Configuration.MarkovModel.OnlyNEBS is deprecated, please use Configuration.MarkovModel.JobProtocol")
+		if(OnlyNEBS==0) JobProtocol=PROTOCOL_NORMAL;
+		else JobProtocol=PROTOCOL_ONLY_NEB;
+	}
+
+	// remove vertex (experimental feature)	
+	deleteVertex = config.get<uint64_t>("Configuration.MarkovModel.DeleteVertex", 0);
 
 	// initialConfigurations
-	boost::split(initialConfigurations,initialConfigurationString,boost::is_any_of(" "));
+	boost::split(initialConfigurations, initialConfigurationString, boost::is_any_of(" "));
 
 	// initialize the model
-	markovModel.initialize(config,rs);
+	markovModel.initialize(config, rs);
 };
 
 
@@ -311,96 +329,105 @@ virtual TaskDescriptorBundle generateTasks(int consumerID, int nTasks){
 	LOGGER("PullMMbuilder::generateTasks : initialized && batchSize<=nTasks")
 
 
-	std::list<NEBjob> nebs;
-	markovModel.generateNEBs(nebs,nTasks-batchSize);
-	for(auto neb=nebs.begin(); neb!=nebs.end();) {
-		task.type=mapper.type("TASK_NEB");
+	// unless we are only doing MD, generate some NEBs
+	if (JobProtocol!=PROTOCOL_ONLY_MD) {
+		LOGGER("PullMMbuilder::generateTasks : GENERATING NEBS")
+		std::list<NEBjob> nebs;
+		markovModel.generateNEBs(nebs,nTasks-batchSize);
+		for(auto neb=nebs.begin(); neb!=nebs.end();) {
+			task.type=mapper.type("TASK_NEB");
 
-		task.imposeOrdering=false;
-		task.optional=false;
+			task.imposeOrdering=false;
+			task.optional=false;
 
-		task.clearInputs();
-		task.nInstances=1;
-		task.producer=0;
-		task.id=jobcount++;
-		task.flavor=defaultFlavor;
+			task.clearInputs();
+			task.nInstances=1;
+			task.producer=0;
+			task.id=jobcount++;
+			task.flavor=defaultFlavor;
 
-		NEBPathway pathway;
-		pathway.InitialLabels = neb->TargetTransition.first;
-		pathway.FinalLabels = neb->TargetTransition.second;
-		pathway.pairmap=false;
-		pathway.InitialSymmetries = neb->InitialSymmetries;
-		pathway.FinalSymmetries = neb->FinalSymmetries;
+			NEBPathway pathway;
+			pathway.InitialLabels = neb->TargetTransition.first;
+			pathway.FinalLabels = neb->TargetTransition.second;
+			pathway.pairmap=false;
+			pathway.InitialSymmetries = neb->InitialSymmetries;
+			pathway.FinalSymmetries = neb->FinalSymmetries;
 
-		LOGGER("PullMMbuilder::generateTasks : SUBMITTING PATHWAY FOR NEB "<<pathway.submit_info_str())
-		if(neb->ExistingPairs.size()>0) {
-			LOGGER("ExistingPairs: \n")
-			for (auto epl: neb->ExistingPairs)
-				LOGGER(neb->TargetTransition.first.first<<","<<epl.first<<" -> "<<neb->TargetTransition.second.first<<","<<epl.second<<"\n")
+			LOGGER("PullMMbuilder::generateTasks : SUBMITTING PATHWAY FOR NEB "<<pathway.submit_info_str())
+			if(neb->ExistingPairs.size()>0) {
+				LOGGER("ExistingPairs: \n")
+				for (auto epl: neb->ExistingPairs)
+					LOGGER(neb->TargetTransition.first.first<<","<<epl.first<<" -> "<<neb->TargetTransition.second.first<<","<<epl.second<<"\n")
+			}
+
+			insert("Initial",neb->TargetTransition.first.second,LOCATION_SYSTEM_MIN,true,NECESSITY::REQUIRED,task.inputData);
+			insert("Final",neb->TargetTransition.second.second,LOCATION_SYSTEM_MIN,true,NECESSITY::REQUIRED,task.inputData);
+
+			for(auto epl: neb->ExistingPairs) {
+				insert("ExistingPairs",epl.first,LOCATION_SYSTEM_MIN,true,NECESSITY::REQUIRED,task.inputData);
+				insert("ExistingPairs",epl.second,LOCATION_SYSTEM_MIN,true,NECESSITY::REQUIRED,task.inputData);
+				pathway.compared_transitions.push_back(epl);
+			}
+
+			insert("NEBPathway",task.arguments,pathway);
+
+			tasks.insert(task);
+			neb = nebs.erase(neb);
+			batchSize++;
+			if (batchSize>=nTasks) return tasks;
 		}
-
-		insert("Initial",neb->TargetTransition.first.second,LOCATION_SYSTEM_MIN,true,NECESSITY::REQUIRED,task.inputData);
-		insert("Final",neb->TargetTransition.second.second,LOCATION_SYSTEM_MIN,true,NECESSITY::REQUIRED,task.inputData);
-
-		for(auto epl: neb->ExistingPairs) {
-			insert("ExistingPairs",epl.first,LOCATION_SYSTEM_MIN,true,NECESSITY::REQUIRED,task.inputData);
-			insert("ExistingPairs",epl.second,LOCATION_SYSTEM_MIN,true,NECESSITY::REQUIRED,task.inputData);
-			pathway.compared_transitions.push_back(epl);
-		}
-
-		insert("NEBPathway",task.arguments,pathway);
-
-		tasks.insert(task);
-		neb = nebs.erase(neb);
-		batchSize++;
-		if (batchSize>=nTasks) return tasks;
+	} else {
+		LOGGER("PullMMbuilder::generateTasks : SKIPPING NEBS")
 	}
 
-	if(nebonly) return tasks;
+	// unless we are only doing NEBs, generate some MD segments
+	if (AllowedJobs!=PROTOCOL_ONLY_NEB) {
+		LOGGER("PullMMbuilder::generateTasks : GENERATING MD SEGMENTS")
+		std::list<TADjob> tads;
+		
+		#ifdef VERBOSE
+		markovModel.generateTADs(tads,nTasks-batchSize,true);
+		#else
+		markovModel.generateTADs(tads,nTasks-batchSize,false);
+		#endif
+		
+		task.type=mapper.type("TASK_SEGMENT");
+		task.imposeOrdering=true;
+		task.optional=true;
 
-	//taskQueue.transferTo(tasks,nTasks-batchSize);
-	//batchSize=tasks.count();
+		for(auto tad=tads.begin(); tad!=tads.end();) {
+			task.clearInputs();
+			task.nInstances=tad->nInstances;
+			task.producer=0;
+			task.id=jobcount++;
+			task.flavor=defaultFlavor;
 
-	std::list<TADjob> tads;
-	#ifdef VERBOSE
-	markovModel.generateTADs(tads,nTasks-batchSize,true);
-	#else
-	markovModel.generateTADs(tads,nTasks-batchSize,false);
-	#endif
-	task.type=mapper.type("TASK_SEGMENT");
-	task.imposeOrdering=true;
-	task.optional=true;
+			TADSegment segment;
+			segment.InitialLabels = tad->InitialLabels;
+			segment.temperature = tad->temperature;
+			for(auto bl: tad->BasinLabels) segment.BasinLabels.insert(bl);
 
-	for(auto tad=tads.begin(); tad!=tads.end();) {
-		task.clearInputs();
-		task.nInstances=tad->nInstances;
-		task.producer=0;
-		task.id=jobcount++;
-		task.flavor=defaultFlavor;
+			LOGGER("PullMMbuilder::generateTasks : SUBMITTING SEGMENT "<<segment.submit_info_str())
+			bool ProductionRun=true; // not debug run
+			insert("ProductionRun",task.arguments,ProductionRun);
 
-		TADSegment segment;
-		segment.InitialLabels = tad->InitialLabels;
-		segment.temperature = tad->temperature;
-		for(auto bl: tad->BasinLabels) segment.BasinLabels.insert(bl);
+			insert("TADSegment",task.arguments,segment);
+			insert("Minimum",tad->InitialLabels.second,LOCATION_SYSTEM_MIN,true,NECESSITY::REQUIRED,task.inputData);
+			std::string qsdstr = "QSD"+std::to_string(int(tad->temperature));
+			insert(qsdstr,tad->InitialLabels.second,task.flavor,false,NECESSITY::OPTIONAL,task.inputData);
 
-		LOGGER("PullMMbuilder::generateTasks : SUBMITTING SEGMENT "<<segment.submit_info_str())
-		bool ProductionRun=true; // not debug run
-		insert("ProductionRun",task.arguments,ProductionRun);
+			LOGGER("PullMMbuilder::generateTasks : ADDING "<<task.nInstances<<" OF TASK "<<mapper.type(task.type)<<" "<<task.type)
 
-		insert("TADSegment",task.arguments,segment);
-		insert("Minimum",tad->InitialLabels.second,LOCATION_SYSTEM_MIN,true,NECESSITY::REQUIRED,task.inputData);
-		std::string qsdstr = "QSD"+std::to_string(int(tad->temperature));
-		insert(qsdstr,tad->InitialLabels.second,task.flavor,false,NECESSITY::OPTIONAL,task.inputData);
-
-		LOGGER("PullMMbuilder::generateTasks : ADDING "<<task.nInstances<<" OF TASK "<<mapper.type(task.type)<<" "<<task.type)
-
-		tasks.insert(task);
-		tad = tads.erase(tad);
-		batchSize += task.nInstances;
-		if (batchSize>=nTasks) return tasks;
+			tasks.insert(task);
+			tad = tads.erase(tad);
+			batchSize += task.nInstances;
+			if (batchSize>=nTasks) return tasks;
+		}
+		LOGGER("PullMMbuilder::generateTasks : SPLICER TQ: "<<taskQueue.count())
+	} else {
+		LOGGER("PullMMbuilder::generateTasks : SKIPPING MD SEGMENTS")
 	}
-	LOGGER("PullMMbuilder::generateTasks : SPLICER TQ: "<<taskQueue.count())
-
+	LOGGER("PullMMbuilder::generateTasks : RETURNING "<<tasks.count()<<" TASKS"
 	return tasks;
 
 };
@@ -417,12 +444,10 @@ unsigned long carryOverTime;
 unsigned long jobcount;
 unsigned batchSize;
 int defaultFlavor;
-bool nebonly;
+enum JobProtocolState JobProtocol;
 Label deleteVertex;
 std::map< std::pair<int,int>, std::map<std::string,std::string> > taskParameters;
-//std::ofstream outTime;
-bool initialized, OnlyNEBS;
-
+bool initialized;
 
 };
 

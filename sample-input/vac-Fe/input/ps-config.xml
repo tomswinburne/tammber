@@ -99,11 +99,11 @@
   <HashCost> 2 </HashCost>
 
   <!--
-  Only perform NEBS, useful to complete remaining NEBS after a timeout
-  0: Normal operation, MD and NEB
-  1: Only complete remaining NEBs
+   0: Normal operation, calculate MDs and NEBs when requested
+   1: Only calculate NEBs (i.e. complete pending requests)
+   2: Only calculate MD (i.e. just stock pending NEBs)
   -->
-  <OnlyNEBS> 0 </OnlyNEBS>
+  <JobProtocol> 0 </JobProtocol>
 
   <!-- Only sample in states with ClusterThresh clusters or less. Disabled if ClusterThresh<=0 -->
   <ClusterThresh>0</ClusterThresh>

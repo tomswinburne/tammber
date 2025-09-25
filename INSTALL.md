@@ -2,6 +2,24 @@
 
 The following closely follows the ParSplice [wiki](https://gitlab.com/exaalt/parsplice/-/wikis/building-parsplice).
 
+Hints and tips:
+- On HPC clusters, look for modules first
+- Always use the same version of compiler/library to build each code!
+
+
+
+## Table of Contents
+
+- [Requirements](#requirements)
+- [Prepare environment](#prepare-environment)
+- [Dependencies](#dependencies)
+	- [Boost](#boost)
+	- [Eigen](#eigen)
+	- [Nauty](#nauty)
+	- [LAMMPS](#lammps)
+- [TAMMBER](#tammber)
+
+
 ## Requirements
 
 - Compiler with full C++11 support
@@ -12,9 +30,7 @@ The following closely follows the ParSplice [wiki](https://gitlab.com/exaalt/par
 This is particularly relevant when using precompiled libraries (e.g. `module load`)
 
 
-## Dependencies
-
-### Prepare environment
+## Prepare environment
 
 - Set `PREFIX`, where dependencies will be installed, e.g. `${HOME}/.local`
 	```bash
@@ -28,12 +44,15 @@ This is particularly relevant when using precompiled libraries (e.g. `module loa
 	mkdir ${PREFIX}/include
 	```
 
+## Quick fix for local testing on linux
 - For testing on local machines it is possible to install dependencies apart from `LAMMPS` as packages, e.g. Ubuntu-
 	```bash
 	sudo apt install libboost-all-dev libeigen3-dev libnauty-dev
 	```
 	In general, users should follow the instructions below.
 
+
+## Dependencies
 
 ### Boost:
 
@@ -133,6 +152,53 @@ git clone https://github.com/lammps/lammps.git
 ```
 or replace `src/library.*` in your `LAMMPS` distribution
 
+
+#### CMake (Recommended: see below for traditional make)
+- Configure the `LAMMPS_CMakeOptions.cmake` file to specify packages
+- Compile and install
+```bash
+	cd /path/to/lammps
+	mkdir build
+	cd build
+	cmake -C /path/to/tammber/LAMMPS_CMakeOptions.cmake ../cmake
+	make -j4
+	cp liblammps_mpi.a ${PREFIX}/lib
+	mkdir ${PREFIX}/include/lammps
+	cp *.h  ${PREFIX}/include/lammps/
+```
+where `-j4` will parallelize over 4 processors/threads. 
+
+## TAMMBER
+- Build binaries with `cmake` then `make`:
+	```bash
+	mkdir build
+	cd build
+	echo ${PREFIX} # make sure PREFIX is in the environment!
+	cmake ../
+	make -j4
+	```
+	where `-j4` will parallelize over 4 processors/threads. If this fails, check the values of `CMAKE_CXX_COMPILER` and `CMAKE_C_COMPILER` to ensure they correspond to the same as that used to compile the dependencies. Good luck!
+
+
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+-------------------------------
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+
+
+
+### Traditional Make for LAMMPS
 - Configure the `LAMMPS` build :
 	```bash
 	cd /path/to/lammps/src
@@ -159,14 +225,3 @@ or replace `src/library.*` in your `LAMMPS` distribution
 	cp *.h  ${PREFIX}/include/lammps/
 	```
 	where `-j4` will parallelize over 4 processors/threads
-
-## TAMMBER
-- Build binaries with `cmake` then `make`:
-	```bash
-	mkdir build
-	cd build
-	echo ${PREFIX} # make sure PREFIX is in the environment!
-	cmake ../
-	make -j4
-	```
-	where `-j4` will parallelize over 4 processors/threads. If this fails, check the values of `CMAKE_CXX_COMPILER` and `CMAKE_C_COMPILER` to ensure they correspond to the same as that used to compile the dependencies. Good luck!
