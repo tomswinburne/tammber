@@ -286,7 +286,7 @@ double StateVertex::state_time(double targetT) {
 		iT = 1.0/rit->first; // new iT
 	}
 	time *= exp( (log(std::max(time,1.0))+LOG_NU_MIN) * (1.0-targetT*iT) );
-	if(boost::math::isnan(time)) time=1.0;
+	if(std::isnan(time)) time=1.0;
 	return time;
 };
 
@@ -1074,38 +1074,38 @@ void TammberModel::calculate_rates(SymmLabelPair el, Rate &kf, Rate &kb) {
 			tau_term = 0.0;
 			for(auto &et: isp->second.elapsedTime) {
 				ttau_term = et.second * exp(-std::min(dE.first,MAX_BARRIER)/BOLTZ/double(et.first));
-				if(!boost::math::isnan(ttau_term)) tau_term += ttau_term;
+				if(!std::isnan(ttau_term)) tau_term += ttau_term;
 			}
 
 			tau_term = 1.0 - tau_term*conn.second.priornu.first/ prefactorCountThresh;
 			N_term = 4.0*conn.second.counts.first/prefactorCountThresh;
 			conn.second.nu.first = 0.5 * (tau_term + sqrt(tau_term*tau_term + N_term));
-			if(boost::math::isnan(conn.second.nu.first)|| conn.second.nu.first<1.0e-4)
+			if(std::isnan(conn.second.nu.first)|| conn.second.nu.first<1.0e-4)
 				conn.second.nu.first = PRIOR_NU;
 
 			// backwards
 			tau_term = 0.0;
 			for(auto &et: fsp->second.elapsedTime){
 				ttau_term = et.second * exp(-std::min(dE.second,MAX_BARRIER)/BOLTZ/double(et.first));
-				if(!boost::math::isnan(ttau_term)) tau_term += ttau_term;
+				if(!std::isnan(ttau_term)) tau_term += ttau_term;
 			}
 			tau_term = 1.0 - tau_term * conn.second.priornu.second / prefactorCountThresh;
 			N_term = 4.0 * conn.second.counts.second / prefactorCountThresh;
 			conn.second.nu.second = 0.5 * (tau_term + sqrt(tau_term*tau_term + N_term));
-			if(boost::math::isnan(conn.second.nu.second) || conn.second.nu.second<1.0e-4)
+			if(std::isnan(conn.second.nu.second) || conn.second.nu.second<1.0e-4)
 				conn.second.nu.second = PRIOR_NU;
 
 		} else {	// Symmetric
 			tau_term = 0.0;
 			for(auto &et: isp->second.elapsedTime) {
 				ttau_term = et.second * exp(-std::min(dE.first,MAX_BARRIER)/BOLTZ/double(et.first));
-				if(!boost::math::isnan(ttau_term)) tau_term += ttau_term;
+				if(!std::isnan(ttau_term)) tau_term += ttau_term;
 			}
 			tau_term = 1.0 - tau_term*conn.second.priornu.first/ prefactorCountThresh;
 			N_term = 4.0*conn.second.counts.first/prefactorCountThresh;
 			N_term += 4.0*conn.second.counts.second/prefactorCountThresh;
 			conn.second.nu.first = 0.5 * (tau_term + sqrt(tau_term*tau_term + N_term));
-			if(boost::math::isnan(conn.second.nu.first)|| conn.second.nu.first<1.0e-9)
+			if(std::isnan(conn.second.nu.first)|| conn.second.nu.first<1.0e-9)
 				conn.second.nu.first = PRIOR_NU;
 			conn.second.nu.second = conn.second.nu.first;
 		}
@@ -1114,28 +1114,28 @@ void TammberModel::calculate_rates(SymmLabelPair el, Rate &kf, Rate &kb) {
 		LOGGER("BARRIERS: "<<dE.first<<" "<<dE.second)
 
 		tk = conn.second.nu.first * exp(-std::min(dE.first,MAX_BARRIER)/BOLTZ/targetT);
-		if(boost::math::isnan(tk)) {
+		if(std::isnan(tk)) {
 			LOGGER("Rate calculation returns NaN, most likely due to unconverged NEB. Replacing with 0.5eV")
 			tk = 10.0 * exp(-0.5/BOLTZ/targetT);
 		}
 		kfp->target_k_fp.first += tk;
 
 		fpt = conn.second.fpt.first * exp(std::min(dE.first,MAX_BARRIER)/BOLTZ*(1.0/targetT-1.0/conn.second.fpT.first));
-		if(boost::math::isnan(fpt)) {
+		if(std::isnan(fpt)) {
 			LOGGER("FPT returns NaN. Replacing with 1/rate")
 			fpt = 1.0 / tk;
 		}
 		if(kfp->target_k_fp.second<0.0 || kfp->target_k_fp.second>fpt) kfp->target_k_fp.second = fpt;
 
 		tk = conn.second.nu.second * exp(-std::min(dE.second,MAX_BARRIER)/BOLTZ/targetT);
-		if(boost::math::isnan(tk)) {
+		if(std::isnan(tk)) {
 			LOGGER("Rate calculation returns NaN, most likely due to unconverged NEB. Replacing with 0.5eV")
 			tk = 10.0 * exp(-0.5/BOLTZ/targetT);
 		}
 
 		kbp->target_k_fp.first += tk;
 		fpt = conn.second.fpt.second * exp(std::min(dE.second,MAX_BARRIER)/BOLTZ*(1.0/targetT-1.0/conn.second.fpT.second));
-		if(boost::math::isnan(fpt)) {
+		if(std::isnan(fpt)) {
 			LOGGER("FPT returns NaN. Replacing with 1/rate")
 			fpt = 1.0 / tk;
 		}
@@ -1143,19 +1143,19 @@ void TammberModel::calculate_rates(SymmLabelPair el, Rate &kf, Rate &kb) {
 
 		for(size_t ti=0;ti<tadT.size();ti++) {
 			tk = conn.second.nu.first * exp(-std::min(dE.first,MAX_BARRIER)/BOLTZ/tadT[ti]);
-			if(boost::math::isnan(tk)) tk = 10.0 * exp(-0.5/BOLTZ/tadT[ti]);
+			if(std::isnan(tk)) tk = 10.0 * exp(-0.5/BOLTZ/tadT[ti]);
 			kfp->tad_k_fp[ti].first += tk;
 
 			fpt = conn.second.fpt.first * exp(std::min(dE.first,MAX_BARRIER)/BOLTZ*(1.0/tadT[ti]-1.0/conn.second.fpT.first));
-			if(boost::math::isnan(fpt))	fpt = 1.0 / tk;
+			if(std::isnan(fpt))	fpt = 1.0 / tk;
 			if(kfp->tad_k_fp[ti].second<0.0 || kfp->tad_k_fp[ti].second>fpt) kfp->tad_k_fp[ti].second = fpt;
 
 
 			tk = conn.second.nu.second * exp(-std::min(dE.second,MAX_BARRIER)/BOLTZ/tadT[ti]);
-			if(boost::math::isnan(tk)) tk = 10.0 * exp(-0.5/BOLTZ/tadT[ti]);
+			if(std::isnan(tk)) tk = 10.0 * exp(-0.5/BOLTZ/tadT[ti]);
 			kbp->tad_k_fp[ti].first += tk;
 			fpt = conn.second.fpt.second * exp(std::min(dE.second,MAX_BARRIER)/BOLTZ*(1.0/tadT[ti]-1.0/conn.second.fpT.second));
-			if(boost::math::isnan(fpt))	fpt = 1.0 / tk;
+			if(std::isnan(fpt))	fpt = 1.0 / tk;
 			if(kbp->tad_k_fp[ti].second<0.0 || kbp->tad_k_fp[ti].second>fpt) kbp->tad_k_fp[ti].second = fpt;
 		} // tadT
 	} // connections
@@ -1388,7 +1388,7 @@ void TammberModel::unknown_rate(Label lab, UnknownRate &ku) {
 			TAD_gradient *= exp(- (TAD_ku_kt[ii].first + TAD_ku_kt[ii].second) );
 
 			// error catching (typically float overflow)
-			if(boost::math::isnan(TAD_gradient)) {
+			if(std::isnan(TAD_gradient)) {
 				TAD_gradient = 1.0/v->target_state_time/v->target_state_time;
 				LOGGER("Cost return is NaN! state,time,T = "<<lab<<", "<<v->target_state_time<<", "<<tadT[ii]<<" new kc:"<<TAD_gradient)
 			}
@@ -1489,7 +1489,7 @@ void TammberModel::bayes_ku_kuvar(std::vector<std::pair<double,double>> &k_fp,do
 		kuvar = 1.0/_time/_time;
 	}
 
-	if(boost::math::isnan(ku) || boost::math::isnan(kuvar)) {
+	if(std::isnan(ku) || std::isnan(kuvar)) {
 		ku = 1.0/_time;
 		kuvar = 1.0/_time/_time;
 	}

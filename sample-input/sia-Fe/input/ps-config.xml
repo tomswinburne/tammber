@@ -103,7 +103,7 @@
    1: Only calculate NEBs (i.e. complete pending requests)
    2: Only calculate MD (i.e. just stock pending NEBs)
   -->
-  <AllowedJobs> 0 </AllowedJobs>
+  <JobProtocol> 0 </JobProtocol>
 
   <!-- Only sample in states with ClusterThresh clusters or less. Disabled if ClusterThresh<=0 -->
   <ClusterThresh>0</ClusterThresh>
