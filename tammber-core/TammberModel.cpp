@@ -395,12 +395,7 @@ void TammberModel::initialize(boost::property_tree::ptree &config,bool restart){
 	prefactorCountThresh = config.get<double>("Configuration.MarkovModel.PrefactorCountThresh",2.0);
 
 	// Only if specified in input file. Experimental feature
-	int JobProtocol = config.get<int>("Configuration.MarkovModel.JobProtocol",0);
 	sim_conn = config.get<bool>("Configuration.MarkovModel.EstimatePendingNEBS",false);
-	if(JobProtocol==2) {
-		sim_conn = true; // only do MD
-		LOGGER("TammberModel::initialize : JobProtocol=2, only doing MD => setting EstimatePendingNEBS=True")
-	}
 	pNEB_Prior = config.get<double>("Configuration.MarkovModel.PendingNEBSPrior",1.0);
 
 	// include "dead" saddles, produced by erroneous high temperature minimization
