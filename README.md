@@ -1,4 +1,8 @@
 # TAMMBER
+
+**Coming 2026: an ASE/Python implementation of TAMMBER using [executorlib](https://github.com/pyiron/executorlib). Watch this space!**
+
+
 ### Temperature Accelerated Markov Model construction with Bayesian Estimation of Rates
 TAMMBER is a heavily modified variant of the [ParSplice](https://gitlab.com/exaalt/parsplice.git) code (see below).
 
